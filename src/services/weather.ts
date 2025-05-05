@@ -1,4 +1,5 @@
 
+
 import type { UserSettings } from '@/types/settings'; // Import UserSettings if needed for API calls
 
 /**
@@ -46,7 +47,15 @@ export interface WeatherForecast {
    * Minimum temperature for the day (optional).
    */
   tempMin?: number;
-   // Add other relevant fields from the API if needed, e.g., sunrise/sunset times, hourly data.
+  /**
+   * Sunrise time as an ISO 8601 string (optional).
+   */
+  sunrise?: string;
+  /**
+   * Sunset time as an ISO 8601 string (optional).
+   */
+  sunset?: string;
+   // Add other relevant fields from the API if needed, e.g., hourly data.
 }
 
 
@@ -106,7 +115,9 @@ export async function getWeatherForecast(
     'temperature_2m_max',
     'temperature_2m_min',
     'cloud_cover_mean',
-    // Add 'sunrise', 'sunset', 'precipitation_sum' if needed later
+    'sunrise',
+    'sunset',
+    // Add 'precipitation_sum' if needed later
   ];
 
   const url = `${WEATHER_API_URL}?latitude=${location.lat}&longitude=${location.lng}&daily=${dailyVariables.join(',')}&timezone=auto&forecast_days=${requestDays}`;
@@ -132,12 +143,17 @@ export async function getWeatherForecast(
     const weatherCodeArray = data.daily.weather_code as number[];
     const tempMaxArray = data.daily.temperature_2m_max as number[];
     const tempMinArray = data.daily.temperature_2m_min as number[];
+    const sunriseArray = data.daily.sunrise as string[];
+    const sunsetArray = data.daily.sunset as string[];
+
 
     if (
       !cloudCoverArray || timeArray.length !== cloudCoverArray.length ||
       !weatherCodeArray || timeArray.length !== weatherCodeArray.length ||
       !tempMaxArray || timeArray.length !== tempMaxArray.length ||
-      !tempMinArray || timeArray.length !== tempMinArray.length
+      !tempMinArray || timeArray.length !== tempMinArray.length ||
+      !sunriseArray || timeArray.length !== sunriseArray.length ||
+      !sunsetArray || timeArray.length !== sunsetArray.length
      ) {
         throw new Error(`Inconsistent array lengths in weather data from ${source}.`);
     }
@@ -155,6 +171,8 @@ export async function getWeatherForecast(
         weatherCondition: classifyWeatherCondition(weatherCodeArray[i]),
         tempMax: tempMaxArray[i], // Max temp
         tempMin: tempMinArray[i], // Min temp
+        sunrise: sunriseArray[i], // Sunrise ISO string
+        sunset: sunsetArray[i],   // Sunset ISO string
       });
     }
 
@@ -177,3 +195,4 @@ export async function getWeatherForecast(
     }
   }
 }
+

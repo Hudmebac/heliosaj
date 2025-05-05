@@ -1,4 +1,5 @@
 
+
 'use client'; // Mark as client component to use hooks
 
 import React, {useState, useEffect, useMemo} from 'react';
@@ -7,12 +8,13 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import type { WeatherForecast, WeatherCondition, Location } from '@/services/weather';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets, RefreshCw} from 'lucide-react'; // Import weather icons & RefreshCw
+import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets, RefreshCw, Sunrise, Sunset, Thermometer} from 'lucide-react'; // Import weather icons & RefreshCw, Sunrise, Sunset, Thermometer
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip} from 'recharts';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the hook
 import { Button } from '@/components/ui/button'; // Import Button
+import { format, parseISO } from 'date-fns'; // Import date-fns for formatting
 
 const DEFAULT_LOCATION: Location = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
@@ -35,6 +37,20 @@ const getWeatherIcon = (condition: WeatherCondition | undefined) => {
     case 'stormy': return <CloudLightning className="w-6 h-6 text-purple-600" />;
     default: return <Droplets className="w-6 h-6 text-muted-foreground" />; // Default icon for unknown conditions
   }
+};
+
+/**
+ * Formats an ISO date string to HH:mm time.
+ * Returns 'N/A' if the date is invalid.
+ */
+const formatTime = (isoString: string | undefined): string => {
+    if (!isoString) return 'N/A';
+    try {
+        return format(parseISO(isoString), 'HH:mm');
+    } catch (e) {
+        console.error("Error formatting time:", e);
+        return 'N/A';
+    }
 };
 
 export default function HomePage() {
@@ -99,14 +115,21 @@ export default function HomePage() {
      try {
        const weeklyCalculated = weatherData.map(dayWeather => {
          const calculated = calculateSolarGeneration(dayWeather, settings);
+         // Manually add weather data not included in calculateSolarGeneration result if needed
          if (calculated) {
-           calculated.weatherCondition = dayWeather.weatherCondition; // Ensure condition is passed through
+            calculated.weatherCondition = dayWeather.weatherCondition;
+            calculated.tempMax = dayWeather.tempMax;
+            calculated.sunrise = dayWeather.sunrise;
+            calculated.sunset = dayWeather.sunset;
          }
           return calculated || { // Provide default structure if calculation fails
              date: dayWeather.date,
              dailyTotalGenerationKWh: 0,
              hourlyForecast: [],
-             weatherCondition: dayWeather.weatherCondition || 'unknown'
+             weatherCondition: dayWeather.weatherCondition || 'unknown',
+             tempMax: dayWeather.tempMax,
+             sunrise: dayWeather.sunrise,
+             sunset: dayWeather.sunset,
           };
        }).filter(Boolean) as CalculatedForecast[];
 
@@ -158,9 +181,29 @@ export default function HomePage() {
         <CardHeader>
           <CardTitle>{title} Forecast</CardTitle>
           <CardDescription>
-            Estimated Generation: {forecast ? `${forecast.dailyTotalGenerationKWh.toFixed(2)} kWh` : 'N/A'}
+            Est. Generation: {forecast ? `${forecast.dailyTotalGenerationKWh.toFixed(2)} kWh` : 'N/A'}
              {forecast?.weatherCondition && ` (${forecast.weatherCondition})`}
           </CardDescription>
+            {/* Additional Info: Temp Max, Sunrise, Sunset */}
+            {forecast && (
+                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
+                     {forecast.tempMax !== undefined && (
+                         <span className="flex items-center gap-1">
+                             <Thermometer className="w-3 h-3" /> Max: {forecast.tempMax.toFixed(0)}°C
+                         </span>
+                     )}
+                     {forecast.sunrise && (
+                         <span className="flex items-center gap-1">
+                            <Sunrise className="w-3 h-3" /> {formatTime(forecast.sunrise)}
+                         </span>
+                     )}
+                    {forecast.sunset && (
+                        <span className="flex items-center gap-1">
+                           <Sunset className="w-3 h-3" /> {formatTime(forecast.sunset)}
+                        </span>
+                    )}
+                </div>
+            )}
         </CardHeader>
         <CardContent>
           {forecast && chartData.length > 0 ? (
@@ -311,3 +354,4 @@ export default function HomePage() {
     </div>
   );
 }
+
