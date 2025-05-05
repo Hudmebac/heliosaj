@@ -383,14 +383,18 @@ export default function AdvisoryPage() {
             <p><strong>Estimated Daily Consumption Input:</strong> {dailyConsumption.toFixed(1)} kWh</p>
             <div>
                 <strong>Defined Cheap Tariff Periods:</strong>
-                {tariffPeriods.filter(p => p.isCheap).length > 0 ? (
-                    <ul className="list-disc list-inside ml-4 text-muted-foreground">
-                        {tariffPeriods.filter(p => p.isCheap).map(p => (
-                            <li key={p.id}>{p.name} ({p.startTime} - {p.endTime})</li>
-                        ))}
-                    </ul>
+                {isMounted ? ( // Only render tariff info when mounted
+                    tariffPeriods.filter(p => p.isCheap).length > 0 ? (
+                        <ul className="list-disc list-inside ml-4 text-muted-foreground">
+                            {tariffPeriods.filter(p => p.isCheap).map(p => (
+                                <li key={p.id}>{p.name} ({p.startTime} - {p.endTime})</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <span className="text-muted-foreground"> None defined</span>
+                    )
                 ) : (
-                    <span className="text-muted-foreground"> None defined</span>
+                    <span className="text-muted-foreground"> Loading tariffs...</span>
                 )}
             </div>
              <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on the quality of the forecast (using {isMounted ? (settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID) : '...'} source), your system settings, defined tariff periods, and the accuracy of your consumption inputs. This is a simplified recommendation.</p>
