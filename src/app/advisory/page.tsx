@@ -12,8 +12,8 @@ import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as Se
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast, Location } from '@/services/weather'; // Import Location type
-import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations';
-import type { ChargingAdviceParams, type ChargingAdvice, } from '../../lib/charging-advice';
+import { type CalculatedForecast, calculateSolarGeneration } from '../../lib/solar-calculations';
+import { ChargingAdviceParams, ChargingAdvice } from '../../lib/charging-advice';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the new hook
 
 const DEFAULT_LOCATION: Location = { lat: 51.5074, lng: 0.1278 }; // Default to London
