@@ -13,8 +13,7 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast, Location } from '@/services/weather'; // Import Location type
 import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations';
-import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice, } from '../../lib/charging-advice';
-import { cn } from '@/lib/utils'; // Import cn for conditional class names
+import type { ChargingAdviceParams, type ChargingAdvice, } from '../../lib/charging-advice';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the new hook
 
 const DEFAULT_LOCATION: Location = { lat: 51.5074, lng: 0.1278 }; // Default to London
@@ -24,6 +23,7 @@ const DEFAULT_BATTERY_MAX = 100; // Default max for input if settings not loaded
 const DEFAULT_EV_MAX_CHARGE_RATE = 7.5; // Default max EV charge rate
 
 export default function AdvisoryPage() {
+    const { getChargingAdvice } = require('../../lib/charging-advice');
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null); // Allow setting settings
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
