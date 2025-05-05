@@ -1,6 +1,6 @@
 
-
 import type { UserSettings } from '@/types/settings'; // Import UserSettings if needed for API calls
+import { fetchWeatherApi } from 'openmeteo';
 
 /**
  * Represents a geographical location with latitude and longitude coordinates.
@@ -34,7 +34,7 @@ export interface WeatherForecast {
   /**
    * The average cloud cover percentage (0-100) for the day.
    */
-  cloudCover: number; // From cloud_cover_mean
+  cloudCover: number; // From cloud_cover_mean or calculated from hourly
   /**
    * Simple weather condition classification based on API data.
    */
@@ -55,7 +55,13 @@ export interface WeatherForecast {
    * Sunset time as an ISO 8601 string (optional).
    */
   sunset?: string;
-   // Add other relevant fields from the API if needed, e.g., hourly data.
+   // Store raw hourly data for more detailed calculations if needed
+   hourly?: {
+       time: Date[];
+       cloudCover: number[];
+       weatherCode: number[];
+       // Add other hourly vars if solar calc needs them
+   }
 }
 
 
@@ -83,9 +89,18 @@ const classifyWeatherCondition = (code: number): WeatherCondition => {
   return 'unknown';
 };
 
+/**
+ * Calculates the average of a number array.
+ */
+const calculateAverage = (arr: number[] | Float32Array): number => {
+    if (!arr || arr.length === 0) return 0;
+    const sum = Array.from(arr).reduce((acc, val) => acc + val, 0);
+    return sum / arr.length;
+}
+
 
 /**
- * Asynchronously retrieves weather forecast data for a given location using Open-Meteo.
+ * Asynchronously retrieves weather forecast data for a given location using Open-Meteo SDK.
  *
  * @param location The location for which to retrieve weather data.
  * @param days The number of days to forecast (default is 7). Open-Meteo allows up to 16.
@@ -101,81 +116,109 @@ export async function getWeatherForecast(
 
    // --- Source Validation ---
    if (source !== 'open-meteo') {
-     // Keep supporting other sources conceptually, but only fetch from open-meteo
      console.warn(`Weather source "${source}" selected, but only 'open-meteo' is used for data fetching.`);
-     // Or throw: throw new Error(`Weather source "${source}" is not implemented for data fetching. Only 'open-meteo' is available.`);
    }
 
   // Ensure requested days don't exceed reasonable limits (Open-Meteo allows up to 16)
-  const requestDays = Math.min(days, 16);
+  const requestDays = Math.max(1, Math.min(days, 16)); // Ensure at least 1 day, max 16
 
-  // Define daily variables needed
-  const dailyVariables = [
-    'weather_code',
-    'temperature_2m_max',
-    'temperature_2m_min',
-    'cloud_cover_mean',
-    'sunrise',
-    'sunset',
-    // Add 'precipitation_sum' if needed later
-  ];
-
-  const url = `${WEATHER_API_URL}?latitude=${location.lat}&longitude=${location.lng}&daily=${dailyVariables.join(',')}&timezone=auto&forecast_days=${requestDays}`;
+   const params = {
+     latitude: location.lat,
+     longitude: location.lng,
+     daily: [
+       "weather_code", // WMO code for daily condition
+       "temperature_2m_max",
+       "temperature_2m_min",
+       "sunrise", // Daily sunrise ISO string
+       "sunset",  // Daily sunset ISO string
+       "cloud_cover_mean", // Daily average cloud cover %
+     ],
+     hourly: [
+         "cloud_cover", // Hourly cloud cover %
+         "weather_code", // Hourly weather code (optional, could derive daily from this too)
+         // Add "direct_normal_irradiance" or similar if solar calculation needs it directly
+     ],
+     timezone: "auto", // Automatically determine timezone
+     forecast_days: requestDays,
+   };
 
   try {
-    const response = await fetch(url, { cache: 'no-store' }); // Avoid caching issues during dev/testing
-    if (!response.ok) {
-      // Log more details for debugging
-      const errorBody = await response.json(); // Open-Meteo often returns JSON errors
-      console.error(`Weather API Error ${response.status} (Source: ${source}): ${response.statusText}`, errorBody);
-      throw new Error(`Failed to fetch weather data from ${source}: ${errorBody?.reason || response.statusText}`);
-    }
+    const responses = await fetchWeatherApi(WEATHER_API_URL, params);
+    const response = responses[0]; // Process the first location
 
-    const data = await response.json();
+    const utcOffsetSeconds = response.utcOffsetSeconds();
 
-    // --- Data Transformation (Crucial Step for Open-Meteo) ---
-    if (!data.daily || !data.daily.time || !Array.isArray(data.daily.time)) {
-        throw new Error(`Invalid weather data format received from ${source}. Missing daily time array.`);
-    }
+    const dailyData = response.daily()!;
+    const hourlyData = response.hourly()!;
 
-    const timeArray = data.daily.time as string[];
-    const cloudCoverArray = data.daily.cloud_cover_mean as number[];
-    const weatherCodeArray = data.daily.weather_code as number[];
-    const tempMaxArray = data.daily.temperature_2m_max as number[];
-    const tempMinArray = data.daily.temperature_2m_min as number[];
-    const sunriseArray = data.daily.sunrise as string[];
-    const sunsetArray = data.daily.sunset as string[];
+    // --- Data Extraction ---
+    const dailyTime = dailyData.variables(0)!.time()!; // Time is fundamental
+    const dailyTimeEnd = dailyData.variables(0)!.timeEnd()!;
+    const dailyInterval = dailyData.variables(0)!.interval()!;
 
+    const dailyWeatherCode = dailyData.variables(0)!.valuesArray()!;
+    const dailyTempMax = dailyData.variables(1)!.valuesArray()!;
+    const dailyTempMin = dailyData.variables(2)!.valuesArray()!;
+    const dailySunriseVar = dailyData.variables(3)!; // sunrise uses valuesInt64
+    const dailySunsetVar = dailyData.variables(4)!;   // sunset uses valuesInt64
+    const dailyCloudCoverMean = dailyData.variables(5)!.valuesArray()!; // Mean cloud cover
 
-    if (
-      !cloudCoverArray || timeArray.length !== cloudCoverArray.length ||
-      !weatherCodeArray || timeArray.length !== weatherCodeArray.length ||
-      !tempMaxArray || timeArray.length !== tempMaxArray.length ||
-      !tempMinArray || timeArray.length !== tempMinArray.length ||
-      !sunriseArray || timeArray.length !== sunriseArray.length ||
-      !sunsetArray || timeArray.length !== sunsetArray.length
-     ) {
-        throw new Error(`Inconsistent array lengths in weather data from ${source}.`);
-    }
+    const hourlyTime = hourlyData.variables(0)!.time()!;
+    const hourlyTimeEnd = hourlyData.variables(0)!.timeEnd()!;
+    const hourlyInterval = hourlyData.variables(0)!.interval()!;
+    const hourlyCloudCover = hourlyData.variables(0)!.valuesArray()!;
+    const hourlyWeatherCode = hourlyData.variables(1)!.valuesArray()!;
 
     const forecasts: WeatherForecast[] = [];
-    for (let i = 0; i < timeArray.length; i++) {
-      // Skip if essential data is somehow null/undefined, though Open-Meteo usually provides it
-      if (timeArray[i] == null || cloudCoverArray[i] == null || weatherCodeArray[i] == null) {
-        console.warn(`Skipping forecast for index ${i} due to missing data from ${source}.`);
-        continue;
-      }
+    const numDays = (Number(dailyTimeEnd) - Number(dailyTime)) / dailyInterval;
+
+    for (let i = 0; i < numDays; i++) {
+      const dayTimestamp = Number(dailyTime) + i * dailyInterval;
+      const date = new Date((dayTimestamp + utcOffsetSeconds) * 1000);
+      const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      // Extract sunrise/sunset (they are Int64)
+      const sunriseTimestamp = Number(dailySunriseVar.valuesInt64(i)!) + utcOffsetSeconds;
+      const sunsetTimestamp = Number(dailySunsetVar.valuesInt64(i)!) + utcOffsetSeconds;
+      const sunriseISO = new Date(sunriseTimestamp * 1000).toISOString();
+      const sunsetISO = new Date(sunsetTimestamp * 1000).toISOString();
+
+      // Find corresponding hourly data for this day
+       const dayStartSeconds = dayTimestamp;
+       const dayEndSeconds = dayTimestamp + 24 * 3600; // Add 24 hours in seconds
+
+       let dayHourlyIndices: number[] = [];
+       for (let h = 0; h < (Number(hourlyTimeEnd) - Number(hourlyTime)) / hourlyInterval; h++) {
+            const hourlyTimestamp = Number(hourlyTime) + h * hourlyInterval;
+            if (hourlyTimestamp >= dayStartSeconds && hourlyTimestamp < dayEndSeconds) {
+                dayHourlyIndices.push(h);
+            }
+       }
+
+       const dayHourlyCloud = dayHourlyIndices.map(index => hourlyCloudCover[index]);
+        const dayHourlyWeatherCode = dayHourlyIndices.map(index => hourlyWeatherCode[index]);
+        const dayHourlyTimes = dayHourlyIndices.map(index => new Date((Number(hourlyTime) + index * hourlyInterval + utcOffsetSeconds) * 1000))
+
+
+       // Use daily mean cloud cover directly if available, otherwise average hourly
+       const cloudCover = dailyCloudCoverMean?.[i] !== undefined ? Math.round(dailyCloudCoverMean[i]) : Math.round(calculateAverage(dayHourlyCloud));
+
       forecasts.push({
-        date: timeArray[i], // Already in YYYY-MM-DD format
-        cloudCover: Math.round(cloudCoverArray[i]), // Average cloud cover %
-        weatherCondition: classifyWeatherCondition(weatherCodeArray[i]),
-        tempMax: tempMaxArray[i], // Max temp
-        tempMin: tempMinArray[i], // Min temp
-        sunrise: sunriseArray[i], // Sunrise ISO string
-        sunset: sunsetArray[i],   // Sunset ISO string
+        date: dateString,
+        cloudCover: cloudCover,
+        weatherCondition: classifyWeatherCondition(dailyWeatherCode[i]),
+        tempMax: dailyTempMax[i],
+        tempMin: dailyTempMin[i],
+        sunrise: sunriseISO,
+        sunset: sunsetISO,
+        // Include hourly data if needed by other parts of the app
+         hourly: {
+             time: dayHourlyTimes,
+             cloudCover: dayHourlyCloud,
+             weatherCode: dayHourlyWeatherCode,
+         }
       });
     }
-
 
     if (forecasts.length === 0) {
          throw new Error(`Could not extract any valid forecast days from ${source} API response.`);
@@ -185,9 +228,7 @@ export async function getWeatherForecast(
 
   } catch (error) {
     console.error(`Error fetching or processing weather data from ${source}:`, error);
-    // Re-throw or handle specific errors
     if (error instanceof Error) {
-        // Append source info if not already present
         const message = error.message.includes(`(${source})`) ? error.message : `Weather service (${source}) failed: ${error.message}`;
         throw new Error(message);
     } else {
@@ -195,4 +236,3 @@ export async function getWeatherForecast(
     }
   }
 }
-
