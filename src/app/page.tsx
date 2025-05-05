@@ -9,6 +9,7 @@ import type { UserSettings } from '@/types/settings';
 import type { WeatherForecast, WeatherCondition, Location } from '@/services/weather';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
 import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets, RefreshCw, Sunrise, Sunset, Thermometer} from 'lucide-react'; // Import weather icons & RefreshCw, Sunrise, Sunset, Thermometer
+import { getChargingAdvice } from '@/lib/charging-advice';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip} from 'recharts';
@@ -151,6 +152,7 @@ export default function HomePage() {
    }, [settings, weatherData]); // Re-calculate when settings or weather data change
 
 
+  getChargingAdvice(10, 'night');
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
