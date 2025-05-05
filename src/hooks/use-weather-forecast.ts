@@ -4,10 +4,19 @@
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { useQuery } from '@tanstack/react-query';
 import { getWeatherForecast, type WeatherForecast, type Location, getCurrentDayWeather } from '@/services/weather'; // Corrected import path
-import { UserSettings } from '@/types/settings';
+import type { UserSettings } from '@/types/settings'; // Ensure UserSettings type is imported
 
 const STALE_TIME = 1000 * 60 * 10; // 10 minutes
 const CACHE_TIME = 1000 * 60 * 60; // 60 minutes
+
+/**
+ * Checks if the location object is valid.
+ * @param location The location object to check.
+ * @returns True if the location is valid, false otherwise.
+ */
+const isValidLocation = (location: Location | null): location is Location => {
+    return !!location && typeof location.lat === 'number' && typeof location.lng === 'number';
+};
 
 /**
  * Custom hook to fetch weather forecast data using react-query for caching.
@@ -23,34 +32,33 @@ export function useWeatherForecast(
     days: number,
     enabled: boolean = true,
 ) {
-    const { settings } = useLocalStorage();
-    const { forecastOptions } = useLocalStorage()
+    // Removed unnecessary import of UserSettings and useLocalStorage as settings are not directly used here
+    // const { settings } = useLocalStorage<UserSettings | null>('userSettings', null);
+    // const { forecastOptions } = useLocalStorage();
 
 
     // Include sourceId and days in the query key to ensure uniqueness
-    const queryKey = ['weatherForecast', location, sourceId, days, forecastOptions];
+    const queryKey = ['weatherForecast', location, sourceId, days];
 
     return useQuery<WeatherForecast[], Error>({
         queryKey: queryKey,
         queryFn: async () => {
-            if (!location) {
-                console.warn("Weather forecast hook called without location.");
+            // Location validity is checked by the 'enabled' option, but an early return is still good practice
+            if (!isValidLocation(location)) {
+                console.warn("Weather forecast hook query function called without valid location.");
                 return []; // Return empty array if location isn't ready
+            }
 
-            }
-            if (!settings.latitude || !settings.longitude) {
-                console.warn("Current weather hook called without location data.");
-                return [];
-            }
             // Only fetch from 'open-meteo' as per implementation
             if (sourceId !== 'open-meteo') {
                  console.warn(`Weather source "${sourceId}" requested, but using 'open-meteo' for data fetching.`);
                 // No need to change sourceId variable, getWeatherForecast handles the actual API call
             }
-             // Pass location and days to the actual fetching function
-            return await getWeatherForecast(location, days, sourceId, forecastOptions); // Pass sourceId here
+             // Pass validated location and days to the actual fetching function
+            return await getWeatherForecast(location, days, sourceId); // Pass sourceId here
         },
-        enabled: enabled && !!location, // Only enable the query if 'enabled' is true AND location is available
+        // Enable the query only if 'enabled' is true AND location is valid
+        enabled: enabled && isValidLocation(location),
         staleTime: STALE_TIME,
         gcTime: CACHE_TIME,
         refetchOnWindowFocus: false,
@@ -73,28 +81,29 @@ export function useWeatherCurrentDay(
     enabled: boolean = true
 
 ) {
-    const { settings } = useLocalStorage();
-    const { forecastOptions } = useLocalStorage()
+    // Removed unnecessary import of UserSettings and useLocalStorage
+    // const { settings } = useLocalStorage<UserSettings | null>('userSettings', null);
+    // const { forecastOptions } = useLocalStorage();
 
-    const queryKey = ['weatherCurrentDay', location, sourceId, forecastOptions]; // Include sourceId in key
+    const queryKey = ['weatherCurrentDay', location, sourceId]; // Include sourceId in key
 
     return useQuery<WeatherForecast | null, Error>({ // Expect single forecast or null
         queryKey: queryKey,
         queryFn: async () => {
-            if (!location) {
-                console.warn("Current day weather hook called without location.");
+             // Location validity is checked by the 'enabled' option
+            if (!isValidLocation(location)) {
+                console.warn("Current day weather hook query function called without valid location.");
                 return null; // Return null if location isn't ready
             }
 
              // Only fetch from 'open-meteo' as per implementation
             if (sourceId !== 'open-meteo') {
-
                 console.warn(`Weather source "${sourceId}" requested, but using 'open-meteo' for data fetching.`);
             }
             // Fetch only today's weather using the dedicated function
             return await getCurrentDayWeather(location, sourceId); // Pass sourceId
         },
-        enabled: enabled && !!location,
+        enabled: enabled && isValidLocation(location), // Check validity before enabling
         staleTime: STALE_TIME,
         gcTime: CACHE_TIME,
         refetchOnWindowFocus: false,

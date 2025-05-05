@@ -103,14 +103,14 @@ const calculateAverage = (arr: (number | null)[] | Float32Array | null | undefin
 /**
  * Asynchronously retrieves weather forecast data for a given location using Open-Meteo API.
  *
- * @param location The location for which to retrieve weather data.
+ * @param location The location for which to retrieve weather data. Must contain lat and lng.
  * @param days The number of days to forecast (default is 7). Open-Meteo allows up to 16.
  * @param source The identifier for the desired weather source API (e.g., 'open-meteo'). Only 'open-meteo' is implemented.
  * @returns A promise that resolves to an array of WeatherForecast objects.
  * @throws Throws an error if the API call fails, returns invalid data, or the source is not 'open-meteo'.
  */
 export async function getWeatherForecast(
-    location: Location,
+    location: Location | null, // Allow null for explicit check
     days: number = 7,
     source: string = "open-meteo" // Default to Open-Meteo
 
@@ -136,11 +136,18 @@ export async function getWeatherForecast(
             "sunrise",
             "sunset",
      ]
+    // --- Location Validation ---
+    if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+        console.error("getWeatherForecast called with invalid location:", location);
+        throw new Error("Invalid location provided for weather forecast."); // Throw error if location is bad
+    }
+
+
     // --- Source Validation ---
     if (source !== "open-meteo") {
         console.warn(`Weather source "${source}" selected, but only 'open-meteo' is used for data fetching.`);
         // Note: The actual API call will still use Open-Meteo
-    }  
+    }
     // Ensure requested days don't exceed reasonable limits (Open-Meteo allows up to 16)
     const requestDays = Math.max(1, Math.min(days, 16));
 
@@ -222,9 +229,14 @@ export async function getWeatherForecast(
         // Ensure required hourly arrays exist and have the correct length
          const requiredHourlyKeys = ['time', 'cloud_cover', 'weather_code'];
          for (const key of requiredHourlyKeys) {
-              if (!Array.isArray(hourlyData[key])) {
-                console.warn(`Hourly field '${key}' is missing or not an array. Filling with nulls.`);
-                hourlyData[key] = Array(numHours).fill(null);
+             // Check if the key exists and is an array in hourlyData
+             if (!(key in hourlyData) || !Array.isArray(hourlyData[key])) {
+                 if (key === 'time') { // Time is crucial, throw if missing/invalid
+                     throw new Error(`API response missing or invalid hourly field: '${key}'.`);
+                 } else {
+                     console.warn(`Hourly field '${key}' is missing or not an array. Filling with nulls.`);
+                     hourlyData[key] = Array(numHours).fill(null); // Initialize with nulls if missing
+                 }
              } else if (hourlyData[key].length !== numHours && key !== 'time') { // 'time' length is definitive
                   console.warn(`Length mismatch for hourly field '${key}'. Expected ${numHours}, got ${hourlyData[key].length}. Padding with nulls.`);
                   const currentLength = hourlyData[key].length;
@@ -350,11 +362,18 @@ export async function getWeatherForecast(
 
  */
 export async function getWeatherForecastWithOptions(
-    location: Location,
+    location: Location | null, // Allow null
     options: {dailyVariables:string[]},
     days: number = 7,
     source: string = "open-meteo" // Default to Open-Meteo
 ): Promise<WeatherForecast[]> {
+
+     // --- Location Validation ---
+    if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+        console.error("getWeatherForecastWithOptions called with invalid location:", location);
+        throw new Error("Invalid location provided for weather forecast.");
+    }
+
 
      // --- Source Validation ---
     if (source !== "open-meteo") {
@@ -398,10 +417,9 @@ export async function getWeatherForecastWithOptions(
         timezone: "auto",           // Automatically determine timezone
         forecast_days: requestDays.toString(), // Ensure days is a string
     };
-    const modifiedGetWeatherForecast = async (location:Location, days:number, source: string, params:object) => {
-         return await getWeatherForecast(location, days, source)
-    };
-    return await modifiedGetWeatherForecast(location,days,source);
+    // Use the main getWeatherForecast function as the logic is now robust
+    return await getWeatherForecast(location, days, source);
+
 }
 
 /**
@@ -411,9 +429,15 @@ export async function getWeatherForecastWithOptions(
  * @returns A promise resolving to the WeatherForecast for today, or null if unavailable.
  */
 export async function getCurrentDayWeather(
-  location: Location,
+  location: Location | null, // Allow null
   source: string = 'open-meteo'
 ): Promise<WeatherForecast | null> {
+    // --- Location Validation ---
+    if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+        console.error("getCurrentDayWeather called with invalid location:", location);
+        return null; // Return null instead of throwing to avoid breaking hooks easily
+    }
+
     try {
         // Fetch forecast for just 1 day (today)
         const forecastArray = await getWeatherForecast(location, 1, source);
@@ -438,10 +462,16 @@ export async function getCurrentDayWeather(
  * @returns A promise resolving to the WeatherForecast for today, or null if unavailable.
  */
 export async function getCurrentDayWeatherWithOptions(
-  location: Location,
+  location: Location | null, // Allow null
   options: {dailyVariables:string[]},
   source: string = 'open-meteo'
 ): Promise<WeatherForecast | null> {
+     // --- Location Validation ---
+    if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+        console.error("getCurrentDayWeatherWithOptions called with invalid location:", location);
+        return null; // Return null instead of throwing
+    }
+
     try {
         // Fetch forecast for just 1 day (today)
         const forecastArray = await getWeatherForecastWithOptions(location,options, 1, source);
