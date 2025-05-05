@@ -1,5 +1,4 @@
 
-
 import type { UserSettings } from '@/types/settings'; // Import UserSettings if needed for API calls
 import { fetchWeatherApi } from 'openmeteo';
 
@@ -93,9 +92,9 @@ const classifyWeatherCondition = (code: number): WeatherCondition => {
 /**
  * Calculates the average of a number array.
  */
-const calculateAverage = (arr: number[] | Float32Array): number => {
+const calculateAverage = (arr: number[] | Float32Array | null | undefined): number => {
     if (!arr || arr.length === 0) return 0;
-    const sum = Array.from(arr).reduce((acc, val) => acc + val, 0);
+    const sum = Array.from(arr).reduce((acc, val) => acc + (val || 0), 0); // Handle potential null/undefined values in array
     return sum / arr.length;
 }
 
@@ -149,23 +148,32 @@ export async function getWeatherForecast(
 
     const utcOffsetSeconds = response.utcOffsetSeconds();
 
-    const dailyData = response.daily()!;
-    const hourlyData = response.hourly()!;
+    // Check if daily and hourly data exist before accessing methods
+    const dailyData = response.daily();
+    const hourlyData = response.hourly();
+
+    if (!dailyData) {
+        throw new Error("API response did not contain daily forecast data.");
+    }
+    if (!hourlyData) {
+        throw new Error("API response did not contain hourly forecast data.");
+    }
+
 
     // --- Data Extraction ---
     // Get time range and interval directly from the daily/hourly objects
     const dailyTime = dailyData.time();
     const dailyTimeEnd = dailyData.timeEnd();
     const dailyInterval = dailyData.interval();
-    if (!dailyTime || !dailyTimeEnd || !dailyInterval) {
-        throw new Error("Could not get time information from daily data.");
+    if (dailyTime === undefined || dailyTimeEnd === undefined || dailyInterval === undefined) {
+        throw new Error("Could not get time information from daily data (time/timeEnd/interval).");
     }
 
     const hourlyTime = hourlyData.time();
     const hourlyTimeEnd = hourlyData.timeEnd();
     const hourlyInterval = hourlyData.interval();
-     if (!hourlyTime || !hourlyTimeEnd || !hourlyInterval) {
-        throw new Error("Could not get time information from hourly data.");
+     if (hourlyTime === undefined || hourlyTimeEnd === undefined || hourlyInterval === undefined) {
+        throw new Error("Could not get time information from hourly data (time/timeEnd/interval).");
     }
 
 
@@ -225,25 +233,44 @@ export async function getWeatherForecast(
             }
        }
 
-        // Ensure we have exactly 24 hours of data (or handle cases where it might differ)
+        // Ensure we have hourly data
         if (dayHourlyIndices.length === 0) {
              console.warn(`No hourly data found for date ${dateString}. Skipping day.`);
              continue; // Skip if no hourly data found for the day
         }
-        // if (dayHourlyIndices.length !== 24) { // Or expected number based on interval
-        //      console.warn(`Expected 24 hourly data points for ${dateString}, but found ${dayHourlyIndices.length}. Data might be incomplete.`);
-        //      // Decide whether to proceed or skip
-        // }
+
+        // Extract hourly data for the specific day
+        // Need to handle potential null values from valuesArray if API response is sparse
+        const dayHourlyCloud: number[] = [];
+        const dayHourlyWeatherCode: number[] = [];
+        const dayHourlyTimes: Date[] = [];
+
+        for (const index of dayHourlyIndices) {
+            const cloudVal = hourlyCloudCover[index];
+            const codeVal = hourlyWeatherCode[index];
+            const timeVal = Number(hourlyTime) + index * hourlyInterval + utcOffsetSeconds;
+
+            if (cloudVal !== null && cloudVal !== undefined && codeVal !== null && codeVal !== undefined && timeVal !== null && timeVal !== undefined) {
+                dayHourlyCloud.push(cloudVal);
+                dayHourlyWeatherCode.push(codeVal);
+                dayHourlyTimes.push(new Date(timeVal * 1000));
+            } else {
+                 console.warn(`Missing hourly data point at index ${index} for date ${dateString}.`);
+                 // Optionally skip the hour or use fallback values
+            }
+        }
+
+        if(dayHourlyTimes.length === 0) {
+            console.warn(`No valid hourly data points could be extracted for date ${dateString}. Skipping day.`);
+            continue;
+        }
 
 
-       const dayHourlyCloud = dayHourlyIndices.map(index => hourlyCloudCover[index]);
-        const dayHourlyWeatherCode = dayHourlyIndices.map(index => hourlyWeatherCode[index]);
-        // Create Date objects for hourly timestamps
-        const dayHourlyTimes = dayHourlyIndices.map(index => new Date((Number(hourlyTime) + index * hourlyInterval + utcOffsetSeconds) * 1000))
-
-
-       // Use daily mean cloud cover directly if available, otherwise average hourly
-       const cloudCover = dailyCloudCoverMean?.[i] !== undefined ? Math.round(dailyCloudCoverMean[i]) : Math.round(calculateAverage(dayHourlyCloud));
+       // Use daily mean cloud cover directly if available and valid, otherwise average hourly
+       const cloudCoverMeanVal = dailyCloudCoverMean?.[i];
+       const cloudCover = (cloudCoverMeanVal !== undefined && cloudCoverMeanVal !== null && !isNaN(cloudCoverMeanVal))
+            ? Math.round(cloudCoverMeanVal)
+            : Math.round(calculateAverage(dayHourlyCloud));
 
       forecasts.push({
         date: dateString,
@@ -271,6 +298,7 @@ export async function getWeatherForecast(
   } catch (error) {
     console.error(`Error fetching or processing weather data from ${source}:`, error);
     if (error instanceof Error) {
+        // Make error message more specific if possible
         const message = error.message.includes(`(${source})`) ? error.message : `Weather service (${source}) failed: ${error.message}`;
         throw new Error(message);
     } else {
@@ -278,4 +306,3 @@ export async function getWeatherForecast(
     }
   }
 }
-
