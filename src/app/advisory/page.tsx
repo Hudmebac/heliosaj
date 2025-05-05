@@ -13,6 +13,7 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import { getWeatherForecast, type WeatherForecast } from '@/services/weather';
 import calculateSolarGeneration, { getTomorrowChargingAdvice, getTodayChargingAdvice, type AdviceResult, type CalculatedForecast, type TomorrowAdviceParams, type TodayAdviceParams } from '@/lib/solar-calculations'; // Updated imports
+import { cn } from '@/lib/utils'; // Import cn for conditional class names
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
@@ -31,7 +32,7 @@ export default function AdvisoryPage() {
   const [tomorrowForecast, setTomorrowForecast] = useState<CalculatedForecast | null>(null);
   const [todayForecast, setTodayForecast] = useState<CalculatedForecast | null>(null); // State for today's forecast
   const [isMounted, setIsMounted] = useState(false);
-  const [currentHour, setCurrentHour] = useState<number>(new Date().getHours()); // State for current hour
+  const [currentHour, setCurrentHour] = useState<number | null>(null); // Initialize to null
 
   // State for user inputs
   const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(0);
@@ -44,6 +45,9 @@ export default function AdvisoryPage() {
   // Effect for client mount and initializing settings-based state
   useEffect(() => {
     setIsMounted(true);
+    // Set current hour only on client mount
+    setCurrentHour(new Date().getHours());
+
     if (settings) {
       setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
       const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
@@ -65,11 +69,14 @@ export default function AdvisoryPage() {
 
   // Effect to update current hour periodically (e.g., every minute)
   useEffect(() => {
+     // Only run the timer if the component is mounted
+     if (!isMounted) return;
+
      const timer = setInterval(() => {
        setCurrentHour(new Date().getHours());
      }, 60 * 1000); // Update every minute
      return () => clearInterval(timer);
-   }, []);
+   }, [isMounted]); // Dependency on isMounted
 
 
   // Function to handle changes in hourly sliders
@@ -96,7 +103,7 @@ export default function AdvisoryPage() {
 
    // --- Function to Fetch and Calculate TOMORROW'S Advice ---
    const fetchTomorrowAdvice = async () => {
-       if (!isMounted || !settings) return; // Ensure client-side and settings exist
+       if (!isMounted || !settings || currentHour === null) return; // Ensure client-side, settings exist, and hour is set
 
        setLoadingTomorrow(true);
        setErrorTomorrow(null);
@@ -152,7 +159,7 @@ export default function AdvisoryPage() {
 
    // --- Function to Fetch and Calculate TODAY'S Advice ---
    const fetchTodayAdvice = async () => {
-       if (!isMounted || !settings) return;
+       if (!isMounted || !settings || currentHour === null) return; // Ensure client-side, settings exist, and hour is set
 
        setLoadingToday(true);
        setErrorToday(null);
@@ -205,7 +212,7 @@ export default function AdvisoryPage() {
 
    // --- Main Effect to Trigger Advice Generation ---
    useEffect(() => {
-     if (!isMounted) return;
+     if (!isMounted || currentHour === null) return; // Don't run fetches until mounted and currentHour is set
 
      // Use separate timeouts to debounce/manage updates
      const tomorrowTimer = setTimeout(() => {
@@ -221,7 +228,7 @@ export default function AdvisoryPage() {
          clearTimeout(todayTimer);
      };
      // Dependencies: Recalculate if settings, tariffs, inputs, or current hour change
-   }, [settings, tariffPeriods, currentBatteryLevel, hourlyUsage, isMounted, currentHour]);
+   }, [settings, tariffPeriods, currentBatteryLevel, hourlyUsage, isMounted, currentHour]); // Added currentHour dependency
 
   // --- Render Functions ---
 
@@ -344,7 +351,16 @@ export default function AdvisoryPage() {
              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
                {hourlyUsage.map((usage, index) => (
                  <div key={index} className="space-y-1">
-                   <Label htmlFor={`hour-${index}`} className={`text-xs ${index === currentHour ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>{`${index.toString().padStart(2, '0')}:00`}{index === currentHour ? ' (Now)' : ''}</Label>
+                   <Label
+                     htmlFor={`hour-${index}`}
+                     className={cn(
+                       "text-xs",
+                       isMounted && index === currentHour ? 'text-primary font-semibold' : 'text-muted-foreground'
+                     )}
+                   >
+                     {`${index.toString().padStart(2, '0')}:00`}
+                     {isMounted && index === currentHour ? ' (Now)' : ''}
+                   </Label>
                    <div className="flex items-center gap-2">
                     <Slider
                       id={`hour-${index}`}
@@ -398,7 +414,10 @@ export default function AdvisoryPage() {
                        <AlertDescription>Unable to provide a recommendation. Check settings and forecast availability.</AlertDescription>
                    </Alert>
                )}
-                <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1"><Clock className="h-3 w-3"/> Current Hour: {currentHour.toString().padStart(2,'0')}:00</p>
+                <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+                    <Clock className="h-3 w-3"/>
+                    Current Hour: {isMounted && currentHour !== null ? `${currentHour.toString().padStart(2,'0')}:00` : 'Loading...'}
+                </p>
             </CardContent>
           </Card>
 
