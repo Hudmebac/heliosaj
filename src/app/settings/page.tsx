@@ -16,32 +16,108 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert components
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-// Mock address lookup function - Replace with actual API call
+// Interface for Nominatim API response structure
+interface NominatimResult {
+  place_id: number;
+  licence: string;
+  osm_type: string;
+  osm_id: number;
+  lat: string;
+  lon: string;
+  display_name: string;
+  address: {
+    house_number?: string;
+    road?: string;
+    suburb?: string;
+    city_district?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    county?: string;
+    state_district?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+    country_code?: string;
+    [key: string]: string | undefined; // Allow for other address parts
+  };
+  boundingbox: string[];
+}
+
+
+// Nominatim address lookup function
 async function lookupAddressesByPostcode(postcode: string): Promise<Array<{ address: string; lat?: number; lng?: number }>> {
-  console.log(`Simulating lookup for postcode: ${postcode}`);
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  console.log(`Looking up postcode: ${postcode}`);
+  const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+  // Limit to GB for better results, request address details
+  const params = new URLSearchParams({
+    q: postcode,
+    format: 'json',
+    addressdetails: '1',
+    countrycodes: 'gb', // Focus search on Great Britain
+    limit: '10', // Limit results
+  });
 
-  // Basic validation and mock responses
-  const cleanedPostcode = postcode.toUpperCase().replace(/\s+/g, '');
-  if (cleanedPostcode === 'KY40BD') {
-    return [
-      { address: "1 Random Street, Lochgelly, KY4 0BD", lat: 56.135, lng: -3.327 },
-      { address: "3 Random Street, Lochgelly, KY4 0BD", lat: 56.136, lng: -3.328 },
-      { address: "5 Random Street, Lochgelly, KY4 0BD", lat: 56.137, lng: -3.329 },
-    ];
-  } else if (cleanedPostcode === 'SW1A0AA') {
-      return [
-          { address: "House of Commons, London, SW1A 0AA", lat: 51.500, lng: -0.124 },
-          { address: "Westminster Hall, London, SW1A 0AA", lat: 51.501, lng: -0.125 }
-      ]
-  } else if (cleanedPostcode.startsWith('ERROR')) {
-      throw new Error("Simulated API error during lookup.");
-  }
-  else {
-    return []; // No addresses found
+  try {
+    const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
+      headers: {
+        'Accept': 'application/json',
+        // Optional: Add a custom User-Agent if needed for identification
+        // 'User-Agent': 'HelioHeggieApp/1.0 (your-contact-email@example.com)'
+      }
+    });
+
+    if (!response.ok) {
+      // Handle HTTP errors
+      console.error(`Nominatim API Error ${response.status}: ${response.statusText}`);
+      let errorMsg = `Address lookup failed with status ${response.status}.`;
+      try {
+        const errorData = await response.json();
+        errorMsg += ` Details: ${errorData?.error?.message || response.statusText}`;
+      } catch (e) {
+        // Ignore if error response is not JSON
+      }
+      throw new Error(errorMsg);
+    }
+
+    const data: NominatimResult[] = await response.json();
+
+    if (!Array.isArray(data)) {
+        console.error("Nominatim response was not an array:", data);
+        throw new Error("Received invalid data format from address lookup service.");
+    }
+
+    // Filter results that seem to be primarily postcode-based (sometimes Nominatim returns wider areas)
+    const postcodeResults = data.filter(result => result.address?.postcode && result.address.postcode.replace(/\s+/g, '') === postcode.replace(/\s+/g, ''));
+
+    if (postcodeResults.length === 0 && data.length > 0) {
+        console.warn("No exact postcode match, returning broader results.");
+        // Fallback to general results if no specific postcode match
+        return data.map(item => ({
+            address: item.display_name,
+            lat: parseFloat(item.lat),
+            lng: parseFloat(item.lon), // Nominatim uses 'lon'
+        }));
+    }
+
+
+    // Map the response to the expected format
+    return postcodeResults.map(item => ({
+      address: item.display_name, // Use the full display name
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon), // Nominatim uses 'lon'
+    }));
+
+  } catch (error) {
+    console.error("Error fetching from Nominatim:", error);
+    // Re-throw specific error messages
+    if (error instanceof Error) {
+       throw new Error(`Address lookup failed: ${error.message}`);
+    } else {
+       throw new Error("An unknown error occurred during address lookup.");
+    }
   }
 }
 
@@ -58,6 +134,7 @@ const settingsSchema = z.object({
   totalKWp: z.coerce.number().positive().optional(), // Optional and must be positive float/number
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(), // Optional and non-negative
   systemEfficiency: z.coerce.number().min(0).max(1).optional(), // Optional, between 0 and 1
+  selectedWeatherSource: z.string().optional(), // Added weather source
 }).refine(data => {
     // If inputMode is 'Panels', panelCount and panelWatts are required
     if (data.inputMode === 'Panels') {
@@ -100,6 +177,7 @@ export default function SettingsPage() {
       propertyDirection: 'South Facing',
       inputMode: 'Panels',
       systemEfficiency: 0.85, // Default efficiency
+      selectedWeatherSource: 'open-meteo', // Default weather source
     },
     mode: 'onChange', // Validate on change for better UX
   });
@@ -135,6 +213,13 @@ export default function SettingsPage() {
        }
     } else {
        setSelectedAddress(undefined);
+       form.reset({ // Reset to defaults if no stored settings
+         location: '',
+         propertyDirection: 'South Facing',
+         inputMode: 'Panels',
+         systemEfficiency: 0.85,
+         selectedWeatherSource: 'open-meteo',
+       })
     }
      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storedSettings, form.reset]); // Keep addresses dependency? Maybe not needed here
@@ -186,40 +271,44 @@ export default function SettingsPage() {
     setAddresses([]); // Clear previous results
      setSelectedAddress(undefined); // Clear visual selection
      // Clear form fields related to address before lookup? Optional, maybe better to wait for selection.
-    // form.setValue('location', '');
-    // form.setValue('latitude', undefined);
-    // form.setValue('longitude', undefined);
+    form.setValue('location', ''); // Clear location field
+    form.setValue('latitude', undefined);
+    form.setValue('longitude', undefined);
 
 
     try {
-      const results = await lookupAddressesByPostcode(postcode);
+      const results = await lookupAddressesByPostcode(postcode.trim()); // Use the new Nominatim function
       if (results.length === 0) {
-           setLookupError("No addresses found for this postcode.");
+           setLookupError("No addresses found for this postcode via Nominatim.");
       } else {
           setAddresses(results);
       }
 
     } catch (error) {
         console.error("Postcode lookup failed:", error);
-        setLookupError(error instanceof Error ? error.message : "Address lookup failed. Please try again.");
+        setLookupError(error instanceof Error ? error.message : "Address lookup failed. Please check the postcode or try again later.");
     } finally {
       setLookupLoading(false);
     }
   };
 
   const handleAddressSelect = (selectedValue: string) => {
-      // The selectedValue is the 'address' string from the results
+      // The selectedValue is the 'address' string (display_name) from the results
       const selectedData = addresses.find(addr => addr.address === selectedValue);
        setSelectedAddress(selectedValue); // Update visual selection state
 
       if (selectedData) {
         form.setValue('location', selectedData.address, { shouldValidate: true });
-        // Only set lat/lng if the lookup provided them
+        // Set lat/lng if available
         if (selectedData.lat !== undefined) {
           form.setValue('latitude', selectedData.lat, { shouldValidate: true });
+        } else {
+           form.setValue('latitude', undefined); // Clear if not available
         }
         if (selectedData.lng !== undefined) {
           form.setValue('longitude', selectedData.lng, { shouldValidate: true });
+        } else {
+             form.setValue('longitude', undefined); // Clear if not available
         }
         // Clear postcode-specific errors after successful selection
          setLookupError(null);
@@ -245,10 +334,11 @@ export default function SettingsPage() {
                      <Label htmlFor="postcode">Enter Postcode</Label>
                      <Input
                        id="postcode"
-                       placeholder="e.g., KY4 0BD"
+                       placeholder="e.g., KY4 0BD or SW1A 0AA"
                        value={postcode}
                        onChange={(e) => setPostcode(e.target.value)}
                        className="max-w-xs"
+                       aria-label="Postcode input for address lookup"
                      />
                    </div>
                    <Button
@@ -257,6 +347,7 @@ export default function SettingsPage() {
                      disabled={lookupLoading || !postcode}
                      variant="secondary"
                      className="w-full sm:w-auto"
+                     aria-label="Find addresses for entered postcode"
                    >
                      {lookupLoading ? (
                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -269,6 +360,7 @@ export default function SettingsPage() {
 
                  {lookupError && (
                    <Alert variant="destructive" className="mt-2">
+                      <AlertTitle>Lookup Error</AlertTitle>
                      <AlertDescription>{lookupError}</AlertDescription>
                    </Alert>
                  )}
@@ -279,13 +371,14 @@ export default function SettingsPage() {
                       <Select
                          value={selectedAddress} // Controlled by state
                          onValueChange={handleAddressSelect}
+                         aria-label="Select an address from the lookup results"
                        >
                          <SelectTrigger id="addressSelect">
                            <SelectValue placeholder="Choose from found addresses..." />
                          </SelectTrigger>
                          <SelectContent>
                            {addresses.map((addr, index) => (
-                             <SelectItem key={index} value={addr.address}>
+                             <SelectItem key={addr.lat ? `${addr.lat}-${addr.lng}` : index} value={addr.address}>
                                {addr.address}
                              </SelectItem>
                            ))}
@@ -293,6 +386,7 @@ export default function SettingsPage() {
                        </Select>
                      </div>
                )}
+                 <p className="text-xs text-muted-foreground mt-2">Address lookup powered by <a href="https://nominatim.org/" target="_blank" rel="noopener noreferrer" className="underline">Nominatim</a> & OpenStreetMap.</p>
              </div>
 
 
@@ -304,11 +398,10 @@ export default function SettingsPage() {
                 <FormItem>
                   <FormLabel>Selected Location / Manual Entry</FormLabel>
                   <FormControl>
-                     {/* Make this read-only if filled by lookup? Or allow manual override? */}
-                     {/* For now, allow editing but it will be overwritten by new selection */}
-                    <Input placeholder="Select address above or enter manually" {...field} />
+                     {/* Allow editing */}
+                    <Input placeholder="Select address above or enter location manually" {...field} />
                   </FormControl>
-                  <FormDescription>Your selected address or a manual location entry.</FormDescription>
+                  <FormDescription>Your selected address or a manual location entry (used for display).</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -321,7 +414,7 @@ export default function SettingsPage() {
                   name="latitude"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Latitude</FormLabel>
+                      <FormLabel>Latitude (Decimal)</FormLabel>
                       <FormControl>
                         <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} />
                       </FormControl>
@@ -334,7 +427,7 @@ export default function SettingsPage() {
                   name="longitude"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Longitude</FormLabel>
+                      <FormLabel>Longitude (Decimal)</FormLabel>
                       <FormControl>
                         <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} />
                       </FormControl>
@@ -343,7 +436,7 @@ export default function SettingsPage() {
                   )}
                 />
              </div>
-              <FormDescription>Coordinates are used for precise weather data.</FormDescription>
+              <FormDescription>Coordinates are used for precise weather data. Ensure they are accurate if entered manually.</FormDescription>
 
 
             {/* Property Direction */}
@@ -367,7 +460,7 @@ export default function SettingsPage() {
                       <SelectItem value="Flat Roof">Flat Roof</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormDescription>Approximate direction your panels face.</FormDescription>
+                  <FormDescription>Approximate direction your panels face (most crucial for solar estimation).</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -419,7 +512,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Number of Panels</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="e.g., 18" {...field} value={field.value ?? ''} />
+                        <Input type="number" placeholder="e.g., 18" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -432,7 +525,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Max Power per Panel (Watts)</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="e.g., 405" {...field} value={field.value ?? ''}/>
+                        <Input type="number" placeholder="e.g., 405" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -449,9 +542,9 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Total System Power (kWp)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" placeholder="e.g., 7.2" {...field} value={field.value ?? ''} />
+                      <Input type="number" step="0.1" placeholder="e.g., 7.2" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
                     </FormControl>
-                     <FormDescription>Kilowatt-peak rating of your entire system.</FormDescription>
+                     <FormDescription>Kilowatt-peak rating of your entire system (e.g., from your installation documents).</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -465,11 +558,11 @@ export default function SettingsPage() {
               name="batteryCapacityKWh"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Battery Storage Capacity (kWh)</FormLabel>
+                  <FormLabel>Battery Storage Capacity (kWh, Optional)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.1" placeholder="e.g., 19 (Optional)" {...field} value={field.value ?? ''}/>
+                    <Input type="number" step="0.1" placeholder="e.g., 19" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
                   </FormControl>
-                  <FormDescription>Total usable capacity of your battery system.</FormDescription>
+                  <FormDescription>Total usable capacity of your battery system, if you have one.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -481,11 +574,11 @@ export default function SettingsPage() {
               name="systemEfficiency"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>System Efficiency (Optional)</FormLabel>
+                  <FormLabel>System Efficiency Factor (Optional)</FormLabel>
                   <FormControl>
-                     <Input type="number" step="0.01" min="0" max="1" placeholder="e.g., 0.85 for 85%" {...field} value={field.value ?? ''} />
+                     <Input type="number" step="0.01" min="0.1" max="1" placeholder="e.g., 0.85 for 85%" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
                   </FormControl>
-                  <FormDescription>Overall efficiency including inverter, wiring etc. (0.0 to 1.0). Default is 0.85.</FormDescription>
+                  <FormDescription>Overall efficiency including inverter, wiring etc. (0.1 to 1.0). Affects generation estimates. Default is 0.85 if left blank.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -499,3 +592,4 @@ export default function SettingsPage() {
     </Card>
   );
 }
+
