@@ -55,8 +55,8 @@ export interface WeatherForecast {
     // Store raw hourly data for more detailed calculations if needed
     hourly?: {
         time: Date[];
-        cloudCover?: number[]; // Optional
-        weatherCode?: number[]; // Optional
+        cloudCover?: (number | null)[]; // Allow null
+        weatherCode?: (number | null)[]; // Allow null
         // Add other hourly vars if solar calc needs them
     }
 }
@@ -91,9 +91,9 @@ const classifyWeatherCondition = (code: number | null | undefined): WeatherCondi
 /**
  * Calculates the average of a number array. Handles potential null/undefined values.
  */
-const calculateAverage = (arr: number[] | Float32Array | null | undefined): number => {
+const calculateAverage = (arr: (number | null)[] | Float32Array | null | undefined): number => {
     if (!arr || arr.length === 0) return 0;
-    const validValues = Array.from(arr).filter(val => typeof val === 'number' && !isNaN(val));
+    const validValues = Array.from(arr).filter((val): val is number => typeof val === 'number' && !isNaN(val));
     if (validValues.length === 0) return 0;
     const sum = validValues.reduce((acc, val) => acc + val, 0);
     return sum / validValues.length;
@@ -167,122 +167,144 @@ export async function getWeatherForecast(
         if (!data.daily || typeof data.daily !== 'object' || !Array.isArray(data.daily.time)) {
             throw new Error("API response missing or invalid 'daily' data structure.");
         }
-        if (!data.hourly || typeof data.hourly !== 'object' || !Array.isArray(data.hourly.time)) {
-            throw new Error("API response missing or invalid 'hourly' data structure.");
-        }
+        // Validate hourly structure more carefully
+         if (!data.hourly || typeof data.hourly !== 'object') {
+            console.warn("API response missing 'hourly' data structure. Hourly details will be unavailable.");
+            data.hourly = { time: [] }; // Create a placeholder empty structure
+         } else if (!Array.isArray(data.hourly.time)) {
+             console.warn("API response 'hourly.time' is not an array. Hourly details will be unavailable.");
+             data.hourly.time = []; // Ensure time is an array even if empty
+         }
 
 
         const dailyData = data.daily;
         const hourlyData = data.hourly;
         const forecasts: WeatherForecast[] = [];
         const numDays = dailyData.time.length;
+        const numHours = hourlyData.time.length; // Get length after potential fix above
 
         // Ensure required daily arrays exist and have the correct length
-        const requiredDailyKeys = ['weather_code', 'temperature_2m_max', 'temperature_2m_min', 'sunrise', 'sunset', 'cloud_cover_mean'];
+        const requiredDailyKeys = ['time', 'weather_code', 'temperature_2m_max', 'temperature_2m_min', 'sunrise', 'sunset', 'cloud_cover_mean'];
         for (const key of requiredDailyKeys) {
-            if (!Array.isArray(dailyData[key]) || dailyData[key].length !== numDays) {
-                // Be more lenient for optional fields like cloud_cover_mean, sunrise, sunset
-                if (key === 'cloud_cover_mean' || key === 'sunrise' || key === 'sunset') {
-                    if (!dailyData[key]) dailyData[key] = Array(numDays).fill(null); // Fill with null if missing
-                    else if (dailyData[key].length !== numDays) console.warn(`Length mismatch for optional daily field '${key}'. Proceeding cautiously.`);
-                } else {
-                    throw new Error(`API response missing or has incorrect length for daily field: '${key}'. Expected ${numDays}, got ${dailyData[key]?.length}`);
-                }
+            if (!Array.isArray(dailyData[key])) {
+                console.warn(`Daily field '${key}' is missing or not an array. Filling with nulls.`);
+                dailyData[key] = Array(numDays).fill(null);
+            } else if (dailyData[key].length !== numDays) {
+                 console.warn(`Length mismatch for daily field '${key}'. Expected ${numDays}, got ${dailyData[key].length}. Padding with nulls.`);
+                 // Pad or truncate - padding with null is safer
+                 const currentLength = dailyData[key].length;
+                 if (currentLength < numDays) {
+                    dailyData[key] = [...dailyData[key], ...Array(numDays - currentLength).fill(null)];
+                 } else {
+                    dailyData[key] = dailyData[key].slice(0, numDays);
+                 }
             }
         }
-        // Ensure required hourly arrays exist
-         const requiredHourlyKeys = ['cloud_cover', 'weather_code'];
+
+        // Ensure required hourly arrays exist and have the correct length
+         const requiredHourlyKeys = ['time', 'cloud_cover', 'weather_code'];
          for (const key of requiredHourlyKeys) {
-             if (!Array.isArray(hourlyData[key])) {
-                  // Be more lenient for optional fields
-                 if (key === 'cloud_cover' || key === 'weather_code') {
-                     if (!hourlyData[key]) hourlyData[key] = Array(hourlyData.time.length).fill(null); // Fill with null if missing
-                     else console.warn(`Hourly field '${key}' is not an array. Proceeding cautiously.`);
-                 } else {
-                    throw new Error(`API response missing hourly field: '${key}'.`);
-                 }
+              if (!Array.isArray(hourlyData[key])) {
+                console.warn(`Hourly field '${key}' is missing or not an array. Filling with nulls.`);
+                hourlyData[key] = Array(numHours).fill(null);
+             } else if (hourlyData[key].length !== numHours && key !== 'time') { // 'time' length is definitive
+                  console.warn(`Length mismatch for hourly field '${key}'. Expected ${numHours}, got ${hourlyData[key].length}. Padding with nulls.`);
+                  const currentLength = hourlyData[key].length;
+                  if (currentLength < numHours) {
+                     hourlyData[key] = [...hourlyData[key], ...Array(numHours - currentLength).fill(null)];
+                  } else {
+                     hourlyData[key] = hourlyData[key].slice(0, numHours);
+                  }
              }
          }
+        // Define daily arrays after validation and potential padding
+        const dailyTime = dailyData.time as string[];
+        const dailyCode = dailyData.weather_code as (number | null)[];
+        const dailyTempMax = dailyData.temperature_2m_max as (number | null)[];
+        const dailyTempMin = dailyData.temperature_2m_min as (number | null)[];
+        const dailySunrise = dailyData.sunrise as (string | null)[];
+        const dailySunset = dailyData.sunset as (string | null)[];
+        const dailyCloudMean = dailyData.cloud_cover_mean as (number | null)[];
 
+        // Define hourly arrays after validation and potential padding
+        const hourlyTime = hourlyData.time as string[];
+        const hourlyCloud = hourlyData.cloud_cover as (number | null)[];
+        const hourlyCode = hourlyData.weather_code as (number | null)[];
 
         // --- Data Extraction & Processing Loop ---
         for (let i = 0; i < numDays; i++) {
-            const dateStr = dailyData.time[i]; // Should be YYYY-MM-DD string
+            const dateStr = dailyTime[i]; // Use validated dailyTime array
             if (!dateStr || typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                 console.warn(`Invalid date format encountered at index ${i}: ${dateStr}. Skipping day.`);
                 continue;
             }
 
-            const sunriseISO = dailyData.sunrise[i];
-            const sunsetISO = dailyData.sunset[i];
+            const sunriseISO = dailySunrise[i] || undefined; // Use || undefined for null values
+            const sunsetISO = dailySunset[i] || undefined;
 
             // Find hourly indices belonging to this day
             const dayStart = new Date(dateStr + "T00:00:00Z").getTime(); // Use Z for UTC start comparison
-             // Calculate end time (start of next day or very end of current day)
             const dayEnd = i + 1 < numDays
-                ? new Date(dailyData.time[i + 1] + "T00:00:00Z").getTime()
+                ? new Date(dailyTime[i + 1] + "T00:00:00Z").getTime()
                 : new Date(dateStr + "T23:59:59Z").getTime() + 1; // End of the day
 
 
              const dayHourlyIndices: number[] = [];
              const dayHourlyTimes: Date[] = [];
-             const dayHourlyCloud: number[] = [];
-             const dayHourlyWeatherCode: number[] = [];
+             const dayHourlyCloud: (number | null)[] = []; // Allow null
+             const dayHourlyWeatherCode: (number | null)[] = []; // Allow null
 
-             // Check if hourlyData.time exists and is an array before iterating
-            if (Array.isArray(hourlyData.time)) {
-                for (let h = 0; h < hourlyData.time.length; h++) {
-                    const hourlyTimeStr = hourlyData.time[h]; // Should be ISO string like "2024-07-31T10:00"
-                    try {
-                         const hourlyTimestamp = new Date(hourlyTimeStr).getTime();
-                         if (!isNaN(hourlyTimestamp) && hourlyTimestamp >= dayStart && hourlyTimestamp < dayEnd) {
-                            dayHourlyIndices.push(h);
-                            dayHourlyTimes.push(new Date(hourlyTimeStr)); // Store Date object
-                            // Safely access hourly data, providing null if array doesn't exist or index is out of bounds
-                            dayHourlyCloud.push(hourlyData.cloud_cover?.[h] ?? null);
-                            dayHourlyWeatherCode.push(hourlyData.weather_code?.[h] ?? null);
-                        }
-                    } catch (e) {
-                         console.warn(`Error parsing hourly time at index ${h}: ${hourlyTimeStr}`, e);
-                    }
-                }
-            } else {
-                 console.warn(`Hourly time data is missing or not an array for date ${dateStr}. Hourly details will be incomplete.`);
+            // Iterate using validated hourly arrays
+            for (let h = 0; h < numHours; h++) {
+                 const hourlyTimeStr = hourlyTime[h]; // Use validated hourlyTime array
+                 if (!hourlyTimeStr) continue; // Skip if time string is null/missing
+
+                 try {
+                      const hourlyTimestamp = new Date(hourlyTimeStr).getTime();
+                      if (!isNaN(hourlyTimestamp) && hourlyTimestamp >= dayStart && hourlyTimestamp < dayEnd) {
+                         dayHourlyIndices.push(h);
+                         dayHourlyTimes.push(new Date(hourlyTimeStr)); // Store Date object
+                         dayHourlyCloud.push(hourlyCloud[h] ?? null); // Use validated hourlyCloud array
+                         dayHourlyWeatherCode.push(hourlyCode[h] ?? null); // Use validated hourlyCode array
+                     }
+                 } catch (e) {
+                      console.warn(`Error parsing hourly time at index ${h}: ${hourlyTimeStr}`, e);
+                 }
             }
-
 
             // Use daily average cloud cover if provided, otherwise calculate from hourly or default
             let dailyCloudCover: number | undefined;
-            if (dailyData.cloud_cover_mean[i] !== null && dailyData.cloud_cover_mean[i] !== undefined) {
-                dailyCloudCover = Math.round(dailyData.cloud_cover_mean[i]);
+            const meanCloud = dailyCloudMean[i]; // Use validated dailyCloudMean array
+            if (meanCloud !== null && meanCloud !== undefined) {
+                dailyCloudCover = Math.round(meanCloud);
             } else if (dayHourlyCloud.length > 0) {
                 dailyCloudCover = Math.round(calculateAverage(dayHourlyCloud));
             } // else leave undefined
 
             // Get daily values safely
-            const dailyCode = dailyData.weather_code[i] ?? null;
-            const dailyMaxTemp = dailyData.temperature_2m_max[i] ?? undefined;
-            const dailyMinTemp = dailyData.temperature_2m_min[i] ?? undefined;
+            const currentDailyCode = dailyCode[i] ?? null; // Use validated dailyCode array
+            const currentDailyMaxTemp = dailyTempMax[i] ?? undefined; // Use validated dailyTempMax array
+            const currentDailyMinTemp = dailyTempMin[i] ?? undefined; // Use validated dailyTempMin array
+
 
             forecasts.push({
                 date: dateStr,
-                weatherCondition: classifyWeatherCondition(dailyCode),
-                tempMax: typeof dailyMaxTemp === 'number' ? parseFloat(dailyMaxTemp.toFixed(1)) : undefined,
-                tempMin: typeof dailyMinTemp === 'number' ? parseFloat(dailyMinTemp.toFixed(1)) : undefined,
+                weatherCondition: classifyWeatherCondition(currentDailyCode),
+                tempMax: typeof currentDailyMaxTemp === 'number' ? parseFloat(currentDailyMaxTemp.toFixed(1)) : undefined,
+                tempMin: typeof currentDailyMinTemp === 'number' ? parseFloat(currentDailyMinTemp.toFixed(1)) : undefined,
                 cloudCover: dailyCloudCover,
-                sunrise: sunriseISO ?? undefined,
-                sunset: sunsetISO ?? undefined,
+                sunrise: sunriseISO,
+                sunset: sunsetISO,
                 hourly: dayHourlyTimes.length > 0 ? {
                     time: dayHourlyTimes,
-                    cloudCover: dayHourlyCloud, // Array of numbers or nulls
-                    weatherCode: dayHourlyWeatherCode, // Array of numbers or nulls
+                    cloudCover: dayHourlyCloud,
+                    weatherCode: dayHourlyWeatherCode,
                 } : undefined, // Only include hourly if data was found
             });
         } // End daily loop
 
         if (forecasts.length === 0 && numDays > 0) {
             console.warn(`Could not process any valid forecast days from the ${numDays} days received.`);
-            // Depending on requirements, you might throw an error here or return empty
         }
 
         return forecasts;
@@ -321,7 +343,6 @@ export async function getCurrentDayWeather(
         }
     } catch (error) {
         console.error('Error fetching current day weather:', error);
-        // Optionally, re-throw or handle specific error types
         return null;
     }
 }
