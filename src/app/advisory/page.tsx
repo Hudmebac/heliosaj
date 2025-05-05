@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, RefreshCw } from 'lucide-react'; // Import Clock, Car, RefreshCw icons
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, RefreshCw, Percent } from 'lucide-react'; // Import Clock, Car, RefreshCw, Percent icons
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast, Location } from '@/services/weather'; // Import Location type
@@ -350,6 +350,11 @@ export default function AdvisoryPage() {
     const todayErrorMsg = adviceError?.split('\n').find(line => line.startsWith("Today's")) || (adviceError && !adviceError.includes("Tomorrow's") ? adviceError : null);
     const tomorrowErrorMsg = adviceError?.split('\n').find(line => line.startsWith("Tomorrow's")) || (adviceError && !adviceError.includes("Today's") ? adviceError : null);
 
+   // Calculate current battery percentage
+    const currentBatteryPercentage = useMemo(() => {
+        if (!isMounted || !settings?.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) return 0;
+        return Math.round((currentBatteryLevel / settings.batteryCapacityKWh) * 100);
+    }, [isMounted, settings?.batteryCapacityKWh, currentBatteryLevel]);
 
    return (
      <div className="space-y-6">
@@ -417,7 +422,9 @@ export default function AdvisoryPage() {
                disabled={!isMounted} // Technically redundant due to outer check, but safe
              />
               {isMounted && settings?.batteryCapacityKWh ? (
-                <p className="text-xs text-muted-foreground"> (Capacity: {settings.batteryCapacityKWh} kWh)</p>
+                 <p className="text-xs text-muted-foreground flex items-center gap-1">
+                   (<Percent className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh} kWh)
+                 </p>
               ) : (
                   <p className="text-xs text-muted-foreground">{isMounted ? '(Set Capacity in Settings)' : ''}</p> // Simplified
               )}
@@ -612,7 +619,7 @@ export default function AdvisoryPage() {
                  </div>
                   <div>
                      <p><strong>Battery Capacity:</strong> {isMounted ? (settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set') : 'Loading...'}</p>
-                     <p><strong>Current Battery Input:</strong> {currentBatteryLevel.toFixed(1)} kWh</p>
+                     <p><strong>Current Battery Input:</strong> {currentBatteryLevel.toFixed(1)} kWh ({currentBatteryPercentage}%)</p>
                      <p><strong>Est. Daily Consumption Input:</strong> {dailyConsumption.toFixed(1)} kWh</p>
                   </div>
               </div>
@@ -645,3 +652,4 @@ export default function AdvisoryPage() {
      </div>
    );
  }
+
