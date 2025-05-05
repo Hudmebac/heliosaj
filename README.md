@@ -1,71 +1,25 @@
-# Helioheggie Project
+# Solar Energy Management Application
 
-## Project Description
+## Overview
 
-Helioheggie is a web application designed to [describe the project's purpose here, e.g., provide weather information, manage energy tariffs, and offer advisory services]. It aims to [explain the project's goals and target audience, e.g., offer a user-friendly interface for accessing weather and energy-related information, help users make informed decisions about their energy consumption].
+This application is designed to monitor and optimize solar energy usage. It integrates real-time weather data to provide accurate energy production forecasts and offers users personalized energy usage advisories to maximize efficiency and savings.
 
-## Project Structure
+## Purpose
 
-The project is structured as follows:
-```
-helioheggie/
-├── README.md                  # This file
-├── components.json            # Configuration file for components
-├── next-env.d.ts              # TypeScript environment file
-├── next.config.ts             # Next.js configuration file
-├── package-lock.json          # Dependency lock file
-├── package.json               # Project dependencies and scripts
-├── postcss.config.mjs         # PostCSS configuration file
-├── tailwind.config.ts         # Tailwind CSS configuration file
-├── tsconfig.json              # TypeScript configuration file
-├── .idx/                      # Index directory
-│   └── dev.nix                # Development environment configuration
-├── docs/                      # Documentation files
-│   └── blueprint.md           # Project blueprint
-├── src/                       # Source code directory
-│   ├── ai/                    # AI related code
-│   │   ├── ai-instance.ts     # AI instance logic
-│   │   └── dev.ts             # AI development utilities
-│   ├── app/                   # Next.js application code
-│   │   ├── favicon.ico        # Favicon
-│   │   ├── globals.css        # Global styles
-│   │   ├── layout.tsx         # Main layout component
-│   │   ├── page.tsx           # Home page component
-│   │   ├── advisory/          # Advisory pages
-│   │   │   └── page.tsx
-│   │   ├── info/              # Information pages
-│   │   │   └── page.tsx
-│   │   ├── settings/          # Settings pages
-│   │   │   └── page.tsx
-│   │   └── tariffs/           # Tariffs pages
-│   │       └── page.tsx
-│   ├── components/            # Reusable UI components
-│   │   ├── query-provider.tsx # Query provider component
-│   │   ├── theme-provider.tsx # Theme provider component
-│   │   ├── theme-toggle.tsx   # Theme toggle component
-│   │   ├── layout/            # Layout components
-│   │   │   ├── footer.tsx     # Footer component
-│   │   │   └── header.tsx     # Header component
-│   │   └── ui/                # UI components
-│   │       ├── accordion.tsx  # Accordion component
-│   │       ├── ...            # Other UI components
-│   ├── hooks/                 # Custom hooks
-│   │   ├── use-local-storage.ts # Local storage hook
-│   │   ├── use-mobile.tsx       # Mobile detection hook
-│   │   └── use-toast.ts         # Toast hook
-│   ├── services/              # External services integration
-│   │   └── weather.ts         # Weather service integration
-│   └── types/                 # TypeScript type definitions
-│       └── settings.ts        # Settings types
-└── ...
-```
-## Setup and Run
+The primary purpose of this application is to empower users with the tools and insights necessary to effectively manage their solar energy systems. By leveraging current weather conditions and forecasts, the app predicts solar energy output and recommends adjustments to energy consumption patterns. This proactive approach helps users:
+
+-   **Maximize Energy Production:** Understand the optimal times for solar energy generation based on weather.
+-   **Optimize Energy Usage:** Receive advisories on the best times to use high-energy appliances, aligning with peak production hours.
+-   **Reduce Energy Costs:** Lower overall electricity bills by strategically utilizing self-generated solar power.
+- **Weather Data Integration:** Using real-time weather data and forecasting to provide users with valuable information
+- **Energy Usage Advisories:** Offer personalized advice to help users optimize their energy consumption.
+
+## How to Run
 
 1.  **Clone the repository:**
 ```
 bash
-    git clone https://github.com/Hudmebac/helioheggie.git
-    cd helioheggie
+    git clone [repository-url]
     
 ```
 2.  **Install dependencies:**
@@ -74,46 +28,36 @@ bash
     npm install
     
 ```
-3.  **Run the development server:**
+3.  **Start the development server:**
 ```
 bash
     npm run dev
     
 ```
-This will start the application on `http://localhost:3000`.
+## Next Steps
 
-## Contributing
+-   Implement user authentication and profile management.
+-   Develop more sophisticated energy usage analysis and reporting features.
+-   Expand the weather data integration to include more detailed forecasts.
+-   Create a mobile version of the application.
+-   Add more data visualization.
 
-We welcome contributions to Helioheggie! If you'd like to contribute, please follow these steps:
+## Style Guide
 
-1.  **Fork the repository.**
-2.  **Create a new branch for your feature or bug fix:**
-```
-bash
-    git checkout -b feature/your-feature-name
-    
-```
-or
-```
-bash
-    git checkout -b fix/your-bug-fix
-    
-```
-3.  **Make your changes and commit them:**
-```
-bash
-    git add .
-    git commit -m "Add your commit message here"
-    
-```
-4.  **Push your branch to your fork:**
-```
-bash
-    git push origin feature/your-feature-name
-    
-```
-5.  **Create a pull request.**
+-   **Code Formatting:** Follow the Prettier code formatter for consistent styling.
+-   **Naming Conventions:** Use camelCase for variables and functions, PascalCase for components.
+-   **Component Structure:** Keep components small and focused on a single responsibility.
+- **Commit message:** Using conventional commit messages.
 
-## License
+## Tech Stack
 
-This project is licensed under the [Specify the license here, e.g., MIT License] - see the `LICENSE.md` file for details.
+-   **Frontend:**
+    -   Next.js (React framework)
+    -   Tailwind CSS (Utility-first CSS framework)
+    -   Shadcn/ui (Component library)
+-   **Data Management:**
+    -  Local storage
+- **Weather Data:**
+  - OpenWeatherMap (API to get weather data).
+- **AI:**
+  - Ollama (Run llms locally).
