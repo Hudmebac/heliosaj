@@ -17,6 +17,7 @@ import calculateSolarGeneration, { getChargingAdvice, type AdviceResult, type Ca
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 const HOURS_IN_DAY = 24;
+const DEFAULT_BATTERY_MAX = 100; // Default max for input if settings not loaded
 
 export default function AdvisoryPage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -25,25 +26,38 @@ export default function AdvisoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tomorrowForecast, setTomorrowForecast] = useState<CalculatedForecast | null>(null); // Store forecast for display
+  const [isMounted, setIsMounted] = useState(false); // State to track client mount
 
   // State for user inputs
   const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(0);
   // State for hourly usage sliders (using average as default)
   const [hourlyUsage, setHourlyUsage] = useState<number[]>(
-      () => Array(HOURS_IN_DAY).fill(settings?.avgHourlyConsumptionKWh ?? 0.4) // Default to avg or 0.4 kWh
+      () => Array(HOURS_IN_DAY).fill(0.4) // Initial basic default
   );
-  const [dailyConsumption, setDailyConsumption] = useState<number>(settings?.dailyConsumptionKWh ?? 10); // Default to setting or 10 kWh
-  const [avgHourlyConsumption, setAvgHourlyConsumption] = useState<number>(settings?.avgHourlyConsumptionKWh ?? (settings?.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4)); // Default based on daily or 0.4 kWh
+  const [dailyConsumption, setDailyConsumption] = useState<number>(10); // Initial basic default
+  const [avgHourlyConsumption, setAvgHourlyConsumption] = useState<number>(0.4); // Initial basic default
 
-
-  // Update defaults if settings load later
+  // Set defaults from settings once mounted and settings are available
    useEffect(() => {
+     setIsMounted(true); // Component has mounted
      if (settings) {
        setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
        const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
-       setAvgHourlyConsumption(avg);
-       setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
+       setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
+       // Only set hourlyUsage based on settings if it hasn't been manually changed yet (check if it's still the initial default)
+       // This prevents overriding user adjustments if settings load later.
+       if (hourlyUsage.every(val => val === 0.4)) { // Check against the *initial* default
+            setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
+       }
+
+     } else {
+       // Reset to basic defaults if settings are removed/null
+       setDailyConsumption(10);
+       setAvgHourlyConsumption(0.4);
+       setHourlyUsage(Array(HOURS_IN_DAY).fill(0.4));
      }
+     // Only run this effect when settings change or on initial mount
+     // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [settings]);
 
 
@@ -72,6 +86,9 @@ export default function AdvisoryPage() {
     };
 
   useEffect(() => {
+     // Only run the main effect if the component is mounted
+    if (!isMounted) return;
+
     const fetchForecastAndGenerateAdvice = async () => {
       setLoading(true);
       setError(null);
@@ -92,9 +109,11 @@ export default function AdvisoryPage() {
 
       const cheapTariffs = tariffPeriods.filter(p => p.isCheap);
       if (cheapTariffs.length === 0) {
-         setError("No cheap tariff periods defined. Add them in the Tariffs page to get charging advice.");
-         setLoading(false);
-         return;
+         // Consider making this a warning instead of an error if advice can still be given without tariffs
+         // setError("No cheap tariff periods defined. Add them in the Tariffs page to get specific grid charging cost advice.");
+         console.warn("No cheap tariff periods defined. Advice will be based on generation vs need, not cost optimization.")
+         // setLoading(false); // Potentially allow continuing without tariff info
+         // return;
       }
 
       let currentLocation = DEFAULT_LOCATION;
@@ -102,7 +121,8 @@ export default function AdvisoryPage() {
         currentLocation = { lat: settings.latitude, lng: settings.longitude };
       } else {
          console.warn("Using default location for forecast as specific coordinates are missing.");
-         setError("Location coordinates missing in settings. Using default location (London) for forecast.");
+         // Don't set error here, just warn. Allow forecast with default location.
+         // setError("Location coordinates missing in settings. Using default location (London) for forecast.");
       }
 
       const selectedSource = settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID;
@@ -137,7 +157,7 @@ export default function AdvisoryPage() {
          const adviceParams: AdvancedAdviceParams = {
            tomorrowForecast: calculatedTomorrowForecast,
            settings: settings,
-           cheapTariffs: cheapTariffs,
+           cheapTariffs: cheapTariffs, // Pass potentially empty array
            currentBatteryLevelKWh: currentBatteryLevel,
            hourlyConsumptionProfile: hourlyUsage // Pass the current slider values
          };
@@ -164,15 +184,14 @@ export default function AdvisoryPage() {
     };
 
     // Debounce or delay fetch/advice generation if inputs change frequently
-    // For now, just re-run when settings/tariffs/inputs change
     const timer = setTimeout(() => {
          fetchForecastAndGenerateAdvice();
      }, 500); // Add a small delay to avoid excessive calls when typing/sliding
 
      return () => clearTimeout(timer);
 
-
-  }, [settings, tariffPeriods, currentBatteryLevel, hourlyUsage, avgHourlyConsumption, dailyConsumption]); // Re-run when any relevant state changes
+    // Include isMounted in dependency array
+  }, [settings, tariffPeriods, currentBatteryLevel, hourlyUsage, avgHourlyConsumption, dailyConsumption, isMounted]); // Re-run when any relevant state changes
 
   const renderAdvice = () => {
     if (!advice) return null;
@@ -199,6 +218,9 @@ export default function AdvisoryPage() {
     );
   };
 
+   // Calculate max value for battery input safely after mount
+   const batteryMaxInput = isMounted ? (settings?.batteryCapacityKWh ?? DEFAULT_BATTERY_MAX) : DEFAULT_BATTERY_MAX;
+
 
   return (
     <div className="space-y-6">
@@ -222,14 +244,19 @@ export default function AdvisoryPage() {
               type="number"
               step="0.1"
               min="0"
-              max={settings?.batteryCapacityKWh ?? 100} // Max is battery capacity
+              max={batteryMaxInput} // Use state-derived max value
               value={currentBatteryLevel}
-              onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(settings?.batteryCapacityKWh ?? 100, parseFloat(e.target.value) || 0)))}
+              onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput, parseFloat(e.target.value) || 0)))}
               placeholder="e.g., 5.2"
               className="max-w-xs"
+              disabled={!isMounted} // Disable input until mounted to avoid issues
             />
-             {settings?.batteryCapacityKWh && (
+             {/* Conditionally render capacity info only when mounted and settings available */}
+             {isMounted && settings?.batteryCapacityKWh && (
                <p className="text-xs text-muted-foreground"> (Capacity: {settings.batteryCapacityKWh} kWh)</p>
+             )}
+             {!isMounted && (
+                 <p className="text-xs text-muted-foreground">Loading settings...</p>
              )}
           </div>
 
@@ -248,9 +275,10 @@ export default function AdvisoryPage() {
                       onChange={(e) => setDailyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
                       placeholder="e.g., 10.5"
                       className="max-w-xs"
+                      disabled={!isMounted} // Disable until mounted
                    />
                </div>
-               <Button variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
+               <Button variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto" disabled={!isMounted}>
                  Distribute Evenly to Hourly
                </Button>
            </div>
@@ -268,9 +296,10 @@ export default function AdvisoryPage() {
                         onChange={(e) => setAvgHourlyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
                         placeholder="e.g., 0.4"
                         className="max-w-xs"
+                        disabled={!isMounted} // Disable until mounted
                     />
                 </div>
-                 <Button variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
+                 <Button variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto" disabled={!isMounted}>
                     Apply Average to All Hours
                  </Button>
            </div>
@@ -287,12 +316,14 @@ export default function AdvisoryPage() {
                     <Slider
                       id={`hour-${index}`}
                       min={0}
-                      max={Math.max(2, avgHourlyConsumption * 5)} // Dynamic max based on average, at least 2
+                      // Dynamic max based on average, ensure it's reasonable. Use isMounted check.
+                      max={isMounted ? Math.max(2, avgHourlyConsumption * 5) : 2}
                       step={0.1}
                       value={[usage]}
                       onValueChange={(value) => handleSliderChange(index, value)}
                       className="flex-grow"
                       aria-label={`Hourly consumption slider for hour ${index}`}
+                      disabled={!isMounted} // Disable until mounted
                     />
                      <span className="text-xs font-mono w-8 text-right">{usage.toFixed(1)}</span>
                    </div>
@@ -330,7 +361,7 @@ export default function AdvisoryPage() {
                <Alert variant="default">
                    <SettingsIcon className="h-4 w-4" />
                    <AlertTitle>Could Not Generate Advice</AlertTitle>
-                   <AlertDescription>Unable to provide a recommendation. Please ensure your system settings (especially battery capacity) and tariff periods are correctly configured.</AlertDescription>
+                   <AlertDescription>Unable to provide a recommendation. Please ensure your system settings (especially battery capacity) and tariff periods are correctly configured, and that forecast data is available.</AlertDescription>
                </Alert>
            )}
         </CardContent>
@@ -346,7 +377,8 @@ export default function AdvisoryPage() {
             {tomorrowForecast && (
              <p><strong>Tomorrow's Est. Generation:</strong> {tomorrowForecast.dailyTotalGenerationKWh.toFixed(2)} kWh ({tomorrowForecast.weatherCondition})</p>
             )}
-            <p><strong>Battery Capacity:</strong> {settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set'}</p>
+            {/* Show settings values safely after mount */}
+            <p><strong>Battery Capacity:</strong> {isMounted ? (settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set') : 'Loading...'}</p>
             <p><strong>Current Battery Level Input:</strong> {currentBatteryLevel.toFixed(1)} kWh</p>
             <p><strong>Estimated Daily Consumption Input:</strong> {dailyConsumption.toFixed(1)} kWh</p>
             <div>
@@ -361,7 +393,7 @@ export default function AdvisoryPage() {
                     <span className="text-muted-foreground"> None defined</span>
                 )}
             </div>
-             <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on the quality of the forecast (using {settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID} source), your system settings, defined tariff periods, and the accuracy of your consumption inputs. This is a simplified recommendation.</p>
+             <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on the quality of the forecast (using {isMounted ? (settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID) : '...'} source), your system settings, defined tariff periods, and the accuracy of your consumption inputs. This is a simplified recommendation.</p>
          </CardContent>
        </Card>
     </div>
