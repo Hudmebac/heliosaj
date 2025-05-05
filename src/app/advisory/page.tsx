@@ -8,9 +8,9 @@ import { Loader2, Zap, BatteryCharging, Cloudy, Sun } from 'lucide-react'; // Im
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast } from '@/services/weather'; // Assuming type exists
-import { getWeatherForecast } from '@/services/weather'; // Assuming implementation
-import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations'; // Assuming implementation
-import { getChargingAdvice, AdviceResult } from '../../lib/charging-advice'; // Assuming implementation
+import { getWeatherForecast } from '@/services/weather';
+import { calculateSolarGeneration, type CalculatedForecast } from '../lib/solar-calculations';
+import { getChargingAdvice, AdviceResult } from '../lib/charging-advice';
 
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
