@@ -1,16 +1,16 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun } from 'lucide-react'; // Import icons
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon } from 'lucide-react'; // Import icons
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
-import type { WeatherForecast } from '@/services/weather'; // Assuming type exists
-import SolarService, { type AdviceResult, type CalculatedForecast } from '../../services/SolarService';
-import DummyWeatherService from '../../services/DummyWeatherService';
-import type { WeatherCondition, WeatherForecast } from '../../services/WeatherService';
+import { getWeatherForecast, type WeatherForecast } from '@/services/weather'; // Assuming type exists
+// Import the new calculation functions
+import calculateSolarGeneration, { getChargingAdvice, type AdviceResult, type CalculatedForecast } from '@/lib/solar-calculations';
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
 
@@ -20,12 +20,14 @@ export default function AdvisoryPage() {
   const [advice, setAdvice] = useState<AdviceResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tomorrowForecast, setTomorrowForecast] = useState<CalculatedForecast | null>(null); // Store forecast for display
 
   useEffect(() => {
     const fetchForecastAndGenerateAdvice = async () => {
       setLoading(true);
       setError(null);
       setAdvice(null);
+      setTomorrowForecast(null); // Reset forecast display
 
       if (!settings) {
         setError("User settings not found. Please configure your system in Settings.");
@@ -52,46 +54,58 @@ export default function AdvisoryPage() {
       if (settings.latitude && settings.longitude) {
         currentLocation = { lat: settings.latitude, lng: settings.longitude };
       } else {
-         // TODO: Add geocoding here if needed, or rely on default/show error
          console.warn("Using default location for forecast as specific coordinates are missing.");
+         setError("Location coordinates missing in settings. Using default location (London) for forecast.");
+         // Continue with default, but inform the user
       }
 
 
       try {
         // Fetch weather forecast for *tomorrow*
-         const weatherService = new DummyWeatherService();
-         const weatherResult = await weatherService.getWeatherForecast("location"); // Needs to return data including tomorrow
+        const today = new Date();
+        const tomorrowDate = new Date(today);
+        tomorrowDate.setDate(today.getDate() + 1);
+        const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
 
-         const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-        const tomorrowWeather = weatherResult?.find(f => f.date === tomorrowStr);
+         // Request 2 days to ensure tomorrow is included even with timezone issues
+         const weatherResult = await getWeatherForecast(currentLocation, 2);
 
-        
-        
-        
+         if (!weatherResult || weatherResult.length === 0) {
+            throw new Error("Could not retrieve weather forecast data.");
+         }
+
+        const tomorrowWeather = weatherResult.find(f => f.date === tomorrowStr);
 
 
         if (!tomorrowWeather) {
-          setError("Could not retrieve tomorrow's weather forecast data.");
-          setLoading(false);
-          return;
+          // This might happen if API only returns today
+          console.error("API response:", weatherResult);
+          throw new Error(`Could not find forecast data specifically for tomorrow (${tomorrowStr}). Check API response.`);
         }
 
-        // Calculate tomorrow's solar generation
-        const tomorrowForecast = SolarService.calculateSolarGeneration(tomorrowWeather, settings);
+        // Calculate tomorrow's solar generation using the imported function
+        const calculatedTomorrowForecast = calculateSolarGeneration(tomorrowWeather, settings);
+        setTomorrowForecast(calculatedTomorrowForecast); // Store for display
 
-        if (!tomorrowForecast) {
-             setError("Could not calculate tomorrow's solar generation estimate.");
-             setLoading(false);
-             return;
+        if (!calculatedTomorrowForecast) {
+            throw new Error("Could not calculate tomorrow's solar generation estimate.");
         }
-       
-        // Get the charging advice
-        const generatedAdvice = getChargingAdvice(tomorrowForecast, settings);
+
+        // Get the charging advice using the imported function
+        const generatedAdvice = getChargingAdvice(calculatedTomorrowForecast, settings);
+        if (!generatedAdvice) {
+            // This case handles if getChargingAdvice returns null (e.g., invalid inputs)
+             throw new Error("Failed to generate charging advice based on forecast.");
+        }
         setAdvice(generatedAdvice);
 
       } catch (err) {
         console.error("Error in advisory generation:", err);
-        setError("Failed to generate charging advice. Check console for details.");
+        let errorMessage = "Failed to generate charging advice.";
+         if (err instanceof Error) {
+             errorMessage += ` Details: ${err.message}`;
+         }
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -103,14 +117,15 @@ export default function AdvisoryPage() {
   const renderAdvice = () => {
     if (!advice) return null;
 
-    const Icon = advice.chargeNow ? BatteryCharging : advice.reason.includes("High") ? Sun : Cloudy;
-    const alertVariant: "default" | "destructive" | null | undefined = advice.chargeNow ? undefined : undefined; // Default styling for both recommendations for now
+    const Icon = advice.recommendCharge ? BatteryCharging : advice.reason.includes("Sufficient") ? Sun : Cloudy;
+    // Use destructive variant only if there's a configuration error leading to advice failure
+    const alertVariant = error ? "destructive" : "default";
     const title = advice.recommendCharge ? "Recommendation: Charge Battery Tonight" : "Recommendation: Avoid Grid Charging Tonight";
 
     return (
-       <Alert variant={alertVariant} className="mt-4">
-         <Icon className="h-5 w-5" />
-        <AlertTitle className="ml-7">{title}</AlertTitle>
+       <Alert variant={alertVariant} className="mt-4 border-primary/50 dark:border-primary/40">
+         <Icon className="h-5 w-5 text-primary" />
+        <AlertTitle className="ml-7 font-semibold">{title}</AlertTitle>
         <AlertDescription className="ml-7">
           {advice.reason}
           {advice.details && <span className="block mt-1 text-xs text-muted-foreground">{advice.details}</span>}
@@ -138,28 +153,36 @@ export default function AdvisoryPage() {
               <span>Generating advice...</span>
             </div>
           )}
-          {error && (
+          {error && !loading && ( // Show error only if not loading
             <Alert variant="destructive">
-               <Zap className="h-4 w-4"/>
-              <AlertTitle>Error</AlertTitle>
+               <AlertCircle className="h-4 w-4"/>
+              <AlertTitle>Error Generating Advice</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
           {!loading && !error && renderAdvice()}
-           {!loading && !error && !advice && (
-               <p className="text-muted-foreground">Could not generate advice. Please ensure settings and tariffs are correctly configured.</p>
+           {!loading && !error && !advice && ( // Handle case where advice is null but no specific error was thrown
+               <Alert variant="default">
+                   <SettingsIcon className="h-4 w-4" />
+                   <AlertTitle>Could Not Generate Advice</AlertTitle>
+                   <AlertDescription>Unable to provide a recommendation. Please ensure your system settings (especially battery capacity) and tariff periods are correctly configured.</AlertDescription>
+               </Alert>
            )}
         </CardContent>
       </Card>
 
        <Card>
          <CardHeader>
-           <CardTitle>Configuration Used</CardTitle>
+           <CardTitle>Forecast & Configuration Used</CardTitle>
+            <CardDescription>Summary of data used for this advice.</CardDescription>
          </CardHeader>
-         <CardContent className="text-sm space-y-2">
+         <CardContent className="text-sm space-y-3">
+            {tomorrowForecast && (
+             <p><strong>Tomorrow's Est. Generation:</strong> {tomorrowForecast.dailyTotalGenerationKWh.toFixed(2)} kWh ({tomorrowForecast.weatherCondition})</p>
+            )}
             <p><strong>Battery Capacity:</strong> {settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set'}</p>
             <div>
-                <strong>Cheap Tariff Periods:</strong>
+                <strong>Defined Cheap Tariff Periods:</strong>
                 {tariffPeriods.filter(p => p.isCheap).length > 0 ? (
                     <ul className="list-disc list-inside ml-4 text-muted-foreground">
                         {tariffPeriods.filter(p => p.isCheap).map(p => (
@@ -170,9 +193,10 @@ export default function AdvisoryPage() {
                     <span className="text-muted-foreground"> None defined</span>
                 )}
             </div>
-             <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on the quality of the forecast and your system settings.</p>
+             <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on the quality of the forecast, your system settings, and defined cheap tariff periods. This is a basic recommendation.</p>
          </CardContent>
        </Card>
     </div>
   );
 }
+
