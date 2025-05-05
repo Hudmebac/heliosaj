@@ -28,4 +28,15 @@ export interface TariffPeriod {
   rate?: number; // Optional: Cost per kWh during this period
 }
 
+export interface ForecastOptions {
+  showWeatherCondition: boolean; // Default true - Show the weather condition
+  showTempMax: boolean; // Default true - Show the daily maximum temperature
+  showTempMin: boolean; // Default true - Show the daily minimum temperature
+  showSunrise: boolean; // Default true - Show the sunrise time
+  showSunset: boolean; // Default true - Show the sunset time
+}
+
+
+
+
 

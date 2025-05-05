@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { ForecastOptions } from '@/types/settings';
 
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   // Get from local storage then
@@ -68,3 +69,16 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
 
   return [storedValue, setValue];
 }
+
+
+/**
+ * Hook to manage ForecastOptions stored in local storage.
+ * @returns [ForecastOptions, (value: ForecastOptions) => void] - Tuple with current settings and a setter.
+ */
+export const useForecastOptions = (): [ForecastOptions, (value: ForecastOptions) => void] => {
+  // Default options: all true
+  const defaultOptions: ForecastOptions = { showWeatherCondition: true, showTempMax: true, showTempMin: true, showSunrise: true, showSunset: true };
+
+  // Use the generic hook to manage ForecastOptions with default
+  return useLocalStorage<ForecastOptions>("forecastOptions", defaultOptions);
+};

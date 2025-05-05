@@ -1,6 +1,0 @@
-// src/lib/testLog.ts
-
-export const log = (message: string) => {
-  // trigger netlify build
-  console.log(message);
-};

@@ -6,10 +6,11 @@ import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Sun, Home, Settings, Info, BarChart2, Zap, List, ExternalLink } from 'lucide-react'; // Import List, ExternalLink icons
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+    DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -17,8 +18,10 @@ import {
   DropdownMenuLabel
 } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useLocalStorage } from '@/hooks/use-local-storage';
-import type { UserSettings } from '@/types/settings';
+import type { UserSettings, ForecastOptions } from '@/types/settings';
+import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 
 // Define the structure for weather sources including an ID
@@ -45,9 +48,15 @@ const DEFAULT_WEATHER_SOURCE = weatherSources.find(s => s.id === DEFAULT_WEATHER
 export default function Header() {
   const pathname = usePathname();
   const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
+  const [forecastOptions, setForecastOptions] = useLocalStorage<ForecastOptions>('forecastOptions', {
+    showWeatherCondition: true,
+    showTempMax: true,
+    showTempMin: true,
+    showSunrise: true,
+    showSunset: true,
+  });
   // Local state to manage the selected source, initialized from settings or default
   const [selectedSourceId, setSelectedSourceId] = useState<string>(DEFAULT_WEATHER_SOURCE_ID);
-  const [isMounted, setIsMounted] = useState(false); // State to track client mount
 
    // Ensure effect runs only on client after mount
    useEffect(() => {
@@ -57,6 +66,15 @@ export default function Header() {
      const isValidSource = weatherSources.some(s => s.id === storedSourceId);
      setSelectedSourceId(isValidSource && storedSourceId ? storedSourceId : DEFAULT_WEATHER_SOURCE_ID);
    }, [settings?.selectedWeatherSource]); // Re-run if settings change externally
+
+
+    // Modal state and related functions
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const openModal = () => setIsModalOpen(true);
+    const closeModal = () => setIsModalOpen(false);
+
+    const { toast } = useToast();
 
 
   const handleSourceChange = (newSourceId: string) => {
@@ -74,6 +92,33 @@ export default function Header() {
     // Data refresh will happen automatically on pages that use settings via useEffect dependency
   };
 
+    const handleOptionChange = (optionKey: keyof ForecastOptions, checked: boolean) => {
+        setForecastOptions((prevOptions) => ({
+            ...prevOptions,
+            [optionKey]: checked,
+        }));
+    };
+
+    const handleModalClose = () => {
+        // Set a timeout to close the modal after saving
+        setTimeout(() => {
+            closeModal();
+
+            toast({
+                title: "Forecast settings updated.",
+                description: "Your changes have been saved.",
+            })
+        }, 500);
+    };
+
+    const isMounted = true;
+
+    // Find the full source object based on the selected ID
+    const currentSource = weatherSources.find(s => s.id === selectedSourceId) || DEFAULT_WEATHER_SOURCE;
+
+    // Determine the name to display, avoiding hydration mismatch
+    const displaySourceName = isMounted ? currentSource?.name : DEFAULT_WEATHER_SOURCE.name;
+
   const navItems = [
     { href: '/', label: 'Dashboard', icon: Home },
     { href: '/settings', label: 'Settings', icon: Settings },
@@ -81,13 +126,6 @@ export default function Header() {
     { href: '/tariffs', label: 'Tariffs', icon: BarChart2 },
     { href: '/advisory', label: 'Advisory', icon: Zap },
   ];
-
-   // Find the full source object based on the selected ID
-   const currentSource = weatherSources.find(s => s.id === selectedSourceId) || DEFAULT_WEATHER_SOURCE;
-
-   // Determine the name to display, avoiding hydration mismatch
-   const displaySourceName = isMounted ? currentSource?.name : DEFAULT_WEATHER_SOURCE.name;
-
 
   return (
     <header className="bg-secondary text-secondary-foreground shadow-md sticky top-0 z-50">
@@ -132,6 +170,9 @@ export default function Header() {
                 {/* Render placeholder text initially or if not mounted */}
                 Source: {isMounted ? (displaySourceName || 'Select') : 'Loading...'}
               </Button>
+
+
+
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-secondary border-border text-secondary-foreground">
               <DropdownMenuLabel>Select Weather Data Source</DropdownMenuLabel>
@@ -165,8 +206,55 @@ export default function Header() {
                    Note: Currently only Open-Meteo provides forecast data to the app.
                </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>          
 
+            {/* Button to open forecast settings modal */}
+            <Button variant="ghost" onClick={openModal} className="h-auto">
+                Forecast Settings
+            </Button>
+
+          {/* Forecast settings dialog */}
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <DialogTrigger asChild>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Forecast Display Settings</DialogTitle>
+                <DialogDescription>
+                  Customize what data is displayed in the forecast.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showWeatherCondition" checked={forecastOptions.showWeatherCondition} onCheckedChange={(checked) => handleOptionChange('showWeatherCondition', checked)} />
+                  <label htmlFor="showWeatherCondition" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Weather Condition
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showTempMax" checked={forecastOptions.showTempMax} onCheckedChange={(checked) => handleOptionChange('showTempMax', checked)} />
+                  <label htmlFor="showTempMax" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Max Temperature
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showTempMin" checked={forecastOptions.showTempMin} onCheckedChange={(checked) => handleOptionChange('showTempMin', checked)} />
+                  <label htmlFor="showTempMin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Min Temperature
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showSunrise" checked={forecastOptions.showSunrise} onCheckedChange={(checked) => handleOptionChange('showSunrise', checked)} />
+                  <label htmlFor="showSunrise" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Sunrise</label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showSunset" checked={forecastOptions.showSunset} onCheckedChange={(checked) => handleOptionChange('showSunset', checked)} />
+                  <label htmlFor="showSunset" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Sunset</label>
+                </div>
+              </div>
+              <DialogFooter><Button onClick={handleModalClose}>Save and Close</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
         </nav>
 
         <div className="absolute top-3 right-4 sm:relative sm:top-auto sm:right-auto">

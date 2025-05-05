@@ -113,29 +113,44 @@ export async function getWeatherForecast(
     location: Location,
     days: number = 7,
     source: string = "open-meteo" // Default to Open-Meteo
-): Promise<WeatherForecast[]> {
 
+): Promise<WeatherForecast[]> {
+     interface ForecastOptions {
+        dailyVariables: string[];
+    }
+    const defaultDailyVariables = [
+      "weather_code",
+      "temperature_2m_max",
+      "temperature_2m_min",
+      "sunrise",
+      "sunset",
+    ];
+
+        const dailyVariables = defaultDailyVariables
+
+
+    const usedDailyVariables = [
+            "weather_code",
+            "temperature_2m_max",
+            "temperature_2m_min",
+            "sunrise",
+            "sunset",
+     ]
     // --- Source Validation ---
     if (source !== "open-meteo") {
         console.warn(`Weather source "${source}" selected, but only 'open-meteo' is used for data fetching.`);
         // Note: The actual API call will still use Open-Meteo
-    }
-
+    }  
     // Ensure requested days don't exceed reasonable limits (Open-Meteo allows up to 16)
     const requestDays = Math.max(1, Math.min(days, 16));
 
     const params = {
         latitude: location.lat.toString(), // Ensure coordinates are strings for URLSearchParams
         longitude: location.lng.toString(),
-        daily: [
-            "weather_code",         // WMO code for daily condition
-            "temperature_2m_max",   // Max temp
-            "temperature_2m_min",   // Min temp
-            "sunrise",              // Daily sunrise ISO string
-            "sunset",               // Daily sunset ISO string
-            "cloud_cover_mean",     // Daily average cloud cover %
-        ].join(','), // Join daily params with comma
-        hourly: [
+          daily: [
+            "cloud_cover_mean", // Daily average cloud cover %
+        ].concat(defaultDailyVariables).join(','), // Join daily params with comma
+         hourly: [
             "cloud_cover",          // Hourly cloud cover %
             "weather_code",         // Hourly weather code
             // Add other needed hourly vars like "direct_normal_irradiance" maybe
@@ -148,6 +163,7 @@ export async function getWeatherForecast(
         const urlParams = new URLSearchParams(params);
         const url = `${WEATHER_API_URL}?${urlParams.toString()}`;
         console.log("Fetching weather from:", url); // Log the URL for debugging
+
 
         const response = await fetch(url);
         if (!response.ok) {
@@ -177,6 +193,7 @@ export async function getWeatherForecast(
          }
 
 
+
         const dailyData = data.daily;
         const hourlyData = data.hourly;
         const forecasts: WeatherForecast[] = [];
@@ -184,6 +201,7 @@ export async function getWeatherForecast(
         const numHours = hourlyData.time.length; // Get length after potential fix above
 
         // Ensure required daily arrays exist and have the correct length
+
         const requiredDailyKeys = ['time', 'weather_code', 'temperature_2m_max', 'temperature_2m_min', 'sunrise', 'sunset', 'cloud_cover_mean'];
         for (const key of requiredDailyKeys) {
             if (!Array.isArray(dailyData[key])) {
@@ -319,6 +337,72 @@ export async function getWeatherForecast(
         }
     }
 }
+/**
+
+ * Asynchronously retrieves weather forecast data for a given location using Open-Meteo API.
+ *
+ * @param location The location for which to retrieve weather data.
+ * @param options Configuration options to include/exclude daily variables from the API request.
+ * @param days The number of days to forecast (default is 7). Open-Meteo allows up to 16.
+ * @param source The identifier for the desired weather source API (e.g., 'open-meteo'). Only 'open-meteo' is implemented.
+ * @returns A promise that resolves to an array of WeatherForecast objects.
+ * @throws Throws an error if the API call fails, returns invalid data, or the source is not 'open-meteo'.
+
+ */
+export async function getWeatherForecastWithOptions(
+    location: Location,
+    options: {dailyVariables:string[]},
+    days: number = 7,
+    source: string = "open-meteo" // Default to Open-Meteo
+): Promise<WeatherForecast[]> {
+
+     // --- Source Validation ---
+    if (source !== "open-meteo") {
+        console.warn(`Weather source "${source}" selected, but only 'open-meteo' is used for data fetching.`);
+        // Note: The actual API call will still use Open-Meteo
+    }
+
+    //default variables
+        const defaultDailyVariables = [
+            "weather_code",
+        ];
+     const dailyVariables = options.dailyVariables.filter((variable) =>
+          defaultDailyVariables.includes(variable)
+     );
+     if (options.dailyVariables.includes('tempMax') ) {
+         dailyVariables.push('temperature_2m_max');
+     }
+    if (options.dailyVariables.includes('tempMin') ) {
+         dailyVariables.push('temperature_2m_min');
+    }
+    if (options.dailyVariables.includes('sunrise') ) {
+         dailyVariables.push('sunrise');
+    }
+     if (options.dailyVariables.includes('sunset') ) {
+         dailyVariables.push('sunset');
+    }
+
+    // Ensure requested days don't exceed reasonable limits (Open-Meteo allows up to 16)
+    const requestDays = Math.max(1, Math.min(days, 16));
+
+    const params = {
+        latitude: location.lat.toString(), // Ensure coordinates are strings for URLSearchParams
+        longitude: location.lng.toString(),
+         daily: [
+            "cloud_cover_mean",          // Daily average cloud cover %
+        ].concat(dailyVariables).join(','), // Join daily params with comma
+         hourly: [
+            "cloud_cover",          // Hourly cloud cover %
+            "weather_code",         // Hourly weather code
+        ].join(','), // Join hourly params with comma
+        timezone: "auto",           // Automatically determine timezone
+        forecast_days: requestDays.toString(), // Ensure days is a string
+    };
+    const modifiedGetWeatherForecast = async (location:Location, days:number, source: string, params:object) => {
+         return await getWeatherForecast(location, days, source)
+    };
+    return await modifiedGetWeatherForecast(location,days,source);
+}
 
 /**
  * Gets the weather forecast for the current day only.
@@ -333,6 +417,34 @@ export async function getCurrentDayWeather(
     try {
         // Fetch forecast for just 1 day (today)
         const forecastArray = await getWeatherForecast(location, 1, source);
+
+        if (forecastArray && forecastArray.length > 0) {
+            // Open-Meteo's 1-day forecast should return today's data
+            return forecastArray[0];
+        } else {
+            console.warn(`getCurrentDayWeather: No forecast data returned for ${location.lat},${location.lng}`);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error fetching current day weather:', error);
+        return null;
+    }
+}
+
+/**
+ * Gets the weather forecast for the current day only with options.
+ * @param location The location for the forecast.
+ * @param source The weather source identifier.
+ * @returns A promise resolving to the WeatherForecast for today, or null if unavailable.
+ */
+export async function getCurrentDayWeatherWithOptions(
+  location: Location,
+  options: {dailyVariables:string[]},
+  source: string = 'open-meteo'
+): Promise<WeatherForecast | null> {
+    try {
+        // Fetch forecast for just 1 day (today)
+        const forecastArray = await getWeatherForecastWithOptions(location,options, 1, source);
 
         if (forecastArray && forecastArray.length > 0) {
             // Open-Meteo's 1-day forecast should return today's data
