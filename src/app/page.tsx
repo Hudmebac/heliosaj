@@ -7,7 +7,7 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import type {WeatherForecast, WeatherCondition} from '@/services/weather'; // Import WeatherForecast type
 import { getWeatherForecast } from '@/services/weather'; // Assume this is implemented
-import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solarCalculations'; // Assume this is implemented
+import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/Solar-calculations'; // Assume this is implemented
 import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
