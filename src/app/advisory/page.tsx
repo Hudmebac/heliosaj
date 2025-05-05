@@ -9,8 +9,8 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast } from '@/services/weather'; // Assuming type exists
 import { getWeatherForecast } from '@/services/weather'; // Assuming implementation
-import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations'; // Assuming implementation
-import { getChargingAdvice, AdviceResult } from '@/lib/charging-advice'; // Assuming implementation
+import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations'; // Assuming implementation
+import { getChargingAdvice, AdviceResult } from '../../lib/charging-advice'; // Assuming implementation
 
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
