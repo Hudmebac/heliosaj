@@ -5,15 +5,15 @@ import React, {useState, useEffect} from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
-// Update import: Import the function directly
 import calculateSolarGeneration, { type CalculatedForecast } from '@/lib/solar-calculations';
-import { getWeatherForecast, type WeatherForecast, type WeatherCondition } from '@/services/weather';
+import { getWeatherForecast, type WeatherForecast, type WeatherCondition } from '@/services/weather'; // Import WeatherForecast type
 import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip} from 'recharts';
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
+const DEFAULT_WEATHER_SOURCE_ID = 'openweathermap'; // Default source
 
 const getWeatherIcon = (condition: WeatherCondition | undefined) => {
   // Handle undefined condition gracefully
@@ -45,16 +45,14 @@ export default function HomePage() {
       let locationName = 'Default Location (London)';
       const todayStr = new Date().toISOString().split('T')[0];
       const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+       const selectedSource = settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID;
+
 
       if (settings?.latitude && settings?.longitude) {
         currentLocation = { lat: settings.latitude, lng: settings.longitude };
         locationName = settings.location || `Lat: ${settings.latitude.toFixed(2)}, Lng: ${settings.longitude.toFixed(2)}`;
       } else if (settings?.location) {
-        // TODO: Implement geocoding if location string is primary
-        // For now, we'll stick to default or coords if available
         locationName = settings.location;
-        // Optionally, try to geocode settings.location here
-        // If geocoding fails, fall back to default or show error
         console.warn("Location coordinates not available, using default for weather fetch.");
       }
       setLocationDisplay(locationName);
@@ -68,8 +66,8 @@ export default function HomePage() {
 
 
       try {
-        // Fetch weather for the next 7 days
-        const weeklyWeatherRaw: WeatherForecast[] = await getWeatherForecast(currentLocation, 7);
+        // Fetch weather for the next 7 days using the selected source
+        const weeklyWeatherRaw: WeatherForecast[] = await getWeatherForecast(currentLocation, 7, selectedSource);
 
         if (!weeklyWeatherRaw || weeklyWeatherRaw.length === 0) {
           throw new Error("No weather data received from the service.");
@@ -86,7 +84,6 @@ export default function HomePage() {
 
         const weeklyCalculatedForecasts = weeklyWeatherRaw.map(dayWeather => {
           // Ensure calculateSolarGeneration can handle potentially missing weatherCondition
-          // Use the imported function directly
           const calculated = calculateSolarGeneration(dayWeather, settings);
           return calculated || { // Provide a default structure if calculation fails
              date: dayWeather.date,
@@ -108,9 +105,6 @@ export default function HomePage() {
          }
          if (!settings) {
              errorMessage = "User settings not found. Please configure your system in the Settings page.";
-         } else if (!settings.latitude || !settings.longitude) {
-              // This check might be redundant if geocoding is implemented later or default is acceptable
-             // errorMessage += " Location coordinates might be missing or invalid.";
          }
         setError(errorMessage);
       } finally {
@@ -119,7 +113,7 @@ export default function HomePage() {
     };
 
     fetchAndCalculateForecast();
-  }, [settings]); // Re-run when settings change
+  }, [settings]); // Re-run when settings change (including selectedWeatherSource)
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {

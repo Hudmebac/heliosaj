@@ -9,10 +9,10 @@ import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as Se
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import { getWeatherForecast, type WeatherForecast } from '@/services/weather'; // Assuming type exists
-// Import the new calculation functions
 import calculateSolarGeneration, { getChargingAdvice, type AdviceResult, type CalculatedForecast } from '@/lib/solar-calculations';
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
+const DEFAULT_WEATHER_SOURCE_ID = 'openweathermap'; // Default source
 
 export default function AdvisoryPage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -59,6 +59,8 @@ export default function AdvisoryPage() {
          // Continue with default, but inform the user
       }
 
+      const selectedSource = settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID;
+
 
       try {
         // Fetch weather forecast for *tomorrow*
@@ -68,7 +70,8 @@ export default function AdvisoryPage() {
         const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
 
          // Request 2 days to ensure tomorrow is included even with timezone issues
-         const weatherResult = await getWeatherForecast(currentLocation, 2);
+         // Pass the selected source to the weather function
+         const weatherResult = await getWeatherForecast(currentLocation, 2, selectedSource);
 
          if (!weatherResult || weatherResult.length === 0) {
             throw new Error("Could not retrieve weather forecast data.");
@@ -193,10 +196,9 @@ export default function AdvisoryPage() {
                     <span className="text-muted-foreground"> None defined</span>
                 )}
             </div>
-             <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on the quality of the forecast, your system settings, and defined cheap tariff periods. This is a basic recommendation.</p>
+             <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on the quality of the forecast (using {settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID} source), your system settings, and defined cheap tariff periods. This is a basic recommendation.</p>
          </CardContent>
        </Card>
     </div>
   );
 }
-

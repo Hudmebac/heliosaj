@@ -9,6 +9,7 @@ export interface UserSettings {
   totalKWp?: number; // Optional, used if inputMode is 'TotalPower'
   batteryCapacityKWh?: number; // Made optional as not everyone has a battery
   systemEfficiency?: number; // Optional: 0 to 1 (e.g., 0.85 for 85%) - defaults can be used if not set
+  selectedWeatherSource?: string; // Identifier for the chosen weather source API/service
 }
 
 export interface TariffPeriod {
