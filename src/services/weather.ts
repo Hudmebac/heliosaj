@@ -1,4 +1,5 @@
 
+
 import type { UserSettings } from '@/types/settings'; // Import UserSettings if needed for API calls
 import { fetchWeatherApi } from 'openmeteo';
 
@@ -126,17 +127,17 @@ export async function getWeatherForecast(
      latitude: location.lat,
      longitude: location.lng,
      daily: [
-       "weather_code", // WMO code for daily condition
-       "temperature_2m_max",
-       "temperature_2m_min",
-       "sunrise", // Daily sunrise ISO string
-       "sunset",  // Daily sunset ISO string
-       "cloud_cover_mean", // Daily average cloud cover %
+       "weather_code", // WMO code for daily condition (index 0)
+       "temperature_2m_max", // (index 1)
+       "temperature_2m_min", // (index 2)
+       "sunrise", // Daily sunrise ISO string (index 3)
+       "sunset",  // Daily sunset ISO string (index 4)
+       "cloud_cover_mean", // Daily average cloud cover % (index 5)
      ],
      hourly: [
-         "cloud_cover", // Hourly cloud cover %
-         "weather_code", // Hourly weather code (optional, could derive daily from this too)
-         // Add "direct_normal_irradiance" or similar if solar calculation needs it directly
+         "cloud_cover", // Hourly cloud cover % (index 0)
+         "weather_code", // Hourly weather code (index 1)
+         // Add "direct_normal_irradiance" or similar if solar calc needs it directly
      ],
      timezone: "auto", // Automatically determine timezone
      forecast_days: requestDays,
@@ -152,22 +153,43 @@ export async function getWeatherForecast(
     const hourlyData = response.hourly()!;
 
     // --- Data Extraction ---
-    const dailyTime = dailyData.variables(0)!.time()!; // Time is fundamental
-    const dailyTimeEnd = dailyData.variables(0)!.timeEnd()!;
-    const dailyInterval = dailyData.variables(0)!.interval()!;
+    // Get time range and interval directly from the daily/hourly objects
+    const dailyTime = dailyData.time();
+    const dailyTimeEnd = dailyData.timeEnd();
+    const dailyInterval = dailyData.interval();
+    if (!dailyTime || !dailyTimeEnd || !dailyInterval) {
+        throw new Error("Could not get time information from daily data.");
+    }
 
-    const dailyWeatherCode = dailyData.variables(0)!.valuesArray()!;
-    const dailyTempMax = dailyData.variables(1)!.valuesArray()!;
-    const dailyTempMin = dailyData.variables(2)!.valuesArray()!;
-    const dailySunriseVar = dailyData.variables(3)!; // sunrise uses valuesInt64
-    const dailySunsetVar = dailyData.variables(4)!;   // sunset uses valuesInt64
-    const dailyCloudCoverMean = dailyData.variables(5)!.valuesArray()!; // Mean cloud cover
+    const hourlyTime = hourlyData.time();
+    const hourlyTimeEnd = hourlyData.timeEnd();
+    const hourlyInterval = hourlyData.interval();
+     if (!hourlyTime || !hourlyTimeEnd || !hourlyInterval) {
+        throw new Error("Could not get time information from hourly data.");
+    }
 
-    const hourlyTime = hourlyData.variables(0)!.time()!;
-    const hourlyTimeEnd = hourlyData.variables(0)!.timeEnd()!;
-    const hourlyInterval = hourlyData.variables(0)!.interval()!;
-    const hourlyCloudCover = hourlyData.variables(0)!.valuesArray()!;
-    const hourlyWeatherCode = hourlyData.variables(1)!.valuesArray()!;
+
+    // Access variables using their correct indices based on the `params` order
+    const dailyWeatherCode = dailyData.variables(0)?.valuesArray();
+    const dailyTempMax = dailyData.variables(1)?.valuesArray();
+    const dailyTempMin = dailyData.variables(2)?.valuesArray();
+    const dailySunriseVar = dailyData.variables(3); // sunrise uses valuesInt64
+    const dailySunsetVar = dailyData.variables(4);   // sunset uses valuesInt64
+    const dailyCloudCoverMean = dailyData.variables(5)?.valuesArray(); // Mean cloud cover
+
+    const hourlyCloudCover = hourlyData.variables(0)?.valuesArray();
+    const hourlyWeatherCode = hourlyData.variables(1)?.valuesArray();
+
+
+    // --- Validate Extracted Data ---
+    if (!dailyWeatherCode || !dailyTempMax || !dailyTempMin || !dailySunriseVar || !dailySunsetVar || !dailyCloudCoverMean || !hourlyCloudCover || !hourlyWeatherCode) {
+        console.error("Failed to extract one or more weather variables:", {
+            dailyWeatherCode: !!dailyWeatherCode, dailyTempMax: !!dailyTempMax, dailyTempMin: !!dailyTempMin,
+            dailySunriseVar: !!dailySunriseVar, dailySunsetVar: !!dailySunsetVar, dailyCloudCoverMean: !!dailyCloudCoverMean,
+            hourlyCloudCover: !!hourlyCloudCover, hourlyWeatherCode: !!hourlyWeatherCode
+        });
+         throw new Error("Failed to extract one or more required weather variables from the API response.");
+    }
 
     const forecasts: WeatherForecast[] = [];
     const numDays = (Number(dailyTimeEnd) - Number(dailyTime)) / dailyInterval;
@@ -177,26 +199,46 @@ export async function getWeatherForecast(
       const date = new Date((dayTimestamp + utcOffsetSeconds) * 1000);
       const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD
 
-      // Extract sunrise/sunset (they are Int64)
-      const sunriseTimestamp = Number(dailySunriseVar.valuesInt64(i)!) + utcOffsetSeconds;
-      const sunsetTimestamp = Number(dailySunsetVar.valuesInt64(i)!) + utcOffsetSeconds;
+      // Extract sunrise/sunset (they are Int64) - ensure valuesInt64(i) is not null
+      const sunriseVal = dailySunriseVar.valuesInt64(i);
+      const sunsetVal = dailySunsetVar.valuesInt64(i);
+       if (sunriseVal === null || sunsetVal === null) {
+         console.warn(`Missing sunrise/sunset value for day index ${i}. Skipping day.`);
+         continue; // Skip this day if essential data is missing
+       }
+      const sunriseTimestamp = Number(sunriseVal) + utcOffsetSeconds;
+      const sunsetTimestamp = Number(sunsetVal) + utcOffsetSeconds;
       const sunriseISO = new Date(sunriseTimestamp * 1000).toISOString();
       const sunsetISO = new Date(sunsetTimestamp * 1000).toISOString();
 
       // Find corresponding hourly data for this day
        const dayStartSeconds = dayTimestamp;
-       const dayEndSeconds = dayTimestamp + 24 * 3600; // Add 24 hours in seconds
+       const dayEndSeconds = dayTimestamp + dailyInterval; // Use daily interval (usually 24*3600)
 
        let dayHourlyIndices: number[] = [];
-       for (let h = 0; h < (Number(hourlyTimeEnd) - Number(hourlyTime)) / hourlyInterval; h++) {
+       const numHourlySteps = (Number(hourlyTimeEnd) - Number(hourlyTime)) / hourlyInterval;
+       for (let h = 0; h < numHourlySteps; h++) {
             const hourlyTimestamp = Number(hourlyTime) + h * hourlyInterval;
+            // Check if the *start* of the hourly interval falls within the daily interval
             if (hourlyTimestamp >= dayStartSeconds && hourlyTimestamp < dayEndSeconds) {
                 dayHourlyIndices.push(h);
             }
        }
 
+        // Ensure we have exactly 24 hours of data (or handle cases where it might differ)
+        if (dayHourlyIndices.length === 0) {
+             console.warn(`No hourly data found for date ${dateString}. Skipping day.`);
+             continue; // Skip if no hourly data found for the day
+        }
+        // if (dayHourlyIndices.length !== 24) { // Or expected number based on interval
+        //      console.warn(`Expected 24 hourly data points for ${dateString}, but found ${dayHourlyIndices.length}. Data might be incomplete.`);
+        //      // Decide whether to proceed or skip
+        // }
+
+
        const dayHourlyCloud = dayHourlyIndices.map(index => hourlyCloudCover[index]);
         const dayHourlyWeatherCode = dayHourlyIndices.map(index => hourlyWeatherCode[index]);
+        // Create Date objects for hourly timestamps
         const dayHourlyTimes = dayHourlyIndices.map(index => new Date((Number(hourlyTime) + index * hourlyInterval + utcOffsetSeconds) * 1000))
 
 
@@ -236,3 +278,4 @@ export async function getWeatherForecast(
     }
   }
 }
+
