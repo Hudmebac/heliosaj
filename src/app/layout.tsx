@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -16,6 +17,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'HelioHeggie',
   description: 'Solar Energy Forecaster by Craig Heggie',
+  // Add favicon link here if using Metadata API (preferred for App Router)
+  icons: {
+    icon: '/favicon.ico', // Path relative to the public folder
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +30,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {/* Add suppressHydrationWarning to html tag for next-themes */}
+       {/* Alternative way to add favicon (less preferred than Metadata API) */}
+       {/* <head>
+         <link rel="icon" href="/favicon.ico" sizes="any" />
+       </head> */}
       {/* Apply the font variable to the body */}
       <body
         className={`${inter.variable} antialiased flex flex-col min-h-screen`}
