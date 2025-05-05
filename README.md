@@ -1,28 +1,119 @@
-<div align="center">
-  <br />
-  <img src="https://i.imgur.com/7YhQz6y.png" alt="Firebase Studio Logo" width="200"/>
-  <br />
-  <br />
-</div>
+# Helioheggie Project
 
-# Firebase Studio: A NextJS Project
+## Project Description
 
-Firebase Studio is a Next.js application designed with a vibrant and consistent color palette, as detailed in our [Blueprint](docs/blueprint.md). This project serves as a foundation for building interactive and dynamic web applications.
+Helioheggie is a web application designed to [describe the project's purpose here, e.g., provide weather information, manage energy tariffs, and offer advisory services]. It aims to [explain the project's goals and target audience, e.g., offer a user-friendly interface for accessing weather and energy-related information, help users make informed decisions about their energy consumption].
 
-## Description
+## Project Structure
 
-This project is built using Next.js, a React framework that enables server-side rendering and static site generation. Firebase Studio leverages the powerful features of Next.js to create a responsive and performant web application. The design is guided by a well-defined color scheme, ensuring a visually cohesive user experience. The project is created with the purpose of managing Firebase projects.
+The project is structured as follows:
+```
+helioheggie/
+├── README.md                  # This file
+├── components.json            # Configuration file for components
+├── next-env.d.ts              # TypeScript environment file
+├── next.config.ts             # Next.js configuration file
+├── package-lock.json          # Dependency lock file
+├── package.json               # Project dependencies and scripts
+├── postcss.config.mjs         # PostCSS configuration file
+├── tailwind.config.ts         # Tailwind CSS configuration file
+├── tsconfig.json              # TypeScript configuration file
+├── .idx/                      # Index directory
+│   └── dev.nix                # Development environment configuration
+├── docs/                      # Documentation files
+│   └── blueprint.md           # Project blueprint
+├── src/                       # Source code directory
+│   ├── ai/                    # AI related code
+│   │   ├── ai-instance.ts     # AI instance logic
+│   │   └── dev.ts             # AI development utilities
+│   ├── app/                   # Next.js application code
+│   │   ├── favicon.ico        # Favicon
+│   │   ├── globals.css        # Global styles
+│   │   ├── layout.tsx         # Main layout component
+│   │   ├── page.tsx           # Home page component
+│   │   ├── advisory/          # Advisory pages
+│   │   │   └── page.tsx
+│   │   ├── info/              # Information pages
+│   │   │   └── page.tsx
+│   │   ├── settings/          # Settings pages
+│   │   │   └── page.tsx
+│   │   └── tariffs/           # Tariffs pages
+│   │       └── page.tsx
+│   ├── components/            # Reusable UI components
+│   │   ├── query-provider.tsx # Query provider component
+│   │   ├── theme-provider.tsx # Theme provider component
+│   │   ├── theme-toggle.tsx   # Theme toggle component
+│   │   ├── layout/            # Layout components
+│   │   │   ├── footer.tsx     # Footer component
+│   │   │   └── header.tsx     # Header component
+│   │   └── ui/                # UI components
+│   │       ├── accordion.tsx  # Accordion component
+│   │       ├── ...            # Other UI components
+│   ├── hooks/                 # Custom hooks
+│   │   ├── use-local-storage.ts # Local storage hook
+│   │   ├── use-mobile.tsx       # Mobile detection hook
+│   │   └── use-toast.ts         # Toast hook
+│   ├── services/              # External services integration
+│   │   └── weather.ts         # Weather service integration
+│   └── types/                 # TypeScript type definitions
+│       └── settings.ts        # Settings types
+└── ...
+```
+## Setup and Run
 
-## Features
+1.  **Clone the repository:**
+```
+bash
+    git clone https://github.com/Hudmebac/helioheggie.git
+    cd helioheggie
+    
+```
+2.  **Install dependencies:**
+```
+bash
+    npm install
+    
+```
+3.  **Run the development server:**
+```
+bash
+    npm run dev
+    
+```
+This will start the application on `http://localhost:3000`.
 
-- **Next.js**: Built with the latest version of Next.js for server-side rendering and static site generation.
-- **Consistent Color Palette**: Adheres to the color palette specified in `docs/blueprint.md`.
-- **Responsive Design**: Ensures compatibility across a wide range of devices and screen sizes.
-- **Modular Architecture**: Organized with a clear separation of concerns, making it easy to maintain and scale.
+## Contributing
 
-## Getting Started
+We welcome contributions to Helioheggie! If you'd like to contribute, please follow these steps:
 
-To get started with Firebase Studio, follow these steps:
+1.  **Fork the repository.**
+2.  **Create a new branch for your feature or bug fix:**
+```
+bash
+    git checkout -b feature/your-feature-name
+    
+```
+or
+```
+bash
+    git checkout -b fix/your-bug-fix
+    
+```
+3.  **Make your changes and commit them:**
+```
+bash
+    git add .
+    git commit -m "Add your commit message here"
+    
+```
+4.  **Push your branch to your fork:**
+```
+bash
+    git push origin feature/your-feature-name
+    
+```
+5.  **Create a pull request.**
 
-1.  **Clone the repository**:
+## License
 
+This project is licensed under the [Specify the license here, e.g., MIT License] - see the `LICENSE.md` file for details.
