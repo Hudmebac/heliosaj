@@ -20,9 +20,9 @@ export default function Header() {
   return (
     <header className="bg-primary text-primary-foreground shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center">
-        <Link href="/" className="flex items-center gap-2 mb-2 sm:mb-0">
+        <Link href="/" className="flex items-center gap-2 mb-2 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
           <Sun className="h-6 w-6" /> {/* Replace with a better logo/icon if available */}
-          <h1 className="text-xl font-bold">HelioHeggie</h1>
+          HelioHeggie
         </Link>
 
         {/* Navigation Links */}
@@ -32,8 +32,10 @@ export default function Header() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-sm transition-colors hover:bg-primary/80",
-                pathname === item.href ? 'bg-primary/90 font-semibold' : 'font-medium'
+                "flex items-center gap-1 px-2 py-1 rounded-md text-sm transition-colors duration-200 ease-in-out",
+                "hover:bg-primary/80 hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-primary", // Glow effect on hover/focus
+                "hover:shadow-[0_0_10px_theme(colors.accent)]", // Silver glow shadow
+                pathname === item.href ? 'bg-primary/90 font-semibold shadow-[0_0_8px_theme(colors.accent)]' : 'font-medium' // Active link styling
               )}
               aria-current={pathname === item.href ? 'page' : undefined}
             >
