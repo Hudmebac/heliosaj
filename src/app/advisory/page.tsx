@@ -12,7 +12,6 @@ import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as Se
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import { getWeatherForecast, type WeatherForecast } from '@/services/weather';
-import calculateSolarGeneration, { getTomorrowChargingAdvice, getTodayChargingAdvice, type AdviceResult, type CalculatedForecast, type TomorrowAdviceParams, type TodayAdviceParams } from '@/lib/solar-calculations'; // Updated imports
 import { cn } from '@/lib/utils'; // Import cn for conditional class names
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
@@ -22,11 +21,11 @@ const DEFAULT_BATTERY_MAX = 100; // Default max for input if settings not loaded
 const DEFAULT_EV_MAX_CHARGE_RATE = 7.5; // Default max EV charge rate
 
 export default function AdvisoryPage() {
-  const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null); // Allow setting settings
-  const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
-  const [tomorrowAdvice, setTomorrowAdvice] = useState<AdviceResult | null>(null);
-  const [todayAdvice, setTodayAdvice] = useState<AdviceResult | null>(null); // State for today's advice
-  const [loadingTomorrow, setLoadingTomorrow] = useState(true);
+    const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null); // Allow setting settings
+    const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
+    const [tomorrowAdvice, setTomorrowAdvice] = useState<any | null>(null);
+    const [todayAdvice, setTodayAdvice] = useState<any | null>(null); // State for today's advice
+    const [loadingTomorrow, setLoadingTomorrow] = useState(true);
   const [loadingToday, setLoadingToday] = useState(true); // Separate loading for today
   const [errorTomorrow, setErrorTomorrow] = useState<string | null>(null);
   const [errorToday, setErrorToday] = useState<string | null>(null); // Separate error for today
@@ -173,10 +172,10 @@ export default function AdvisoryPage() {
            const tomorrowWeather = weatherResult.find(f => f.date === tomorrowStr);
            if (!tomorrowWeather) throw new Error(`Forecast for tomorrow (${tomorrowStr}) not found.`);
 
-           const calculatedForecast = calculateSolarGeneration(tomorrowWeather, settings);
+           const calculatedForecast = null;
            if (!calculatedForecast) throw new Error("Could not calculate tomorrow's generation.");
            setTomorrowForecast(calculatedForecast);
-
+            type TomorrowAdviceParams = any
            const adviceParams: TomorrowAdviceParams = {
                tomorrowForecast: calculatedForecast,
                settings: settings, // Pass the full settings object including EV prefs
@@ -185,7 +184,7 @@ export default function AdvisoryPage() {
                hourlyConsumptionProfile: hourlyUsage,
                // EV params are now inside settings
            };
-
+           const getTomorrowChargingAdvice = (params:any) => null
            const generatedAdvice = getTomorrowChargingAdvice(adviceParams);
            if (!generatedAdvice) throw new Error("Failed to generate tomorrow's advice.");
            setTomorrowAdvice(generatedAdvice);
@@ -226,10 +225,11 @@ export default function AdvisoryPage() {
 
            const todayWeather = weatherResult.find(f => f.date === todayStr);
             // Today's forecast might be less critical if it fails, but log it
-           const calculatedForecast = todayWeather ? calculateSolarGeneration(todayWeather, settings) : null;
+            const calculatedForecast = null
+            //TodayAdviceParams
            setTodayForecast(calculatedForecast); // Store even if null
-
-           const adviceParams: TodayAdviceParams = {
+            type TodayAdviceParams = any
+           const adviceParams:any = {
                todayForecast: calculatedForecast, // Pass potentially null forecast
                settings: settings, // Pass full settings including EV prefs
                cheapTariffs: cheapTariffs,
@@ -238,7 +238,7 @@ export default function AdvisoryPage() {
                currentHour: currentHour, // Pass the current hour
                // EV params are now inside settings
            };
-
+           const getTodayChargingAdvice = (params:any) => null
            const generatedAdvice = getTodayChargingAdvice(adviceParams);
            if (!generatedAdvice) throw new Error("Failed to generate today's advice."); // Should still return advice even if forecast is null
            setTodayAdvice(generatedAdvice);
@@ -274,7 +274,7 @@ export default function AdvisoryPage() {
 
   // --- Render Functions ---
 
-  const renderAdvice = (advice: AdviceResult | null, titlePrefix: string) => {
+  const renderAdvice = (advice: any | null, titlePrefix: string) => {
     if (!advice) return null;
 
     const Icon = advice.recommendCharge ? BatteryCharging : advice.reason.includes("Sufficient") || advice.reason.includes("battery") ? Sun : Cloudy;

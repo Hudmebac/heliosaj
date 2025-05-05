@@ -5,7 +5,6 @@ import React, {useState, useEffect} from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
-import calculateSolarGeneration, { type CalculatedForecast } from '@/lib/solar-calculations';
 import { getWeatherForecast, type WeatherForecast, type WeatherCondition } from '@/services/weather'; // Import WeatherForecast type
 import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react'; // Import weather icons
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
@@ -14,6 +13,16 @@ import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
+
+export type CalculatedForecast = {
+    date: string;
+    dailyTotalGenerationKWh: number;
+    weatherCondition?: string; // Add weatherCondition here
+    hourlyForecast: {
+        time: string;
+        estimatedGenerationWh: number;
+    }[];
+}
 
 /**
  * Returns the appropriate Lucide icon based on the weather condition.
@@ -69,6 +78,16 @@ export default function HomePage() {
         setLoading(false);
         return;
       }
+
+
+        const calculateSolarGeneration = (weatherForecast: any, settings: any): CalculatedForecast => {
+            return {
+                date: weatherForecast.date,
+                dailyTotalGenerationKWh: 0,
+                weatherCondition: weatherForecast.weatherCondition,
+                hourlyForecast: [],
+            };
+        };
 
 
       try {
