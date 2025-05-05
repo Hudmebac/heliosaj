@@ -35,13 +35,8 @@ const weatherSources: WeatherSource[] = [
    // Add others for display/selection, but mark as not functional for data fetching
    { id: "openweathermap", name: "OpenWeatherMap", url: "https://openweathermap.org/", isFunctional: false },
    { id: "accuweather", name: "AccuWeather", url: "https://www.accuweather.com", isFunctional: false },
-   { id: "weatherchannel", name: "The Weather Channel", url: "https://www.weather.com", isFunctional: false },
-   { id: "weatherunderground", name: "Weather Underground", url: "https://www.wunderground.com", isFunctional: false },
-   { id: "nws", name: "NWS (US)", url: "https://www.weather.gov", isFunctional: false },
    { id: "google", name: "Google Weather", url: "https://www.google.com/search?q=weather", isFunctional: false },
    { id: "bbc", name: "BBC Weather", url: "https://www.bbc.com/weather", isFunctional: false },
-   { id: "ventusky", name: "Ventusky", url: "https://www.ventusky.com", isFunctional: false },
-   { id: "windy", name: "Windy", url: "https://www.windy.com", isFunctional: false },
 ];
 
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default to the functional source

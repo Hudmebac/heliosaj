@@ -103,7 +103,7 @@ export default function HomePage() {
 
    // Effect to calculate solar generation when weatherData changes
    useEffect(() => {
-     if (!settings || !weatherData || weatherData.length === 0) {
+     if (!isMounted || !settings || !weatherData || weatherData.length === 0) {
        // Clear calculated data if prerequisites are missing
        setCalculatedForecasts({ today: null, tomorrow: null, week: [] });
        return;
@@ -148,7 +148,7 @@ export default function HomePage() {
        setCalculatedForecasts({ today: null, tomorrow: null, week: [] }); // Clear on error
      }
 
-   }, [settings, weatherData]); // Re-calculate when settings or weather data change
+   }, [isMounted, settings, weatherData]); // Re-calculate when settings or weather data change
 
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -239,7 +239,7 @@ export default function HomePage() {
       // Display message based on loading/error state of the *weather* query
        if (weatherLoading || weatherRefetching) return null; // Handled by main loading indicator
        if (isWeatherError) return null; // Handled by main error alert
-       if (!settings) return null; // Handled by settings alert
+       if (!settings && isMounted) return null; // Handled by settings alert (only show if mounted)
       return <p className="text-muted-foreground text-center py-4">Weekly forecast data unavailable or calculation failed.</p>;
     }
 
@@ -296,7 +296,7 @@ export default function HomePage() {
        <div className="flex justify-between items-center">
            <div>
                 <h1 className="text-3xl font-bold">Solar Dashboard</h1>
-                <p className="text-muted-foreground">Forecasting for: {locationDisplay}</p>
+                <p className="text-muted-foreground">Forecasting for: {isMounted ? locationDisplay : 'Loading...'}</p>
             </div>
             <Button
                 onClick={() => refetchWeather()}
@@ -309,7 +309,7 @@ export default function HomePage() {
        </div>
 
       {/* Unified Loading State */}
-      {(weatherLoading && !isMounted) || (weatherLoading && isMounted && !weatherData) && ( // Show initial loading indicator
+      {(!isMounted || (isMounted && weatherLoading && !weatherData)) && ( // Show initial loading indicator until mounted and data fetched initially
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="ml-2">Loading forecast...</p>
@@ -317,7 +317,7 @@ export default function HomePage() {
       )}
 
        {/* Weather Fetch Error */}
-      {isWeatherError && weatherError && (
+      {isMounted && isWeatherError && weatherError && (
         <Alert variant="destructive">
           <AlertTitle>Error Loading Forecast</AlertTitle>
           <AlertDescription>{weatherError.message}</AlertDescription>
@@ -335,8 +335,8 @@ export default function HomePage() {
             </Alert>
         )}
 
-      {/* Display Forecast Cards and Week Ahead only if not initial loading, no error, and settings exist */}
-      {!((weatherLoading && !isMounted) || (weatherLoading && isMounted && !weatherData)) && !isWeatherError && settings && (
+      {/* Display Forecast Cards and Week Ahead only if mounted, not initial loading, no error, and settings exist */}
+      {isMounted && !((weatherLoading || weatherRefetching) && !calculatedForecasts.today) && !isWeatherError && settings && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Use calculatedForecasts state */}

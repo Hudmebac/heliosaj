@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -85,7 +86,10 @@ export default function AdvisoryPage() {
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
         setEvChargeByTime(settings.evChargeByTime ?? '07:00');
         setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
-        setCurrentBatteryLevel(settings.batteryCapacityKWh ? Math.min(settings.batteryCapacityKWh, (settings as any).lastKnownBatteryLevelKWh ?? 0) : 0);
+        // Load lastKnownBatteryLevel safely
+        const lastKnown = (settings as any).lastKnownBatteryLevelKWh;
+        setCurrentBatteryLevel(lastKnown !== undefined && lastKnown !== null && settings.batteryCapacityKWh ? Math.min(settings.batteryCapacityKWh, lastKnown) : 0);
+
       } else {
         setDailyConsumption(10);
         setAvgHourlyConsumption(0.4);
@@ -116,7 +120,7 @@ export default function AdvisoryPage() {
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
-                   lastKnownBatteryLevelKWh: currentBatteryLevel,
+                   lastKnownBatteryLevelKWh: currentBatteryLevel, // Save the current level
                }));
            }, 1000); // Debounce saving
            return () => clearTimeout(handler);
@@ -184,6 +188,14 @@ export default function AdvisoryPage() {
         setTodayForecastCalc(todayCalculated);
         setTomorrowForecastCalc(tomorrowCalculated);
 
+        // --- Prepare EV Charging Needs ---
+         const evNeeds = {
+             chargeRequiredKWh: evChargeRequiredKWh ?? 0,
+             chargeByHour: evChargeByTime ? parseInt(evChargeByTime.split(':')[0]) : 7, // Default to 7 AM if invalid
+             maxChargeRateKWh: evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE,
+         };
+
+
         // --- Generate Today's Advice ---
         try {
             const todayParams: ChargingAdviceParams = {
@@ -193,6 +205,7 @@ export default function AdvisoryPage() {
                 currentBatteryLevelKWh: currentBatteryLevel,
                 hourlyConsumptionProfile: hourlyUsage,
                 currentHour: currentHour,
+                evNeeds: evNeeds, // Pass EV needs
                 adviceType: 'today',
             };
             const todayGeneratedAdvice = getChargingAdvice(todayParams);
@@ -206,16 +219,24 @@ export default function AdvisoryPage() {
 
         // --- Generate Tomorrow's (Overnight) Advice ---
         try {
-            const tomorrowParams: ChargingAdviceParams = {
-                forecast: tomorrowCalculated,
+            // For overnight advice, we simulate the battery level at the *end* of today (e.g., midnight)
+            // This requires a simplified simulation or an assumption. Let's use the current battery level
+            // plus estimated remaining solar generation minus estimated remaining consumption for today.
+            // This is complex, so for now, let's use a simpler approach:
+            // Assume the overnight advice starts planning from the current battery level.
+            // A more advanced version would project the end-of-day battery state.
+
+            const overnightParams: ChargingAdviceParams = {
+                forecast: tomorrowCalculated, // Use tomorrow's solar forecast
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel, // Use current level as starting point for overnight planning
-                hourlyConsumptionProfile: hourlyUsage,
+                currentBatteryLevelKWh: currentBatteryLevel, // Base planning on current level for now
+                hourlyConsumptionProfile: hourlyUsage, // Use the defined profile for tomorrow's usage estimate
+                // currentHour is not needed for overnight planning which looks ahead
+                 evNeeds: evNeeds, // Pass EV needs for overnight planning
                 adviceType: 'overnight',
-                // currentHour is not needed for overnight advice
             };
-            const tomorrowGeneratedAdvice = getChargingAdvice(tomorrowParams);
+            const tomorrowGeneratedAdvice = getChargingAdvice(overnightParams);
             if (!tomorrowGeneratedAdvice) throw new Error("Failed to generate tomorrow's advice.");
             setTomorrowAdvice(tomorrowGeneratedAdvice);
         } catch (err: any) {
@@ -227,21 +248,23 @@ export default function AdvisoryPage() {
 
     }, [
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
-        weatherData, weatherLoading, weatherRefetching // Depend on weather query state
+        weatherData, weatherLoading, weatherRefetching, // Depend on weather query state
+        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh // Depend on EV settings
     ]);
 
 
    // --- Render Functions ---
 
    const renderAdvice = (advice: ChargingAdvice | null, titlePrefix: string, isLoading: boolean, errorMsg: string | null) => {
-     if (isLoading) {
+     if (isLoading && !advice) { // Show loading only if advice isn't already available
         return (
              <div className="flex items-center text-muted-foreground">
                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-               <span>Loading weather data...</span>
+               <span>Loading {titlePrefix.toLowerCase()} forecast & advice...</span>
              </div>
            );
      }
+     // Display error specific to this advice type (today or overnight)
      if (errorMsg) {
         return (
              <Alert variant="destructive">
@@ -251,7 +274,23 @@ export default function AdvisoryPage() {
              </Alert>
            );
      }
+      // Display general advice error if no specific message and no advice
+     if (!advice && adviceError && !isLoading) {
+         return (
+              <Alert variant="destructive">
+                 <AlertCircle className="h-4 w-4"/>
+                 <AlertTitle>Error Generating Advice</AlertTitle>
+                 <AlertDescription>{adviceError}</AlertDescription>
+              </Alert>
+         );
+     }
+     // If still loading but advice exists from previous run, show nothing here (avoids flicker)
+     if (isLoading && advice) {
+         return null;
+     }
+
      if (!advice) {
+        // Generic message if no advice could be generated and no error was caught
         return (
              <Alert variant="default">
                  <SettingsIcon className="h-4 w-4" />
@@ -282,7 +321,7 @@ export default function AdvisoryPage() {
            {advice.reason}
            {advice.details && <span className="block mt-1 text-xs text-muted-foreground">{advice.details}</span>}
             {advice.chargeNeededKWh !== undefined && advice.chargeNeededKWh > 0 && (
-              <span className="block mt-1 text-xs text-primary">Estimated grid energy needed: {advice.chargeNeededKWh.toFixed(1)} kWh {advice.chargeWindow && `(${advice.chargeWindow})`}.</span>
+              <span className="block mt-1 text-xs text-primary">Estimated grid energy needed for battery: {advice.chargeNeededKWh.toFixed(1)} kWh {advice.chargeWindow && `(${advice.chargeWindow})`}.</span>
             )}
              {advice.potentialSavingsKWh !== undefined && advice.potentialSavingsKWh > 0 && (
                <span className="block mt-1 text-xs text-green-600 dark:text-green-400">Potential excess solar generation/savings: ~{advice.potentialSavingsKWh.toFixed(1)} kWh.</span>
@@ -307,13 +346,17 @@ export default function AdvisoryPage() {
     // Calculate max value for hourly slider
     const sliderMax = isMounted ? Math.max(2, avgHourlyConsumption * 5) : 2;
 
+    // Split adviceError into today and tomorrow errors
+    const todayErrorMsg = adviceError?.split('\n').find(line => line.startsWith("Today's")) || (adviceError && !adviceError.includes("Tomorrow's") ? adviceError : null);
+    const tomorrowErrorMsg = adviceError?.split('\n').find(line => line.startsWith("Tomorrow's")) || (adviceError && !adviceError.includes("Today's") ? adviceError : null);
+
 
    return (
      <div className="space-y-6">
        <div className="flex justify-between items-center">
             <div>
                 <h1 className="text-3xl font-bold">Smart Charging Advisory</h1>
-                <p className="text-muted-foreground">Get recommendations for optimizing battery and EV charging based on forecasts, tariffs, and your consumption patterns.</p>
+                <p className="text-muted-foreground">Optimize battery & EV charging based on forecasts, tariffs, and consumption.</p>
             </div>
             <Button
                 onClick={() => refetchWeather()}
@@ -326,26 +369,34 @@ export default function AdvisoryPage() {
        </div>
 
          {/* Combined Loading/Error state for weather fetch */}
-        {(weatherLoading && !isMounted) || (weatherLoading && isMounted && !weatherData) && ( // Show initial loading
+        {(!isMounted || (isMounted && weatherLoading && !weatherData)) && ( // Show initial loading
           <div className="flex items-center text-muted-foreground py-4">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
             <span>Loading initial weather forecast...</span>
           </div>
         )}
-        {weatherError && (
+        {isMounted && weatherError && (
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4"/>
                <AlertTitle>Weather Forecast Error</AlertTitle>
                <AlertDescription>{weatherError.message}</AlertDescription>
              </Alert>
          )}
+        {isMounted && !settings && !weatherLoading && !weatherError && (
+             <Alert>
+                 <SettingsIcon className="h-4 w-4" />
+                 <AlertTitle>Configuration Needed</AlertTitle>
+                 <AlertDescription>Please configure your system in <a href="/settings" className="underline font-medium">Settings</a> first to get personalized advice.</AlertDescription>
+             </Alert>
+        )}
 
 
        {/* Inputs Card */}
+       {isMounted && settings && ( // Only show inputs if mounted and settings loaded
        <Card>
          <CardHeader>
            <CardTitle>Your Energy Inputs</CardTitle>
-           <CardDescription>Provide details about your current battery level and typical energy usage for more accurate advice.</CardDescription>
+           <CardDescription>Provide current battery level and typical energy usage for accurate advice.</CardDescription>
          </CardHeader>
          <CardContent className="space-y-4">
            {/* Current Battery Level */}
@@ -363,12 +414,12 @@ export default function AdvisoryPage() {
                onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput, parseFloat(e.target.value) || 0)))}
                placeholder="e.g., 5.2"
                className="max-w-xs"
-               disabled={!isMounted}
+               disabled={!isMounted} // Technically redundant due to outer check, but safe
              />
               {isMounted && settings?.batteryCapacityKWh ? (
                 <p className="text-xs text-muted-foreground"> (Capacity: {settings.batteryCapacityKWh} kWh)</p>
               ) : (
-                  <p className="text-xs text-muted-foreground">{isMounted ? '(Set Capacity in Settings)' : 'Loading settings...'}</p>
+                  <p className="text-xs text-muted-foreground">{isMounted ? '(Set Capacity in Settings)' : ''}</p> // Simplified
               )}
            </div>
 
@@ -419,7 +470,7 @@ export default function AdvisoryPage() {
             {/* Hourly Usage Sliders */}
             <div className="space-y-3 pt-4">
               <Label className="flex items-center gap-2">Adjust Hourly Consumption Profile (kWh)</Label>
-               <p className="text-xs text-muted-foreground">Fine-tune your expected usage for each hour. Total daily consumption updates automatically.</p>
+               <p className="text-xs text-muted-foreground">Fine-tune expected usage. Total daily consumption updates automatically.</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
                 {hourlyUsage.map((usage, index) => (
                   <div key={index} className="space-y-1">
@@ -453,15 +504,17 @@ export default function AdvisoryPage() {
             </div>
          </CardContent>
        </Card>
+       )}
 
        {/* EV Charging Preferences Card */}
+        {isMounted && settings && ( // Only show if mounted and settings loaded
        <Card>
          <CardHeader>
              <CardTitle className="flex items-center gap-2">
                  <Car className="h-5 w-5"/> EV Charging Preferences
              </CardTitle>
              <CardDescription>
-                 Set your electric vehicle charging needs to integrate them into the recommendations (saved automatically).
+                 Set EV needs to integrate them into recommendations (saved automatically).
              </CardDescription>
          </CardHeader>
          <CardContent className="space-y-4">
@@ -508,9 +561,11 @@ export default function AdvisoryPage() {
              </p>
          </CardContent>
        </Card>
+       )}
 
 
        {/* Recommendation Section */}
+       {isMounted && settings && ( // Only show recommendations if mounted and settings loaded
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Today's Recommendation Card */}
            <Card>
@@ -519,8 +574,7 @@ export default function AdvisoryPage() {
                 <CardDescription>Based on current conditions and today's forecast.</CardDescription>
              </CardHeader>
              <CardContent>
-               {/* Use weatherLoading state, pass adviceError for today */}
-               {renderAdvice(todayAdvice, "Today", weatherLoading || weatherRefetching, adviceError?.includes("Today's") ? adviceError : null)}
+                {renderAdvice(todayAdvice, "Today", weatherLoading || weatherRefetching, todayErrorMsg)}
                  <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                      <Clock className="h-3 w-3"/>
                      Current Hour: {isMounted && currentHour !== null ? `${currentHour.toString().padStart(2,'0')}:00` : 'Loading...'}
@@ -536,14 +590,15 @@ export default function AdvisoryPage() {
                 <CardDescription>Recommendation based on tomorrow's forecast.</CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Use weatherLoading state, pass adviceError for tomorrow */}
-                {renderAdvice(tomorrowAdvice, "Overnight", weatherLoading || weatherRefetching, adviceError?.includes("Tomorrow's") ? adviceError : null)}
+                 {renderAdvice(tomorrowAdvice, "Overnight", weatherLoading || weatherRefetching, tomorrowErrorMsg)}
               </CardContent>
             </Card>
          </div>
+        )}
 
 
        {/* Forecast & Config Summary Card */}
+       {isMounted && settings && ( // Only show summary if mounted and settings loaded
         <Card>
           <CardHeader>
             <CardTitle>Forecast & Configuration Used</CardTitle>
@@ -569,7 +624,7 @@ export default function AdvisoryPage() {
               )}
              <div>
                  <strong>Defined Cheap Tariff Periods:</strong>
-                 {isMounted ? (
+                 {isMounted && tariffPeriods ? (
                      tariffPeriods.filter(p => p.isCheap).length > 0 ? (
                          <ul className="list-disc list-inside ml-4 text-muted-foreground">
                              {tariffPeriods.filter(p => p.isCheap).map(p => (
@@ -586,7 +641,7 @@ export default function AdvisoryPage() {
               <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on forecast quality (using {isMounted ? (settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID) : '...'} source via Open-Meteo API), system settings, tariffs, and consumption inputs. Recommendations are estimates.</p>
           </CardContent>
         </Card>
+        )}
      </div>
    );
  }
-
