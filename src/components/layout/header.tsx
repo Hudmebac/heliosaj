@@ -45,25 +45,35 @@ const weatherSources: WeatherSource[] = [
 ];
 
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default to the functional source
+const DEFAULT_WEATHER_SOURCE = weatherSources.find(s => s.id === DEFAULT_WEATHER_SOURCE_ID)!;
 
 export default function Header() {
   const pathname = usePathname();
   const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   // Local state to manage the selected source, initialized from settings or default
-  const [selectedSourceId, setSelectedSourceId] = useState<string>(settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID);
+  const [selectedSourceId, setSelectedSourceId] = useState<string>(DEFAULT_WEATHER_SOURCE_ID);
+  const [isMounted, setIsMounted] = useState(false); // State to track client mount
 
-   // Update local state if settings change from localStorage
+   // Ensure effect runs only on client after mount
    useEffect(() => {
-     // Ensure the stored source is still valid, otherwise default
-     const isValidSource = weatherSources.some(s => s.id === settings?.selectedWeatherSource);
-     setSelectedSourceId(isValidSource ? settings?.selectedWeatherSource! : DEFAULT_WEATHER_SOURCE_ID);
-   }, [settings?.selectedWeatherSource]);
+     setIsMounted(true);
+     // Initialize selectedSourceId from localStorage *after* mount
+     const storedSourceId = settings?.selectedWeatherSource;
+     const isValidSource = weatherSources.some(s => s.id === storedSourceId);
+     setSelectedSourceId(isValidSource && storedSourceId ? storedSourceId : DEFAULT_WEATHER_SOURCE_ID);
+   }, [settings?.selectedWeatherSource]); // Re-run if settings change externally
+
 
   const handleSourceChange = (newSourceId: string) => {
     setSelectedSourceId(newSourceId);
     // Update the settings in localStorage
     setSettings(prevSettings => ({
-      ...(prevSettings || {}), // Handle null case by starting with empty object
+      ...(prevSettings || {
+          // Provide default structure if prevSettings is null
+           location: '',
+           propertyDirection: 'South Facing',
+           inputMode: 'Panels',
+      }),
       selectedWeatherSource: newSourceId,
     }));
     // Data refresh will happen automatically on pages that use settings via useEffect dependency
@@ -78,30 +88,31 @@ export default function Header() {
   ];
 
    // Find the full source object based on the selected ID
-   const currentSource = weatherSources.find(s => s.id === selectedSourceId) || weatherSources.find(s => s.id === DEFAULT_WEATHER_SOURCE_ID)!;
+   const currentSource = weatherSources.find(s => s.id === selectedSourceId) || DEFAULT_WEATHER_SOURCE;
+
+   // Determine the name to display, avoiding hydration mismatch
+   const displaySourceName = isMounted ? currentSource?.name : DEFAULT_WEATHER_SOURCE.name;
 
 
   return (
     <header className="bg-secondary text-secondary-foreground shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center">
         <Link href="/" className="flex items-center gap-2 mb-2 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
-          <Sun className="h-6 w-6" />
+          <Sun className="h-6 w-6 text-primary" /> {/* Changed Sun icon color to primary */}
           HelioHeggie
         </Link>
 
         {/* Navigation Links */}
-        <nav className="flex gap-1 sm:gap-2 items-center flex-wrap justify-center mb-2 sm:mb-0">
+        <nav className="flex gap-1 sm:gap-2 items-center flex-wrap justify-center mb-2 sm:mb-0 order-2 sm:order-1">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
                 "flex items-center gap-1 px-2 py-1 rounded-md text-sm transition-colors duration-200 ease-in-out",
-                "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary",
-                "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent",
-                pathname === item.href
-                  ? 'font-semibold text-accent shadow-[0_0_8px_theme(colors.accent)]'
-                  : 'font-medium hover:shadow-accent/80 focus:shadow-accent'
+                 "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary", // Glow effect on hover/focus
+                 "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent", // Silver text glow
+                 pathname === item.href ? 'font-semibold text-accent shadow-[0_0_8px_theme(colors.accent)]' : 'font-medium hover:shadow-accent/80 focus:shadow-accent' // Active link styling
               )}
               aria-current={pathname === item.href ? 'page' : undefined}
             >
@@ -123,7 +134,8 @@ export default function Header() {
                 )}
               >
                 <List className="h-4 w-4" />
-                Source: {currentSource?.name || 'Select'} {/* Show current source */}
+                {/* Render placeholder text initially or if not mounted */}
+                Source: {isMounted ? (displaySourceName || 'Select') : 'Loading...'}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-secondary border-border text-secondary-foreground">
@@ -145,7 +157,8 @@ export default function Header() {
                 ))}
               </DropdownMenuRadioGroup>
                <DropdownMenuSeparator />
-               {currentSource && (
+               {/* Only render link if mounted and currentSource is valid */}
+               {isMounted && currentSource && (
                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-accent/20 focus:text-accent">
                     <a href={currentSource.url} target="_blank" rel="noopener noreferrer" className="text-sm flex items-center gap-2">
                       Visit {currentSource.name}
