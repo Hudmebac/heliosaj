@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -44,13 +45,14 @@ const AlertTitle = React.forwardRef<
 ))
 AlertTitle.displayName = "AlertTitle"
 
+// Make sure AlertDescription uses div internally to avoid invalid nesting if children contain block elements
 const AlertDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
+  HTMLParagraphElement, // Keep type hint for consistency, but use div below
+  React.HTMLAttributes<HTMLParagraphElement> // Keep type hint
 >(({ className, ...props }, ref) => (
-  <div
+  <div // Use div instead of p
     ref={ref}
-    className={cn("text-sm [&_p]:leading-relaxed", className)}
+    className={cn("text-sm [&_p]:leading-relaxed", className)} // Keep styling
     {...props}
   />
 ))
