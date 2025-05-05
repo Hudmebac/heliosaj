@@ -1,5 +1,4 @@
 
-import type { UserSettings } from '@/types/settings'; // Import UserSettings if needed for API calls
 import { fetchWeatherApi } from 'openmeteo';
 
 /**
@@ -75,7 +74,9 @@ const WEATHER_API_URL = 'https://api.open-meteo.com/v1/forecast';
  * @param code WMO Weather interpretation code.
  * @returns WeatherCondition enum value.
  */
-const classifyWeatherCondition = (code: number): WeatherCondition => {
+const classifyWeatherCondition = (code: number | null | undefined): WeatherCondition => {
+    if (code === null || code === undefined) return 'unknown';
+
   if (code === 0) return 'sunny'; // Clear sky
   if (code >= 1 && code <= 3) return 'cloudy'; // Mainly clear, partly cloudy, overcast - treat as cloudy for simplicity
   if (code >= 45 && code <= 48) return 'cloudy'; // Fog and depositing rime fog
@@ -161,32 +162,48 @@ export async function getWeatherForecast(
 
 
     // --- Data Extraction ---
+    // Helper function to convert Float32Array | undefined to number[] | undefined
+    const toArray = (arr: Float32Array | undefined | null): number[] | undefined => {
+        if (!arr) return undefined;
+        return Array.from(arr);
+    };
+
+     // Helper function to convert Int64Array | undefined to number[] | undefined
+    const toIntArray = (arr: BigInt64Array | undefined | null): number[] | undefined => {
+        if (!arr) return undefined;
+        return Array.from(arr).map(Number); // Convert BigInt to number
+    };
+
+
     // Get time range and interval directly from the daily/hourly objects
-    const dailyTime = dailyData.time();
+    // Add null checks and default values
+    const dailyTimeStart = dailyData.time();
     const dailyTimeEnd = dailyData.timeEnd();
     const dailyInterval = dailyData.interval();
-    if (dailyTime === undefined || dailyTimeEnd === undefined || dailyInterval === undefined) {
+
+    if (dailyTimeStart === null || dailyTimeEnd === null || dailyInterval === null) {
         throw new Error("Could not get time information from daily data (time/timeEnd/interval).");
     }
 
-    const hourlyTime = hourlyData.time();
+    const hourlyTimeStart = hourlyData.time();
     const hourlyTimeEnd = hourlyData.timeEnd();
     const hourlyInterval = hourlyData.interval();
-     if (hourlyTime === undefined || hourlyTimeEnd === undefined || hourlyInterval === undefined) {
+
+    if (hourlyTimeStart === null || hourlyTimeEnd === null || hourlyInterval === null) {
         throw new Error("Could not get time information from hourly data (time/timeEnd/interval).");
     }
 
 
     // Access variables using their correct indices based on the `params` order
-    const dailyWeatherCode = dailyData.variables(0)?.valuesArray();
-    const dailyTempMax = dailyData.variables(1)?.valuesArray();
-    const dailyTempMin = dailyData.variables(2)?.valuesArray();
-    const dailySunriseVar = dailyData.variables(3); // sunrise uses valuesInt64
-    const dailySunsetVar = dailyData.variables(4);   // sunset uses valuesInt64
-    const dailyCloudCoverMean = dailyData.variables(5)?.valuesArray(); // Mean cloud cover
+    const dailyWeatherCode = toArray(dailyData.variables(0)?.valuesArray());
+    const dailyTempMax = toArray(dailyData.variables(1)?.valuesArray());
+    const dailyTempMin = toArray(dailyData.variables(2)?.valuesArray());
+    const dailySunriseVar = dailyData.variables(3);
+    const dailySunsetVar = dailyData.variables(4);
+    const dailyCloudCoverMean = toArray(dailyData.variables(5)?.valuesArray()); // Mean cloud cover
 
-    const hourlyCloudCover = hourlyData.variables(0)?.valuesArray();
-    const hourlyWeatherCode = hourlyData.variables(1)?.valuesArray();
+    const hourlyCloudCover = toArray(hourlyData.variables(0)?.valuesArray());
+    const hourlyWeatherCode = toArray(hourlyData.variables(1)?.valuesArray());
 
 
     // --- Validate Extracted Data ---
@@ -199,11 +216,25 @@ export async function getWeatherForecast(
          throw new Error("Failed to extract one or more required weather variables from the API response.");
     }
 
+     // Need to check length of sunrise/sunset arrays
+     const sunriseLength = dailySunriseVar.valuesInt64Length();
+     const sunsetLength = dailySunsetVar.valuesInt64Length();
+     if (sunriseLength === null || sunsetLength === null) {
+         throw new Error("Failed to get length of sunrise/sunset data arrays.");
+     }
+
+
     const forecasts: WeatherForecast[] = [];
-    const numDays = (Number(dailyTimeEnd) - Number(dailyTime)) / dailyInterval;
+    const numDays = (Number(dailyTimeEnd) - Number(dailyTimeStart)) / dailyInterval;
 
     for (let i = 0; i < numDays; i++) {
-      const dayTimestamp = Number(dailyTime) + i * dailyInterval;
+      // Check array bounds before accessing
+      if (i >= dailyWeatherCode.length || i >= dailyTempMax.length || i >= dailyTempMin.length || i >= sunriseLength || i >= sunsetLength || i >= dailyCloudCoverMean.length) {
+         console.warn(`Data array length mismatch for day index ${i}. Skipping day.`);
+         continue;
+      }
+
+      const dayTimestamp = Number(dailyTimeStart) + i * dailyInterval;
       const date = new Date((dayTimestamp + utcOffsetSeconds) * 1000);
       const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD
 
@@ -224,9 +255,9 @@ export async function getWeatherForecast(
        const dayEndSeconds = dayTimestamp + dailyInterval; // Use daily interval (usually 24*3600)
 
        let dayHourlyIndices: number[] = [];
-       const numHourlySteps = (Number(hourlyTimeEnd) - Number(hourlyTime)) / hourlyInterval;
+       const numHourlySteps = (Number(hourlyTimeEnd) - Number(hourlyTimeStart)) / hourlyInterval;
        for (let h = 0; h < numHourlySteps; h++) {
-            const hourlyTimestamp = Number(hourlyTime) + h * hourlyInterval;
+            const hourlyTimestamp = Number(hourlyTimeStart) + h * hourlyInterval;
             // Check if the *start* of the hourly interval falls within the daily interval
             if (hourlyTimestamp >= dayStartSeconds && hourlyTimestamp < dayEndSeconds) {
                 dayHourlyIndices.push(h);
@@ -246,17 +277,24 @@ export async function getWeatherForecast(
         const dayHourlyTimes: Date[] = [];
 
         for (const index of dayHourlyIndices) {
+            // Check hourly array bounds
+            if (index >= hourlyCloudCover.length || index >= hourlyWeatherCode.length) {
+                console.warn(`Hourly data index ${index} out of bounds for date ${dateString}. Skipping hour.`);
+                continue;
+            }
             const cloudVal = hourlyCloudCover[index];
             const codeVal = hourlyWeatherCode[index];
-            const timeVal = Number(hourlyTime) + index * hourlyInterval + utcOffsetSeconds;
+            const timeVal = Number(hourlyTimeStart) + index * hourlyInterval + utcOffsetSeconds;
 
-            if (cloudVal !== null && cloudVal !== undefined && codeVal !== null && codeVal !== undefined && timeVal !== null && timeVal !== undefined) {
+             // Validate individual hourly values
+            if (cloudVal !== null && cloudVal !== undefined && !isNaN(cloudVal) &&
+                codeVal !== null && codeVal !== undefined && !isNaN(codeVal) &&
+                timeVal !== null && timeVal !== undefined && !isNaN(timeVal)) {
                 dayHourlyCloud.push(cloudVal);
                 dayHourlyWeatherCode.push(codeVal);
                 dayHourlyTimes.push(new Date(timeVal * 1000));
             } else {
-                 console.warn(`Missing hourly data point at index ${index} for date ${dateString}.`);
-                 // Optionally skip the hour or use fallback values
+                 console.warn(`Missing or invalid hourly data point at index ${index} for date ${dateString}. Skipping hour.`);
             }
         }
 
@@ -267,7 +305,7 @@ export async function getWeatherForecast(
 
 
        // Use daily mean cloud cover directly if available and valid, otherwise average hourly
-       const cloudCoverMeanVal = dailyCloudCoverMean?.[i];
+       const cloudCoverMeanVal = dailyCloudCoverMean[i];
        const cloudCover = (cloudCoverMeanVal !== undefined && cloudCoverMeanVal !== null && !isNaN(cloudCoverMeanVal))
             ? Math.round(cloudCoverMeanVal)
             : Math.round(calculateAverage(dayHourlyCloud));
@@ -305,4 +343,35 @@ export async function getWeatherForecast(
         throw new Error(`An unknown error occurred while fetching weather data from ${source}.`);
     }
   }
+}
+
+
+/**
+ * Gets the weather forecast for the current day only.
+ * @param location The location for the forecast.
+ * @param source The weather source identifier.
+ * @returns A promise resolving to the WeatherForecast for today, or null if unavailable.
+ */
+export async function getCurrentDayWeather(
+  location: Location,
+  source: string = 'open-meteo'
+): Promise<WeatherForecast | null> {
+    try {
+        // Fetch forecast for 1 day
+        const forecastArray = await getWeatherForecast(location, 1, source);
+
+        // Check if the array is valid and has at least one entry
+        if (forecastArray && forecastArray.length > 0) {
+             // Assuming the first entry is today's forecast
+            const todayString = new Date().toISOString().split('T')[0];
+            const todayForecast = forecastArray.find(f => f.date === todayString);
+            return todayForecast || forecastArray[0]; // Return found today or the first day as fallback
+        } else {
+            console.warn(`getCurrentDayWeather: No forecast data returned for ${location.lat},${location.lng}`);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error fetching current day weather:', error);
+        return null;
+    }
 }
