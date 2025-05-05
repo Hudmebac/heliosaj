@@ -8,10 +8,9 @@ import { Loader2, Zap, BatteryCharging, Cloudy, Sun } from 'lucide-react'; // Im
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast } from '@/services/weather'; // Assuming type exists
-import { getWeatherForecast } from '@/services/weather'; // Assuming type exists
-import { calculateSolarGeneration, type CalculatedForecast } from '../lib/Solar-calculations';
-import { getChargingAdvice, AdviceResult } from '../lib/Charging-advice';
-
+import SolarService, { type AdviceResult, type CalculatedForecast } from '../../services/SolarService';
+import DummyWeatherService from '../../services/DummyWeatherService';
+import type { WeatherCondition, WeatherForecast } from '../../services/WeatherService';
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
 
@@ -60,10 +59,15 @@ export default function AdvisoryPage() {
 
       try {
         // Fetch weather forecast for *tomorrow*
-         const weatherResult = await getWeatherForecast(currentLocation); // Needs to return data including tomorrow
+         const weatherService = new DummyWeatherService();
+         const weatherResult = await weatherService.getWeatherForecast("location"); // Needs to return data including tomorrow
 
          const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-         const tomorrowWeather = weatherResult.find(f => f.date === tomorrowStr);
+        const tomorrowWeather = weatherResult?.find(f => f.date === tomorrowStr);
+
+        
+        
+        
 
 
         if (!tomorrowWeather) {
@@ -73,16 +77,16 @@ export default function AdvisoryPage() {
         }
 
         // Calculate tomorrow's solar generation
-        const tomorrowForecast = calculateSolarGeneration(tomorrowWeather, settings);
+        const tomorrowForecast = SolarService.calculateSolarGeneration(tomorrowWeather, settings);
 
         if (!tomorrowForecast) {
              setError("Could not calculate tomorrow's solar generation estimate.");
              setLoading(false);
              return;
         }
-
+       
         // Get the charging advice
-        const generatedAdvice = getChargingAdvice(tomorrowForecast, settings, cheapTariffs);
+        const generatedAdvice = getChargingAdvice(tomorrowForecast, settings);
         setAdvice(generatedAdvice);
 
       } catch (err) {
@@ -99,8 +103,8 @@ export default function AdvisoryPage() {
   const renderAdvice = () => {
     if (!advice) return null;
 
-    const Icon = advice.recommendCharge ? BatteryCharging : advice.reason.includes("High") ? Sun : Cloudy;
-    const alertVariant: "default" | "destructive" | null | undefined = advice.recommendCharge ? undefined : undefined; // Default styling for both recommendations for now
+    const Icon = advice.chargeNow ? BatteryCharging : advice.reason.includes("High") ? Sun : Cloudy;
+    const alertVariant: "default" | "destructive" | null | undefined = advice.chargeNow ? undefined : undefined; // Default styling for both recommendations for now
     const title = advice.recommendCharge ? "Recommendation: Charge Battery Tonight" : "Recommendation: Avoid Grid Charging Tonight";
 
     return (

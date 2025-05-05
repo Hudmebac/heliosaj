@@ -5,9 +5,9 @@ import React, {useState, useEffect} from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
-import type {WeatherForecast, WeatherCondition} from '@/services/weather'; // Import WeatherForecast type
-import { getWeatherForecast } from '@/services/weather'; // Assume this is implemented
-import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/Solar-calculations'; // Assume this is implemented
+import SolarService, { type CalculatedForecast } from '../services/SolarService';
+import DummyWeatherService from '../services/DummyWeatherService';
+import type { WeatherCondition, WeatherForecast } from '../services/WeatherService'
 import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
@@ -57,21 +57,24 @@ export default function HomePage() {
       try {
         // Fetch weather for today and tomorrow (or a multi-day forecast)
         // Adjust getWeatherForecast if it needs date ranges or count
-        const weatherResult = await getWeatherForecast(currentLocation); // Assuming it gives at least today/tomorrow
+        const weatherService = new DummyWeatherService();
+        const weatherResult = await weatherService.getWeatherForecast(""); // Assuming it gives at least today/tomorrow
 
         // Get the next 7 days from result
         // We need to get more days if we want a week ahead view
         // Let's assume getWeatherForecast can take a day count
-        const weeklyWeatherRaw = await getWeatherForecast(currentLocation, 7); // Fetch 7 days
+        const weeklyWeatherRaw: WeatherForecast[] = await weatherService.getWeatherForecast(""); // Fetch 7 days
 
 
         // Assuming weatherResult is an array like [{ date: 'YYYY-MM-DD', cloudCover: number, ... }, ...]
         // And calculateSolarGeneration handles filtering/processing for today/tomorrow
         if (!settings) {
-           setError("User settings not found. Please configure your system in the Settings page.");
-           setLoading(false);
-           return;
+          setError("User settings not found. Please configure your system in the Settings page.");
+          setLoading(false);
+          return;
         }
+        
+        
 
         const todayStr = new Date().toISOString().split('T')[0];
         const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
@@ -79,13 +82,13 @@ export default function HomePage() {
         const todayWeather = weeklyWeatherRaw.find(f => f.date === todayStr);
         const tomorrowWeather = weeklyWeatherRaw.find(f => f.date === tomorrowStr);
 
-        const todayForecast = todayWeather ? calculateSolarGeneration(todayWeather, settings) : null;
-        const tomorrowForecast = tomorrowWeather ? calculateSolarGeneration(tomorrowWeather, settings) : null;
+        const todayForecast = todayWeather ? SolarService.calculateSolarGeneration(todayWeather, settings) : null;
+        const tomorrowForecast = tomorrowWeather ? SolarService.calculateSolarGeneration(tomorrowWeather, settings) : null;
 
 
         const weeklyCalculatedForecasts = weeklyWeatherRaw.map(dayWeather => {
           // Ensure calculateSolarGeneration can handle potentially missing weatherCondition
-          const calculated = calculateSolarGeneration(dayWeather, settings);
+          const calculated = SolarService.calculateSolarGeneration(dayWeather, settings);
           return calculated || { // Provide a default structure if calculation fails
              date: dayWeather.date,
              dailyTotalGenerationKWh: 0,
