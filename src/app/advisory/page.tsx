@@ -17,6 +17,8 @@ import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-c
 import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice } from '@/lib/charging-advice'; // Import advice function
 import { cn } from '@/lib/utils'; // Import cn for conditional class names
 import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the new hook
+import { useToast } from "@/hooks/use-toast"; // Import useToast
+
 
 const DEFAULT_LOCATION: Location = { lat: 51.5074, lng: 0.1278 }; // Default to London
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
@@ -34,6 +36,8 @@ export default function AdvisoryPage() {
     const [todayForecastCalc, setTodayForecastCalc] = useState<CalculatedForecast | null>(null); // State for today's calculated forecast
     const [isMounted, setIsMounted] = useState(false);
     const [currentHour, setCurrentHour] = useState<number | null>(null); // Initialize to null
+    const { toast } = useToast(); // Initialize useToast
+
 
     // State for user inputs
     const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(0);
@@ -127,6 +131,18 @@ export default function AdvisoryPage() {
        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, isMounted, setSettings]);
+
+   // Effect to show notification if non-functional source is selected
+   useEffect(() => {
+     if (isMounted && settings?.selectedWeatherSource !== 'open-meteo') {
+       toast({
+         title: "Data Source Note",
+         description: "Currently, only Open-Meteo provides live forecast data. Other sources are for informational purposes only.",
+         variant: "default", // Or use a more prominent variant if needed
+         duration: 9000, // Optional: display for longer
+       });
+     }
+   }, [settings?.selectedWeatherSource, isMounted, toast]);
 
 
     // Function to handle changes in hourly sliders
@@ -246,6 +262,7 @@ export default function AdvisoryPage() {
              setTomorrowAdvice(null); // Clear potentially stale advice
         }
 
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
         weatherData, weatherLoading, weatherRefetching, // Depend on weather query state

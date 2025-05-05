@@ -36,6 +36,7 @@ interface WeatherSource {
 const weatherSources: WeatherSource[] = [
    { id: "open-meteo", name: "Open-Meteo", url: "https://open-meteo.com/", isFunctional: true }, // Our current implementation
    // Add others for display/selection, but mark as not functional for data fetching
+   { id: "metoffice", name: "Met Office", url: "https://www.metoffice.gov.uk/", isFunctional: false },
    { id: "openweathermap", name: "OpenWeatherMap", url: "https://openweathermap.org/", isFunctional: false },
    { id: "accuweather", name: "AccuWeather", url: "https://www.accuweather.com", isFunctional: false },
    { id: "google", name: "Google Weather", url: "https://www.google.com/search?q=weather", isFunctional: false },
@@ -66,6 +67,7 @@ export default function Header() {
      const storedSourceId = settings?.selectedWeatherSource;
      const isValidSource = weatherSources.some(s => s.id === storedSourceId);
      setSelectedSourceId(isValidSource && storedSourceId ? storedSourceId : DEFAULT_WEATHER_SOURCE_ID);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [settings?.selectedWeatherSource]); // Re-run if settings change externally
 
 
