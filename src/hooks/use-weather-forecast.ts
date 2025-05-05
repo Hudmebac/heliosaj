@@ -1,7 +1,7 @@
 
 
 'use client';
-
+import { dummyWeatherForecast } from '@/services/dummy-weather-forecast';
 import { useQuery } from '@tanstack/react-query';
 import { getWeatherForecast, type WeatherForecast, type Location, getCurrentDayWeather } from '@/services/weather'; // Corrected import path
 
@@ -30,11 +30,12 @@ export function useWeatherForecast(
         queryFn: async () => {
             if (!location) {
                  console.warn("Weather forecast hook called without location.");
-                 return []; // Return empty array if location isn't ready
+                return []; // Return empty array if location isn't ready
+
             }
             // Only fetch from 'open-meteo' as per implementation
             if (sourceId !== 'open-meteo') {
-                console.warn(`Weather source "${sourceId}" requested, but using 'open-meteo' for data fetching.`);
+                 console.warn(`Weather source "${sourceId}" requested, but using 'open-meteo' for data fetching.`);
                 // No need to change sourceId variable, getWeatherForecast handles the actual API call
             }
              // Pass location and days to the actual fetching function
