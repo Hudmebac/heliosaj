@@ -5,7 +5,8 @@ import React, {useState, useEffect} from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
-import { getWeatherForecast, type WeatherForecast, type WeatherCondition } from '@/services/weather'; // Import WeatherForecast type
+import { getWeatherForecast, type WeatherForecast, type WeatherCondition } from '@/services/weather';
+import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
 import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react'; // Import weather icons
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
@@ -14,15 +15,6 @@ import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 
-export type CalculatedForecast = {
-    date: string;
-    dailyTotalGenerationKWh: number;
-    weatherCondition?: string; // Add weatherCondition here
-    hourlyForecast: {
-        time: string;
-        estimatedGenerationWh: number;
-    }[];
-}
 
 /**
  * Returns the appropriate Lucide icon based on the weather condition.
@@ -67,8 +59,9 @@ export default function HomePage() {
         currentLocation = { lat: settings.latitude, lng: settings.longitude };
         locationName = settings.location || `Lat: ${settings.latitude.toFixed(2)}, Lng: ${settings.longitude.toFixed(2)}`;
       } else if (settings?.location) {
+        // Attempt to use location string if coordinates aren't set (though API needs coordinates)
         locationName = settings.location;
-        console.warn("Location coordinates not available, using default for weather fetch.");
+        console.warn("Location coordinates not available, using default for weather fetch. Please update settings.");
       }
       setLocationDisplay(locationName);
 
@@ -80,37 +73,24 @@ export default function HomePage() {
       }
 
 
-        const calculateSolarGeneration = (weatherForecast: any, settings: any): CalculatedForecast => {
-            return {
-                date: weatherForecast.date,
-                dailyTotalGenerationKWh: 0,
-                weatherCondition: weatherForecast.weatherCondition,
-                hourlyForecast: [],
-            };
-        };
-
-
       try {
         // Fetch weather for the next 7 days using the selected source ID
-        // The getWeatherForecast function internally handles which API to call based on the source ID.
         const weeklyWeatherRaw: WeatherForecast[] = await getWeatherForecast(currentLocation, 7, selectedSource);
 
         if (!weeklyWeatherRaw || weeklyWeatherRaw.length === 0) {
           throw new Error("No weather data received from the service.");
         }
 
-        // Filter and calculate for today and tomorrow
-        const todayWeather = weeklyWeatherRaw.find(f => f.date === todayStr);
-        const tomorrowWeather = weeklyWeatherRaw.find(f => f.date === tomorrowStr);
-
-        // Use the imported function directly
-        const todayForecast = todayWeather ? calculateSolarGeneration(todayWeather, settings) : null;
-        const tomorrowForecast = tomorrowWeather ? calculateSolarGeneration(tomorrowWeather, settings) : null;
-
-
+        // Calculate generation for each day
         const weeklyCalculatedForecasts = weeklyWeatherRaw.map(dayWeather => {
           // Ensure calculateSolarGeneration can handle potentially missing weatherCondition
+           // Ensure dayWeather includes cloudCover and date as expected by calculateSolarGeneration
           const calculated = calculateSolarGeneration(dayWeather, settings);
+          // Add weatherCondition back to the calculated forecast for display purposes
+          if (calculated) {
+              calculated.weatherCondition = dayWeather.weatherCondition;
+          }
+
           return calculated || { // Provide a default structure if calculation fails
              date: dayWeather.date,
              dailyTotalGenerationKWh: 0,
@@ -118,6 +98,11 @@ export default function HomePage() {
              weatherCondition: dayWeather.weatherCondition || 'unknown' // Use weather from API or default
           };
         }).filter(Boolean) as CalculatedForecast[]; // Filter out nulls and assert type
+
+
+        // Find today and tomorrow from the calculated weekly forecasts
+        const todayForecast = weeklyCalculatedForecasts.find(f => f.date === todayStr) || null;
+        const tomorrowForecast = weeklyCalculatedForecasts.find(f => f.date === tomorrowStr) || null;
 
 
         setWeeklyForecast(weeklyCalculatedForecasts);
@@ -129,6 +114,7 @@ export default function HomePage() {
          if (err instanceof Error) {
              errorMessage += ` Details: ${err.message}`;
          }
+         // Specific message if settings are missing, overriding general error
          if (!settings) {
              errorMessage = "User settings not found. Please configure your system in the Settings page.";
          }
@@ -155,25 +141,21 @@ export default function HomePage() {
   };
 
   const formatChartData = (forecast: CalculatedForecast | null) => {
-    if (!forecast?.hourlyForecast) return [];
-    // Filter out potential zero generation hours at start/end for cleaner chart
-    const startIndex = forecast.hourlyForecast.findIndex(h => h.estimatedGenerationWh > 0);
-    let endIndex = forecast.hourlyForecast.length - 1;
-     // Find last non-zero hour from the end
-    for (let i = forecast.hourlyForecast.length - 1; i >= 0; i--) {
-      if (forecast.hourlyForecast[i].estimatedGenerationWh > 0) {
-        endIndex = i;
-        break;
-      }
-    }
+    if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
 
+    // No need to filter zeros anymore if calculateSolarGeneration provides full 24h
+    // const startIndex = forecast.hourlyForecast.findIndex(h => h.estimatedGenerationWh > 0);
+    // let endIndex = forecast.hourlyForecast.length - 1;
+    // for (let i = forecast.hourlyForecast.length - 1; i >= 0; i--) {
+    //   if (forecast.hourlyForecast[i].estimatedGenerationWh > 0) {
+    //     endIndex = i;
+    //     break;
+    //   }
+    // }
+    // if (startIndex === -1) return [];
+    // const relevantHours = forecast.hourlyForecast.slice(startIndex, endIndex + 1);
 
-    // Ensure startIndex and endIndex are valid before slicing
-    if (startIndex === -1) return []; // No generation data
-    const relevantHours = forecast.hourlyForecast.slice(startIndex, endIndex + 1);
-
-
-    return relevantHours.map(h => ({
+    return forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00', // Format time for label,
       kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)) // Convert Wh to kWh
     }));
@@ -250,7 +232,8 @@ export default function HomePage() {
 
 
           const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-          const condition = dayForecast.weatherCondition || 'unknown'; // Default if missing
+          // Use weatherCondition from the calculated forecast object
+          const condition = dayForecast.weatherCondition || 'unknown';
 
           return (
             <Card key={dayForecast.date || index} className="text-center flex flex-col hover:shadow-md transition-shadow">
@@ -275,48 +258,46 @@ export default function HomePage() {
 
 
   return (
-    <> {/* Wrap in React Fragment */}
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Solar Dashboard</h1>
-        <p className="text-muted-foreground">Forecasting for: {locationDisplay}</p>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Solar Dashboard</h1>
+      <p className="text-muted-foreground">Forecasting for: {locationDisplay}</p>
 
-        {loading && (
-          <div className="flex justify-center items-center py-10">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="ml-2">Loading forecast...</p>
-          </div>
-        )}
+      {loading && (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="ml-2">Loading forecast...</p>
+        </div>
+      )}
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertTitle>Error Loading Forecast</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {!loading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderForecastCard("Today", forecastData.today)}
-            {renderForecastCard("Tomorrow", forecastData.tomorrow)}
-          </div>
-        )}
-          {!loading && !settings && !error && (
-              <Alert>
-               <AlertTitle>Welcome to HelioHeggie!</AlertTitle>
-               <AlertDescription>
-                 Please go to the <a href="/settings" className="underline font-medium">Settings page</a> to configure your solar panel system details.
-                 This is required to calculate your energy forecast.
-               </AlertDescription>
-              </Alert>
-          )}
-      </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Error Loading Forecast</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {!loading && !error && (
-          <div className="mt-8">
-            <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-            {renderWeeklyForecast()}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {renderForecastCard("Today", forecastData.today)}
+          {renderForecastCard("Tomorrow", forecastData.tomorrow)}
+        </div>
+      )}
+        {!loading && !settings && !error && (
+            <Alert>
+             <AlertTitle>Welcome to HelioHeggie!</AlertTitle>
+             <AlertDescription>
+               Please go to the <a href="/settings" className="underline font-medium">Settings page</a> to configure your solar panel system details.
+               This is required to calculate your energy forecast.
+             </AlertDescription>
+            </Alert>
         )}
-    </> // Close React Fragment
+
+       {!loading && !error && (
+         <div className="mt-8">
+           <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+           {renderWeeklyForecast()}
+         </div>
+       )}
+    </div>
   );
 }
