@@ -46,9 +46,17 @@ interface NominatimResult {
   boundingbox: string[];
 }
 
+// Define the structure for address lookup results
+interface AddressLookupResult {
+  place_id: number; // Added place_id for unique key
+  address: string;
+  lat?: number;
+  lng?: number;
+}
+
 
 // Nominatim address lookup function
-async function lookupAddressesByPostcode(postcode: string): Promise<Array<{ address: string; lat?: number; lng?: number }>> {
+async function lookupAddressesByPostcode(postcode: string): Promise<AddressLookupResult[]> {
   console.log(`Looking up postcode: ${postcode}`);
   const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
   // Limit to GB for better results, request address details
@@ -96,6 +104,7 @@ async function lookupAddressesByPostcode(postcode: string): Promise<Array<{ addr
         console.warn("No exact postcode match, returning broader results.");
         // Fallback to general results if no specific postcode match
         return data.map(item => ({
+            place_id: item.place_id, // Include place_id
             address: item.display_name,
             lat: parseFloat(item.lat),
             lng: parseFloat(item.lon), // Nominatim uses 'lon'
@@ -105,6 +114,7 @@ async function lookupAddressesByPostcode(postcode: string): Promise<Array<{ addr
 
     // Map the response to the expected format
     return postcodeResults.map(item => ({
+      place_id: item.place_id, // Include place_id
       address: item.display_name, // Use the full display name
       lat: parseFloat(item.lat),
       lng: parseFloat(item.lon), // Nominatim uses 'lon'
@@ -137,6 +147,10 @@ const settingsSchema = z.object({
   selectedWeatherSource: z.string().optional(), // Added weather source
   dailyConsumptionKWh: z.coerce.number().positive().optional(), // Optional daily usage
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(), // Optional hourly usage
+  // EV Charging Preferences (added here for completeness, might be set elsewhere)
+  evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
+  evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional(),
+  evMaxChargeRateKWh: z.coerce.number().positive().optional(),
 }).refine(data => {
     // If inputMode is 'Panels', panelCount and panelWatts are required
     if (data.inputMode === 'Panels') {
@@ -166,10 +180,10 @@ export default function SettingsPage() {
 
   // State for postcode lookup
   const [postcode, setPostcode] = useState<string>('');
-  const [addresses, setAddresses] = useState<Array<{ address: string; lat?: number; lng?: number }>>([]);
+  const [addresses, setAddresses] = useState<AddressLookupResult[]>([]); // Use the new type
   const [lookupLoading, setLookupLoading] = useState<boolean>(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
-   const [selectedAddress, setSelectedAddress] = useState<string | undefined>(undefined);
+  const [selectedAddressValue, setSelectedAddressValue] = useState<string | undefined>(undefined); // Stores the selected display_name
 
 
   const form = useForm<UserSettings>({
@@ -180,6 +194,10 @@ export default function SettingsPage() {
       inputMode: 'Panels',
       systemEfficiency: 0.85, // Default efficiency
       selectedWeatherSource: 'open-meteo', // Default weather source
+      // Default EV settings if not present
+      evChargeRequiredKWh: 0,
+      evChargeByTime: '07:00',
+      evMaxChargeRateKWh: 7.5,
     },
     mode: 'onChange', // Validate on change for better UX
   });
@@ -196,40 +214,50 @@ export default function SettingsPage() {
     if (storedSettings) {
       form.reset(storedSettings);
       setCurrentInputMode(storedSettings.inputMode);
-       // If stored settings have a location, pre-fill selectedAddress for the dropdown display
+       // If stored settings have a location, pre-fill selectedAddressValue for the dropdown display
        if (storedSettings.location) {
-         setSelectedAddress(storedSettings.location);
+         setSelectedAddressValue(storedSettings.location);
          // Check if the stored location is among the current lookup results (if any)
          const existsInLookup = addresses.some(addr => addr.address === storedSettings.location);
          if (!existsInLookup && addresses.length > 0) {
              // If it's not in the current lookup list (e.g., postcode changed), reset the visual selection
              // but keep the form value until a new selection is made.
-              // Consider if you want to automatically add the stored location to the list if postcode matches? Might be complex.
-              // For now, just handle the visual state of the Select.
-              // If postcode changes, clearing addresses makes more sense.
+             // If postcode changes, clearing addresses makes more sense (handled below).
          }
 
        } else {
-          setSelectedAddress(undefined);
+          setSelectedAddressValue(undefined);
        }
     } else {
-       setSelectedAddress(undefined);
-       form.reset({ // Reset to defaults if no stored settings
+       // Ensure all fields are reset to defaults if no stored settings
+       form.reset({
          location: '',
+         latitude: undefined,
+         longitude: undefined,
          propertyDirection: 'South Facing',
          inputMode: 'Panels',
+         panelCount: undefined,
+         panelWatts: undefined,
+         totalKWp: undefined,
+         batteryCapacityKWh: undefined,
          systemEfficiency: 0.85,
          selectedWeatherSource: 'open-meteo',
-       })
+         dailyConsumptionKWh: undefined,
+         avgHourlyConsumptionKWh: undefined,
+         evChargeRequiredKWh: 0,
+         evChargeByTime: '07:00',
+         evMaxChargeRateKWh: 7.5,
+       });
+       setSelectedAddressValue(undefined);
     }
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storedSettings, form.reset]); // Keep addresses dependency? Maybe not needed here
+  }, [storedSettings, form.reset]); // Addresses not needed here, postcode effect handles clearing
 
 
     // Clear address list and selection when postcode changes
    useEffect(() => {
        setAddresses([]);
-       setSelectedAddress(undefined);
+       setSelectedAddressValue(undefined);
        setLookupError(null); // Also clear errors
    }, [postcode]);
 
@@ -238,28 +266,47 @@ export default function SettingsPage() {
     // Calculate the missing power value based on the input mode
     if (data.inputMode === 'Panels' && data.panelCount && data.panelWatts) {
       data.totalKWp = parseFloat(((data.panelCount * data.panelWatts) / 1000).toFixed(2));
-    } else if (data.inputMode === 'TotalPower' && data.totalKWp && data.panelCount && data.panelWatts) {
-       // Clear panel details if total power is the source of truth for this save
-      // data.panelCount = undefined;
-      // data.panelWatts = undefined;
-      // OR Calculate approximate panel watts if count is known? Decided against complexity for now.
+    }
+    // No else if needed to clear panelCount/panelWatts for TotalPower mode,
+    // as the form structure conditionally renders them, so they shouldn't be submitted anyway.
+    // We should ensure they are cleared *before* saving though.
+
+    // Prepare data for saving: ensure only relevant power fields are saved
+    const saveData: UserSettings = { ...data }; // Clone data
+
+    if (saveData.inputMode === 'Panels') {
+       // Keep calculated totalKWp? Yes, might be useful.
+      // saveData.totalKWp = undefined; // Optional: clear if strictly only storing input method fields
+    } else if (saveData.inputMode === 'TotalPower') {
+      saveData.panelCount = undefined; // Explicitly clear panel details
+      saveData.panelWatts = undefined;
     }
 
-    // Clear irrelevant fields based on input mode before saving
-     if (data.inputMode === 'Panels') {
-      // data.totalKWp = undefined; // Keep calculated value? Or clear? Keep for now.
-    } else if (data.inputMode === 'TotalPower') {
-      data.panelCount = undefined;
-      data.panelWatts = undefined;
+    // Ensure optional number fields are numbers or undefined, not empty strings
+    const numericFields: (keyof UserSettings)[] = [
+        'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
+        'batteryCapacityKWh', 'systemEfficiency', 'dailyConsumptionKWh',
+        'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh'
+    ];
+    numericFields.forEach(field => {
+       if (saveData[field] === '' || saveData[field] === null || isNaN(Number(saveData[field]))) {
+            (saveData as any)[field] = undefined;
+        } else {
+            (saveData as any)[field] = Number(saveData[field]);
+        }
+    });
+    // Ensure EV time is saved correctly or undefined
+    if (!saveData.evChargeByTime || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(saveData.evChargeByTime)) {
+        saveData.evChargeByTime = undefined;
     }
 
 
-    setStoredSettings(data);
+    setStoredSettings(saveData);
     toast({
       title: "Settings Saved",
       description: "Your solar system configuration has been updated.",
     });
-    console.log("Saved settings:", data);
+    console.log("Saved settings:", saveData);
   };
 
   const handlePostcodeLookup = async () => {
@@ -270,9 +317,9 @@ export default function SettingsPage() {
     setLookupLoading(true);
     setLookupError(null);
     setAddresses([]); // Clear previous results
-     setSelectedAddress(undefined); // Clear visual selection
-     // Clear form fields related to address before lookup? Optional, maybe better to wait for selection.
-    form.setValue('location', ''); // Clear location field
+     setSelectedAddressValue(undefined); // Clear visual selection
+     // Clear form fields related to address before lookup
+    form.setValue('location', '');
     form.setValue('latitude', undefined);
     form.setValue('longitude', undefined);
 
@@ -293,26 +340,17 @@ export default function SettingsPage() {
     }
   };
 
+  // Handle selection from the address dropdown
   const handleAddressSelect = (selectedValue: string) => {
-      // The selectedValue is the 'address' string (display_name) from the results
+      // The selectedValue is the 'address' string (display_name)
       const selectedData = addresses.find(addr => addr.address === selectedValue);
-       setSelectedAddress(selectedValue); // Update visual selection state
+      setSelectedAddressValue(selectedValue); // Update visual selection state
 
       if (selectedData) {
         form.setValue('location', selectedData.address, { shouldValidate: true });
-        // Set lat/lng if available
-        if (selectedData.lat !== undefined) {
-          form.setValue('latitude', selectedData.lat, { shouldValidate: true });
-        } else {
-           form.setValue('latitude', undefined); // Clear if not available
-        }
-        if (selectedData.lng !== undefined) {
-          form.setValue('longitude', selectedData.lng, { shouldValidate: true });
-        } else {
-             form.setValue('longitude', undefined); // Clear if not available
-        }
-        // Clear postcode-specific errors after successful selection
-         setLookupError(null);
+        form.setValue('latitude', selectedData.lat, { shouldValidate: true });
+        form.setValue('longitude', selectedData.lng, { shouldValidate: true });
+        setLookupError(null); // Clear postcode-specific errors
       }
   };
 
@@ -370,7 +408,7 @@ export default function SettingsPage() {
                     <div className="space-y-1 mt-2">
                        <Label htmlFor="addressSelect">Select Address</Label>
                       <Select
-                         value={selectedAddress} // Controlled by state
+                         value={selectedAddressValue} // Controlled by state
                          onValueChange={handleAddressSelect}
                          aria-label="Select an address from the lookup results"
                        >
@@ -378,8 +416,9 @@ export default function SettingsPage() {
                            <SelectValue placeholder="Choose from found addresses..." />
                          </SelectTrigger>
                          <SelectContent>
-                           {addresses.map((addr, index) => (
-                             <SelectItem key={addr.lat ? `${addr.lat}-${addr.lng}` : index} value={addr.address}>
+                           {/* Use place_id as the key */}
+                           {addresses.map((addr) => (
+                             <SelectItem key={addr.place_id} value={addr.address}>
                                {addr.address}
                              </SelectItem>
                            ))}
@@ -417,7 +456,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Latitude (Decimal)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} />
+                        <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -430,7 +469,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Longitude (Decimal)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} />
+                        <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                       </FormControl>
                        <FormMessage />
                     </FormItem>
@@ -602,7 +641,7 @@ export default function SettingsPage() {
                       )}
                     />
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Providing these helps refine charging advice (future feature).</p>
+                <p className="text-xs text-muted-foreground mt-2">Providing these helps refine charging advice.</p>
             </div>
 
 
@@ -630,4 +669,3 @@ export default function SettingsPage() {
     </Card>
   );
 }
-
