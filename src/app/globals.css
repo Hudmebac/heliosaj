@@ -17,8 +17,8 @@ body {
     --popover-foreground: 0 0% 0%;
     --primary: 39 100% 50%; /* Orange */
     --primary-foreground: 0 0% 0%; /* Black text on Orange */
-    --secondary: 0 0% 0%; /* Black */
-    --secondary-foreground: 0 0% 100%; /* White text on Black */
+    --secondary: 0 0% 100%; /* Black */
+    --secondary-foreground: 0 0% 0%; /* White text on Black */
     --muted: 0 0% 96.1%; /* Light Grey */
     --muted-foreground: 0 0% 45.1%; /* Darker Grey text on Muted */
     --accent: 0 0% 75.3%; /* Silver */
@@ -54,8 +54,8 @@ body {
     --popover-foreground: 0 0% 100%; /* White text on popover */
     --primary: 39 100% 50%; /* Orange */
     --primary-foreground: 0 0% 0%; /* Black text on Orange */
-    --secondary: 0 0% 100%; /* White (used less frequently in dark) */
-    --secondary-foreground: 0 0% 0%; /* Black text on White */
+    --secondary: 0 0% 0%;
+    --secondary-foreground: 0 0% 100%;
     --muted: 0 0% 15%; /* Darker Grey */
     --muted-foreground: 0 0% 63.9%; /* Lighter Grey text */
     --accent: 0 0% 75.3%; /* Silver */
