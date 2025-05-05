@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Import useEffect
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,11 +10,12 @@ import { Switch } from '@/components/ui/switch';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { TariffPeriod } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, PlusCircle } from 'lucide-react';
+import { Trash2, PlusCircle, Loader2 } from 'lucide-react'; // Import Loader2
 
 export default function TariffPage() {
   const [tariffPeriods, setTariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false); // Add isMounted state
 
   // State for the form to add a new period
   const [newPeriodName, setNewPeriodName] = useState('');
@@ -22,6 +24,10 @@ export default function TariffPage() {
   const [newIsCheap, setNewIsCheap] = useState(false);
   const [newRate, setNewRate] = useState<number | undefined>(undefined);
 
+  // Set mounted state on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
  const isValidTime = (time: string) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
 
@@ -110,7 +116,12 @@ export default function TariffPage() {
           <CardDescription>Define your electricity supplier's tariff periods (e.g., peak, off-peak). This helps with smart charging advice.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-           {tariffPeriods.length === 0 ? (
+           {!isMounted ? ( // Show loading state before hydration is complete
+              <div className="flex items-center justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                <span>Loading tariff periods...</span>
+              </div>
+           ) : tariffPeriods.length === 0 ? (
              <p className="text-muted-foreground">No tariff periods defined yet. Add your first period below.</p>
           ) : (
              <ul className="space-y-3">
