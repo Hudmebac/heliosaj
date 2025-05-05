@@ -12,7 +12,7 @@ import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as Se
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast, Location } from '@/services/weather'; // Import Location type
-import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
+import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations';
 import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice, } from '@/lib/charging-advice'; // Import advice function
 import { cn } from '@/lib/utils'; // Import cn for conditional class names
 import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the new hook
