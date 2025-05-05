@@ -6,6 +6,9 @@ export type AdviceResult = {
   estimatedChargeTime: string;
 };
 
-export default function getChargingAdvice(forecast: any, settings: any): AdviceResult | null {
-  return null; // Placeholder implementation
+export default function getChargingAdvice(
+  forecast: any,
+  settings: any
+): AdviceResult | null {
+  return null;
 }
