@@ -13,7 +13,7 @@ import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip} from 'recharts';
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
-const DEFAULT_WEATHER_SOURCE_ID = 'openweathermap'; // Default source
+const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 
 const getWeatherIcon = (condition: WeatherCondition | undefined) => {
   // Handle undefined condition gracefully
@@ -45,6 +45,7 @@ export default function HomePage() {
       let locationName = 'Default Location (London)';
       const todayStr = new Date().toISOString().split('T')[0];
       const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+       // Use the source selected in settings, or the default if not set
        const selectedSource = settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID;
 
 
@@ -66,7 +67,8 @@ export default function HomePage() {
 
 
       try {
-        // Fetch weather for the next 7 days using the selected source
+        // Fetch weather for the next 7 days using the selected source ID
+        // The getWeatherForecast function internally handles which API to call based on the source ID.
         const weeklyWeatherRaw: WeatherForecast[] = await getWeatherForecast(currentLocation, 7, selectedSource);
 
         if (!weeklyWeatherRaw || weeklyWeatherRaw.length === 0) {

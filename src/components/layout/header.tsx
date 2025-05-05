@@ -26,22 +26,25 @@ interface WeatherSource {
   id: string;
   name: string;
   url: string;
+  isFunctional: boolean; // Flag to indicate if it actually fetches data
 }
 
-// List of weather sources with IDs
+// List of weather sources with IDs and functional status
 const weatherSources: WeatherSource[] = [
-   { id: "openweathermap", name: "OpenWeatherMap", url: "https://openweathermap.org/" }, // Our current implementation
-   { id: "accuweather", name: "AccuWeather", url: "https://www.accuweather.com" },
-   { id: "weatherchannel", name: "The Weather Channel", url: "https://www.weather.com" },
-   { id: "weatherunderground", name: "Weather Underground", url: "https://www.wunderground.com" },
-   { id: "nws", name: "NWS (US)", url: "https://www.weather.gov" },
-   { id: "google", name: "Google Weather", url: "https://www.google.com/search?q=weather" },
-   { id: "bbc", name: "BBC Weather", url: "https://www.bbc.com/weather" },
-   { id: "ventusky", name: "Ventusky", url: "https://www.ventusky.com" },
-   { id: "windy", name: "Windy", url: "https://www.windy.com" },
+   { id: "open-meteo", name: "Open-Meteo", url: "https://open-meteo.com/", isFunctional: true }, // Our current implementation
+   // Add others for display/selection, but mark as not functional for data fetching
+   { id: "openweathermap", name: "OpenWeatherMap", url: "https://openweathermap.org/", isFunctional: false },
+   { id: "accuweather", name: "AccuWeather", url: "https://www.accuweather.com", isFunctional: false },
+   { id: "weatherchannel", name: "The Weather Channel", url: "https://www.weather.com", isFunctional: false },
+   { id: "weatherunderground", name: "Weather Underground", url: "https://www.wunderground.com", isFunctional: false },
+   { id: "nws", name: "NWS (US)", url: "https://www.weather.gov", isFunctional: false },
+   { id: "google", name: "Google Weather", url: "https://www.google.com/search?q=weather", isFunctional: false },
+   { id: "bbc", name: "BBC Weather", url: "https://www.bbc.com/weather", isFunctional: false },
+   { id: "ventusky", name: "Ventusky", url: "https://www.ventusky.com", isFunctional: false },
+   { id: "windy", name: "Windy", url: "https://www.windy.com", isFunctional: false },
 ];
 
-const DEFAULT_WEATHER_SOURCE_ID = 'openweathermap'; // Default if nothing is set
+const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default to the functional source
 
 export default function Header() {
   const pathname = usePathname();
@@ -51,17 +54,19 @@ export default function Header() {
 
    // Update local state if settings change from localStorage
    useEffect(() => {
-     setSelectedSourceId(settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID);
+     // Ensure the stored source is still valid, otherwise default
+     const isValidSource = weatherSources.some(s => s.id === settings?.selectedWeatherSource);
+     setSelectedSourceId(isValidSource ? settings?.selectedWeatherSource! : DEFAULT_WEATHER_SOURCE_ID);
    }, [settings?.selectedWeatherSource]);
 
   const handleSourceChange = (newSourceId: string) => {
     setSelectedSourceId(newSourceId);
     // Update the settings in localStorage
     setSettings(prevSettings => ({
-      ...prevSettings!, // Assuming settings exist if user can change source? Or handle null case
+      ...(prevSettings || {}), // Handle null case by starting with empty object
       selectedWeatherSource: newSourceId,
     }));
-    // TODO: Optionally trigger a data refresh here if needed immediately
+    // Data refresh will happen automatically on pages that use settings via useEffect dependency
   };
 
   const navItems = [
@@ -72,6 +77,7 @@ export default function Header() {
     { href: '/advisory', label: 'Advisory', icon: Zap },
   ];
 
+   // Find the full source object based on the selected ID
    const currentSource = weatherSources.find(s => s.id === selectedSourceId) || weatherSources.find(s => s.id === DEFAULT_WEATHER_SOURCE_ID)!;
 
 
@@ -113,7 +119,7 @@ export default function Header() {
                   "flex items-center gap-1 px-2 py-1 rounded-md text-sm transition-colors duration-200 ease-in-out font-medium",
                   "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary",
                   "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent hover:shadow-accent/80 focus:shadow-accent",
-                  "h-auto"
+                  "h-auto" // Ensure button height doesn't cause layout shifts
                 )}
               >
                 <List className="h-4 w-4" />
@@ -129,11 +135,12 @@ export default function Header() {
                     key={source.id}
                     value={source.id}
                     className="cursor-pointer focus:bg-accent/20 focus:text-accent"
-                    disabled={source.id !== 'openweathermap'} // Only enable OpenWeatherMap for actual data fetching for now
+                    // No longer disabling items, user can select any for display preference
+                    // disabled={!source.isFunctional}
                   >
                     {source.name}
-                     {source.id !== 'openweathermap' && <span className="ml-auto text-xs text-muted-foreground/70">(Info Only)</span>}
-                     {/* Add a comment explaining only OpenWeatherMap is functional */}
+                     {/* Optionally, add a small icon or text if it's the active data provider */}
+                     {source.isFunctional && <span className="ml-auto text-xs text-primary/80">(Active)</span>}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
@@ -147,7 +154,7 @@ export default function Header() {
                  </DropdownMenuItem>
                )}
                <DropdownMenuItem disabled className="text-xs text-muted-foreground/70">
-                   Note: Currently only OpenWeatherMap provides data to the app.
+                   Note: Currently only Open-Meteo provides forecast data to the app.
                </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

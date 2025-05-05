@@ -12,7 +12,7 @@ import { getWeatherForecast, type WeatherForecast } from '@/services/weather'; /
 import calculateSolarGeneration, { getChargingAdvice, type AdviceResult, type CalculatedForecast } from '@/lib/solar-calculations';
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
-const DEFAULT_WEATHER_SOURCE_ID = 'openweathermap'; // Default source
+const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 
 export default function AdvisoryPage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -59,6 +59,7 @@ export default function AdvisoryPage() {
          // Continue with default, but inform the user
       }
 
+      // Use the source selected in settings, or the default if not set
       const selectedSource = settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID;
 
 
@@ -70,7 +71,7 @@ export default function AdvisoryPage() {
         const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
 
          // Request 2 days to ensure tomorrow is included even with timezone issues
-         // Pass the selected source to the weather function
+         // Pass the selected source ID to the weather function
          const weatherResult = await getWeatherForecast(currentLocation, 2, selectedSource);
 
          if (!weatherResult || weatherResult.length === 0) {

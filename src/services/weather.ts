@@ -23,7 +23,7 @@ export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'stormy'
 
 /**
  * Represents weather forecast data, including cloud cover.
- * This might need adjustment based on the actual API response.
+ * Adjusted for Open-Meteo response.
  */
 export interface WeatherForecast {
   /**
@@ -32,116 +32,132 @@ export interface WeatherForecast {
   date: string;
   /**
    * The average cloud cover percentage (0-100) for the day.
-   * Or potentially an array of hourly cloud cover values if the API provides it.
    */
-  cloudCover: number;
+  cloudCover: number; // From cloud_cover_mean
   /**
    * Simple weather condition classification based on API data.
    */
-  weatherCondition?: WeatherCondition;
-  // Add other relevant fields from the API if needed, e.g., temperature, sunrise/sunset times, hourly data.
-   // Example for potential hourly data:
-   // hourly?: Array<{ time: string; cloudCover: number; temp: number; }>;
+  weatherCondition?: WeatherCondition; // From weather_code
+  /**
+   * Maximum temperature for the day (optional).
+   */
+  tempMax?: number;
+  /**
+   * Minimum temperature for the day (optional).
+   */
+  tempMin?: number;
+   // Add other relevant fields from the API if needed, e.g., sunrise/sunset times, hourly data.
 }
 
 
-const WEATHER_API_KEY = process.env.NEXT_PUBLIC_WEATHER_API_KEY;
-// Example using OpenWeatherMap One Call API (adjust URL and params as needed)
-const WEATHER_API_URL = 'https://api.openweathermap.org/data/3.0/onecall';
+// Use Open-Meteo API endpoint
+const WEATHER_API_URL = 'https://api.open-meteo.com/v1/forecast';
 
 
 /**
- * Classifies OpenWeatherMap weather condition ID into simpler categories.
- * @param id OpenWeatherMap weather condition ID.
+ * Classifies Open-Meteo WMO weather codes into simpler categories.
+ * Ref: https://open-meteo.com/en/docs#weathervariables
+ * @param code WMO Weather interpretation code.
  * @returns WeatherCondition enum value.
  */
-const classifyWeatherCondition = (id: number): WeatherCondition => {
-  if (id >= 200 && id < 300) return 'stormy'; // Thunderstorm
-  if (id >= 300 && id < 400) return 'rainy'; // Drizzle
-  if (id >= 500 && id < 600) return 'rainy'; // Rain
-  if (id >= 600 && id < 700) return 'snowy'; // Snow
-  if (id >= 700 && id < 800) return 'cloudy'; // Atmosphere (mist, smoke, haze, etc.) - treat as cloudy for simplicity
-  if (id === 800) return 'sunny'; // Clear
-  if (id === 801 || id === 802) return 'sunny'; // Few clouds / Scattered clouds - still mostly sunny
-  if (id === 803 || id === 804) return 'cloudy'; // Broken clouds / Overcast clouds
+const classifyWeatherCondition = (code: number): WeatherCondition => {
+  if (code === 0) return 'sunny'; // Clear sky
+  if (code >= 1 && code <= 3) return 'cloudy'; // Mainly clear, partly cloudy, overcast - treat as cloudy for simplicity
+  if (code >= 45 && code <= 48) return 'cloudy'; // Fog and depositing rime fog
+  if (code >= 51 && code <= 57) return 'rainy'; // Drizzle (light, moderate, dense intensity), Freezing Drizzle
+  if (code >= 61 && code <= 67) return 'rainy'; // Rain (slight, moderate, heavy intensity), Freezing Rain
+  if (code >= 71 && code <= 77) return 'snowy'; // Snow fall (slight, moderate, heavy intensity), Snow grains
+  if (code >= 80 && code <= 82) return 'rainy'; // Rain showers (slight, moderate, violent)
+  if (code >= 85 && code <= 86) return 'snowy'; // Snow showers (slight, heavy)
+  if (code === 95) return 'stormy'; // Thunderstorm: Slight or moderate
+  if (code >= 96 && code <= 99) return 'stormy'; // Thunderstorm with slight/heavy hail
   return 'unknown';
 };
 
 
 /**
- * Asynchronously retrieves weather forecast data for a given location.
+ * Asynchronously retrieves weather forecast data for a given location using Open-Meteo.
  *
  * @param location The location for which to retrieve weather data.
- * @param days The number of days to forecast (default is 2, for today and tomorrow). Max is usually 7 or 8 for OneCall API free tier.
- * @param source The identifier for the desired weather source API (e.g., 'openweathermap'). Defaults to 'openweathermap'.
+ * @param days The number of days to forecast (default is 7). Open-Meteo allows up to 16.
+ * @param source The identifier for the desired weather source API (e.g., 'open-meteo'). Only 'open-meteo' is implemented.
  * @returns A promise that resolves to an array of WeatherForecast objects.
- * @throws Throws an error if the API call fails, returns invalid data, or the source is not implemented.
+ * @throws Throws an error if the API call fails, returns invalid data, or the source is not 'open-meteo'.
  */
 export async function getWeatherForecast(
   location: Location,
-  days: number = 2,
-  source: string = 'openweathermap' // Default to OpenWeatherMap
+  days: number = 7,
+  source: string = 'open-meteo' // Default to Open-Meteo
 ): Promise<WeatherForecast[]> {
 
    // --- Source Validation ---
-   // For now, only 'openweathermap' is implemented for actual fetching.
-   if (source !== 'openweathermap') {
-     throw new Error(`Weather source "${source}" is not implemented for data fetching yet. Only 'openweathermap' is available.`);
+   if (source !== 'open-meteo') {
+     // Keep supporting other sources conceptually, but only fetch from open-meteo
+     console.warn(`Weather source "${source}" selected, but only 'open-meteo' is used for data fetching.`);
+     // Or throw: throw new Error(`Weather source "${source}" is not implemented for data fetching. Only 'open-meteo' is available.`);
    }
 
-   // --- Proceed with OpenWeatherMap logic ---
-   if (!WEATHER_API_KEY) {
-    throw new Error("Weather API key (NEXT_PUBLIC_WEATHER_API_KEY) is not configured for OpenWeatherMap.");
-   }
+  // Ensure requested days don't exceed reasonable limits (Open-Meteo allows up to 16)
+  const requestDays = Math.min(days, 16);
 
-  // Ensure requested days don't exceed API limits (e.g., 8 for OneCall free tier)
-   const requestDays = Math.min(days, 8);
+  // Define daily variables needed
+  const dailyVariables = [
+    'weather_code',
+    'temperature_2m_max',
+    'temperature_2m_min',
+    'cloud_cover_mean',
+    // Add 'sunrise', 'sunset', 'precipitation_sum' if needed later
+  ];
 
-  const url = `${WEATHER_API_URL}?lat=${location.lat}&lon=${location.lng}&exclude=current,minutely,hourly,alerts&appid=${WEATHER_API_KEY}&units=metric`;
+  const url = `${WEATHER_API_URL}?latitude=${location.lat}&longitude=${location.lng}&daily=${dailyVariables.join(',')}&timezone=auto&forecast_days=${requestDays}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' }); // Avoid caching issues during dev/testing
     if (!response.ok) {
       // Log more details for debugging
-      const errorBody = await response.text();
+      const errorBody = await response.json(); // Open-Meteo often returns JSON errors
       console.error(`Weather API Error ${response.status} (Source: ${source}): ${response.statusText}`, errorBody);
-      throw new Error(`Failed to fetch weather data from ${source}: ${response.statusText}`);
+      throw new Error(`Failed to fetch weather data from ${source}: ${errorBody?.reason || response.statusText}`);
     }
 
     const data = await response.json();
 
-    // --- Data Transformation (Crucial Step) ---
-    if (!data.daily || !Array.isArray(data.daily)) {
-        throw new Error(`Invalid weather data format received from ${source}.`);
+    // --- Data Transformation (Crucial Step for Open-Meteo) ---
+    if (!data.daily || !data.daily.time || !Array.isArray(data.daily.time)) {
+        throw new Error(`Invalid weather data format received from ${source}. Missing daily time array.`);
     }
 
-     if (data.daily.length < requestDays) {
-        console.warn(`API (${source}) returned fewer days (${data.daily.length}) than requested (${requestDays}).`);
-     }
+    const timeArray = data.daily.time as string[];
+    const cloudCoverArray = data.daily.cloud_cover_mean as number[];
+    const weatherCodeArray = data.daily.weather_code as number[];
+    const tempMaxArray = data.daily.temperature_2m_max as number[];
+    const tempMinArray = data.daily.temperature_2m_min as number[];
 
-    const formatForecast = (dailyData: any): WeatherForecast | null => {
-        if (!dailyData.dt || dailyData.clouds === undefined || !dailyData.weather || !dailyData.weather[0]) {
-            console.error(`Missing required fields in daily forecast item from ${source}:`, dailyData);
-            // Allow partial data if possible, or return null/throw error
-            return null; // Or throw new Error("Invalid daily forecast item structure.");
-        }
-         const date = new Date(dailyData.dt * 1000).toISOString().split('T')[0]; // Convert timestamp to YYYY-MM-DD
-         const cloudCover = Math.round(dailyData.clouds); // Cloudiness percentage
-         const conditionId = dailyData.weather[0].id; // Get the weather condition ID
+    if (
+      !cloudCoverArray || timeArray.length !== cloudCoverArray.length ||
+      !weatherCodeArray || timeArray.length !== weatherCodeArray.length ||
+      !tempMaxArray || timeArray.length !== tempMaxArray.length ||
+      !tempMinArray || timeArray.length !== tempMinArray.length
+     ) {
+        throw new Error(`Inconsistent array lengths in weather data from ${source}.`);
+    }
 
-         return {
-             date: date,
-             cloudCover: cloudCover,
-             weatherCondition: classifyWeatherCondition(conditionId), // Assuming OpenWeatherMap classification
-             // Add other fields if needed by calculations, e.g., dailyData.temp.day
-         };
-    };
+    const forecasts: WeatherForecast[] = [];
+    for (let i = 0; i < timeArray.length; i++) {
+      // Skip if essential data is somehow null/undefined, though Open-Meteo usually provides it
+      if (timeArray[i] == null || cloudCoverArray[i] == null || weatherCodeArray[i] == null) {
+        console.warn(`Skipping forecast for index ${i} due to missing data from ${source}.`);
+        continue;
+      }
+      forecasts.push({
+        date: timeArray[i], // Already in YYYY-MM-DD format
+        cloudCover: Math.round(cloudCoverArray[i]), // Average cloud cover %
+        weatherCondition: classifyWeatherCondition(weatherCodeArray[i]),
+        tempMax: tempMaxArray[i], // Max temp
+        tempMin: tempMinArray[i], // Min temp
+      });
+    }
 
-    // Map over the available daily data, up to the requested number of days
-    const forecasts = data.daily
-        .slice(0, requestDays) // Take only the requested number of days
-        .map(formatForecast)
-        .filter((forecast): forecast is WeatherForecast => forecast !== null); // Filter out any null results from bad data
 
     if (forecasts.length === 0) {
          throw new Error(`Could not extract any valid forecast days from ${source} API response.`);
@@ -153,7 +169,9 @@ export async function getWeatherForecast(
     console.error(`Error fetching or processing weather data from ${source}:`, error);
     // Re-throw or handle specific errors
     if (error instanceof Error) {
-        throw new Error(`Weather service (${source}) failed: ${error.message}`);
+        // Append source info if not already present
+        const message = error.message.includes(`(${source})`) ? error.message : `Weather service (${source}) failed: ${error.message}`;
+        throw new Error(message);
     } else {
         throw new Error(`An unknown error occurred while fetching weather data from ${source}.`);
     }
