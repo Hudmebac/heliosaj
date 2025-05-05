@@ -57,6 +57,7 @@ export default function Header() {
   });
   // Local state to manage the selected source, initialized from settings or default
   const [selectedSourceId, setSelectedSourceId] = useState<string>(DEFAULT_WEATHER_SOURCE_ID);
+  const [isMounted, setIsMounted] = useState(false); // Define isMounted state
 
    // Ensure effect runs only on client after mount
    useEffect(() => {
@@ -92,10 +93,12 @@ export default function Header() {
     // Data refresh will happen automatically on pages that use settings via useEffect dependency
   };
 
-    const handleOptionChange = (optionKey: keyof ForecastOptions, checked: boolean) => {
+    const handleOptionChange = (optionKey: keyof ForecastOptions, checked: boolean | string) => {
+        // Ensure checked is boolean
+        const isChecked = checked === true || checked === 'true';
         setForecastOptions((prevOptions) => ({
             ...prevOptions,
-            [optionKey]: checked,
+            [optionKey]: isChecked,
         }));
     };
 
@@ -110,8 +113,6 @@ export default function Header() {
             })
         }, 500);
     };
-
-    const isMounted = true;
 
     // Find the full source object based on the selected ID
     const currentSource = weatherSources.find(s => s.id === selectedSourceId) || DEFAULT_WEATHER_SOURCE;
@@ -206,7 +207,7 @@ export default function Header() {
                    Note: Currently only Open-Meteo provides forecast data to the app.
                </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>          
+          </DropdownMenu>
 
             {/* Button to open forecast settings modal */}
             <Button variant="ghost" onClick={openModal} className="h-auto">
