@@ -1,0 +1,1 @@
+// This file will contain functions for generating energy charging advice.
