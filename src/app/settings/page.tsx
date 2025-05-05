@@ -135,6 +135,8 @@ const settingsSchema = z.object({
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(), // Optional and non-negative
   systemEfficiency: z.coerce.number().min(0).max(1).optional(), // Optional, between 0 and 1
   selectedWeatherSource: z.string().optional(), // Added weather source
+  dailyConsumptionKWh: z.coerce.number().positive().optional(), // Optional daily usage
+  avgHourlyConsumptionKWh: z.coerce.number().positive().optional(), // Optional hourly usage
 }).refine(data => {
     // If inputMode is 'Panels', panelCount and panelWatts are required
     if (data.inputMode === 'Panels') {
@@ -204,7 +206,6 @@ export default function SettingsPage() {
              // but keep the form value until a new selection is made.
               // Consider if you want to automatically add the stored location to the list if postcode matches? Might be complex.
               // For now, just handle the visual state of the Select.
-              // This might need refinement based on desired UX.
               // If postcode changes, clearing addresses makes more sense.
          }
 
@@ -567,6 +568,43 @@ export default function SettingsPage() {
                 </FormItem>
               )}
             />
+
+            {/* Consumption Settings */}
+            <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+                <h3 className="text-lg font-medium mb-2">Consumption Estimates (Optional)</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <FormField
+                      control={form.control}
+                      name="dailyConsumptionKWh"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Avg. Daily Consumption (kWh)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.1" placeholder="e.g., 10.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                          </FormControl>
+                           <FormDescription>Your typical daily household energy usage.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                   <FormField
+                      control={form.control}
+                      name="avgHourlyConsumptionKWh"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Avg. Hourly Consumption (kWh)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.1" placeholder="e.g., 0.4" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                          </FormControl>
+                          <FormDescription>Average energy used per hour (can be estimated from daily).</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Providing these helps refine charging advice (future feature).</p>
+            </div>
+
 
              {/* System Efficiency */}
             <FormField
