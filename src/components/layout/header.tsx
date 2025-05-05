@@ -92,6 +92,18 @@ export default function Header() {
       }),
       selectedWeatherSource: newSourceId,
     }));
+
+    // Show toast if non-functional source is selected
+    const selectedSource = weatherSources.find(s => s.id === newSourceId);
+    if (selectedSource && !selectedSource.isFunctional) {
+       toast({
+         title: "Data Source Note",
+         description: `Currently, only Open-Meteo provides live forecast data. ${selectedSource.name} is selected for informational purposes only.`,
+         variant: "default",
+         duration: 9000,
+       });
+     }
+
     // Data refresh will happen automatically on pages that use settings via useEffect dependency
   };
 
@@ -122,13 +134,14 @@ export default function Header() {
     // Determine the name to display, avoiding hydration mismatch
     const displaySourceName = isMounted ? currentSource?.name : DEFAULT_WEATHER_SOURCE.name;
 
-  const navItems = [
-    { href: '/', label: 'Dashboard', icon: Home },
-    { href: '/settings', label: 'Settings', icon: Settings },
-    { href: '/info', label: 'Info', icon: Info },
-    { href: '/tariffs', label: 'Tariffs', icon: BarChart2 },
-    { href: '/advisory', label: 'Advisory', icon: Zap },
-  ];
+    // Updated order: Dashboard, Advisory, Settings, Tariffs, Info
+    const navItems = [
+        { href: '/', label: 'Dashboard', icon: Home },
+        { href: '/advisory', label: 'Advisory', icon: Zap },
+        { href: '/settings', label: 'Settings', icon: Settings },
+        { href: '/tariffs', label: 'Tariffs', icon: BarChart2 },
+        { href: '/info', label: 'Info', icon: Info },
+    ];
 
   return (
     <header className="bg-secondary text-secondary-foreground shadow-md sticky top-0 z-50">
@@ -140,6 +153,7 @@ export default function Header() {
 
         {/* Navigation Links */}
         <nav className="flex gap-1 sm:gap-2 items-center flex-wrap justify-center mb-2 sm:mb-0 order-2 sm:order-1">
+          {/* Main navigation items */}
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -173,9 +187,6 @@ export default function Header() {
                 {/* Render placeholder text initially or if not mounted */}
                 Source: {isMounted ? (displaySourceName || 'Select') : 'Loading...'}
               </Button>
-
-
-
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-secondary border-border text-secondary-foreground">
               <DropdownMenuLabel>Select Weather Data Source</DropdownMenuLabel>
@@ -187,7 +198,6 @@ export default function Header() {
                     value={source.id}
                     className="cursor-pointer focus:bg-accent/20 focus:text-accent"
                     // No longer disabling items, user can select any for display preference
-                    // disabled={!source.isFunctional}
                   >
                     {source.name}
                      {/* Optionally, add a small icon or text if it's the active data provider */}
@@ -212,53 +222,60 @@ export default function Header() {
           </DropdownMenu>
 
             {/* Button to open forecast settings modal */}
-            <Button variant="ghost" onClick={openModal} className="h-auto">
+            <Button variant="ghost" onClick={openModal} className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded-md text-sm transition-colors duration-200 ease-in-out font-medium",
+                  "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary",
+                  "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent hover:shadow-accent/80 focus:shadow-accent",
+                  "h-auto" // Ensure button height doesn't cause layout shifts
+            )}>
                 Forecast Settings
             </Button>
 
-          {/* Forecast settings dialog */}
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Forecast Display Settings</DialogTitle>
-                <DialogDescription>
-                  Customize what data is displayed in the forecast.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showWeatherCondition" checked={forecastOptions.showWeatherCondition} onCheckedChange={(checked) => handleOptionChange('showWeatherCondition', checked)} />
-                  <label htmlFor="showWeatherCondition" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Weather Condition
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showTempMax" checked={forecastOptions.showTempMax} onCheckedChange={(checked) => handleOptionChange('showTempMax', checked)} />
-                  <label htmlFor="showTempMax" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Max Temperature
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showTempMin" checked={forecastOptions.showTempMin} onCheckedChange={(checked) => handleOptionChange('showTempMin', checked)} />
-                  <label htmlFor="showTempMin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Min Temperature
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showSunrise" checked={forecastOptions.showSunrise} onCheckedChange={(checked) => handleOptionChange('showSunrise', checked)} />
-                  <label htmlFor="showSunrise" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Sunrise</label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showSunset" checked={forecastOptions.showSunset} onCheckedChange={(checked) => handleOptionChange('showSunset', checked)} />
-                  <label htmlFor="showSunset" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Sunset</label>
-                </div>
-              </div>
-              <DialogFooter><Button onClick={handleModalClose}>Save and Close</Button></DialogFooter>
-            </DialogContent>
-          </Dialog>
         </nav>
+
+        {/* Forecast settings dialog */}
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogTrigger asChild>
+             {/* The trigger is now the separate 'Forecast Settings' button */}
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Forecast Display Settings</DialogTitle>
+              <DialogDescription>
+                Customize what data is displayed in the forecast.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox id="showWeatherCondition" checked={forecastOptions.showWeatherCondition} onCheckedChange={(checked) => handleOptionChange('showWeatherCondition', checked)} />
+                <label htmlFor="showWeatherCondition" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Weather Condition
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="showTempMax" checked={forecastOptions.showTempMax} onCheckedChange={(checked) => handleOptionChange('showTempMax', checked)} />
+                <label htmlFor="showTempMax" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Max Temperature
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="showTempMin" checked={forecastOptions.showTempMin} onCheckedChange={(checked) => handleOptionChange('showTempMin', checked)} />
+                <label htmlFor="showTempMin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Min Temperature
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="showSunrise" checked={forecastOptions.showSunrise} onCheckedChange={(checked) => handleOptionChange('showSunrise', checked)} />
+                <label htmlFor="showSunrise" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Sunrise</label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="showSunset" checked={forecastOptions.showSunset} onCheckedChange={(checked) => handleOptionChange('showSunset', checked)} />
+                <label htmlFor="showSunset" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Sunset</label>
+              </div>
+            </div>
+            <DialogFooter><Button onClick={handleModalClose}>Save and Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="absolute top-3 right-4 sm:relative sm:top-auto sm:right-auto">
          <ThemeToggle />
