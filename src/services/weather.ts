@@ -1,3 +1,4 @@
+
 import type { UserSettings } from '@/types/settings'; // Import UserSettings if needed for API calls
 
 /**
@@ -15,6 +16,12 @@ export interface Location {
 }
 
 /**
+ * Represents possible weather conditions relevant to solar generation.
+ */
+export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'stormy' | 'unknown';
+
+
+/**
  * Represents weather forecast data, including cloud cover.
  * This might need adjustment based on the actual API response.
  */
@@ -28,6 +35,10 @@ export interface WeatherForecast {
    * Or potentially an array of hourly cloud cover values if the API provides it.
    */
   cloudCover: number;
+  /**
+   * Simple weather condition classification based on API data.
+   */
+  weatherCondition?: WeatherCondition;
   // Add other relevant fields from the API if needed, e.g., temperature, sunrise/sunset times, hourly data.
    // Example for potential hourly data:
    // hourly?: Array<{ time: string; cloudCover: number; temp: number; }>;
@@ -42,22 +53,45 @@ const WEATHER_API_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 
 
 /**
+ * Classifies OpenWeatherMap weather condition ID into simpler categories.
+ * @param id OpenWeatherMap weather condition ID.
+ * @returns WeatherCondition enum value.
+ */
+const classifyWeatherCondition = (id: number): WeatherCondition => {
+  if (id >= 200 && id < 300) return 'stormy'; // Thunderstorm
+  if (id >= 300 && id < 400) return 'rainy'; // Drizzle
+  if (id >= 500 && id < 600) return 'rainy'; // Rain
+  if (id >= 600 && id < 700) return 'snowy'; // Snow
+  if (id >= 700 && id < 800) return 'cloudy'; // Atmosphere (mist, smoke, haze, etc.) - treat as cloudy for simplicity
+  if (id === 800) return 'sunny'; // Clear
+  if (id === 801 || id === 802) return 'sunny'; // Few clouds / Scattered clouds - still mostly sunny
+  if (id === 803 || id === 804) return 'cloudy'; // Broken clouds / Overcast clouds
+  return 'unknown';
+};
+
+
+/**
  * Asynchronously retrieves weather forecast data for a given location.
  *
  * @param location The location for which to retrieve weather data.
- * @returns A promise that resolves to an array of WeatherForecast objects containing date and cloud cover information for today and tomorrow.
+ * @param days The number of days to forecast (default is 2, for today and tomorrow). Max is usually 7 or 8 for OneCall API free tier.
+ * @returns A promise that resolves to an array of WeatherForecast objects.
  * @throws Throws an error if the API call fails or returns invalid data.
  */
-export async function getWeatherForecast(location: Location): Promise<WeatherForecast[]> {
+export async function getWeatherForecast(location: Location, days: number = 2): Promise<WeatherForecast[]> {
 
   if (MOCK_WEATHER_API_ENABLED) {
     console.warn("Using MOCK weather data. Set NEXT_PUBLIC_WEATHER_API_KEY and NEXT_PUBLIC_MOCK_WEATHER_API=false to use real data.");
-    return generateMockWeatherData(location);
+    return generateMockWeatherData(location, days);
   }
 
   if (!WEATHER_API_KEY) {
     throw new Error("Weather API key (NEXT_PUBLIC_WEATHER_API_KEY) is not configured.");
   }
+
+  // Ensure requested days don't exceed API limits (e.g., 8 for OneCall free tier)
+   const requestDays = Math.min(days, 8);
+
 
   const url = `${WEATHER_API_URL}?lat=${location.lat}&lon=${location.lng}&exclude=current,minutely,hourly,alerts&appid=${WEATHER_API_KEY}&units=metric`;
 
@@ -73,42 +107,44 @@ export async function getWeatherForecast(location: Location): Promise<WeatherFor
     const data = await response.json();
 
     // --- Data Transformation (Crucial Step) ---
-    // Adapt this based *exactly* on the OpenWeatherMap One Call API 3.0 'daily' array structure
     if (!data.daily || !Array.isArray(data.daily)) {
         throw new Error("Invalid weather data format received from API.");
     }
 
+     if (data.daily.length < requestDays) {
+        console.warn(`API returned fewer days (${data.daily.length}) than requested (${requestDays}).`);
+     }
 
-    // We need today and tomorrow. The 'daily' array usually starts with today.
-    const todayForecast = data.daily[0];
-    const tomorrowForecast = data.daily[1];
-
-    if (!todayForecast || !tomorrowForecast) {
-         throw new Error("Could not extract today's or tomorrow's forecast from API response.");
-    }
-
-
-    const formatForecast = (dailyData: any): WeatherForecast => {
-        if (!dailyData.dt || dailyData.clouds === undefined) {
+    const formatForecast = (dailyData: any): WeatherForecast | null => {
+        if (!dailyData.dt || dailyData.clouds === undefined || !dailyData.weather || !dailyData.weather[0]) {
             console.error("Missing required fields in daily forecast item:", dailyData);
-            throw new Error("Invalid daily forecast item structure.");
+            // Allow partial data if possible, or return null/throw error
+            return null; // Or throw new Error("Invalid daily forecast item structure.");
         }
          const date = new Date(dailyData.dt * 1000).toISOString().split('T')[0]; // Convert timestamp to YYYY-MM-DD
          const cloudCover = Math.round(dailyData.clouds); // Cloudiness percentage
+         const conditionId = dailyData.weather[0].id; // Get the weather condition ID
+
 
          return {
              date: date,
              cloudCover: cloudCover,
+             weatherCondition: classifyWeatherCondition(conditionId),
              // Add other fields if needed by calculations, e.g., dailyData.temp.day
          };
     };
 
+    // Map over the available daily data, up to the requested number of days
+    const forecasts = data.daily
+        .slice(0, requestDays) // Take only the requested number of days
+        .map(formatForecast)
+        .filter((forecast): forecast is WeatherForecast => forecast !== null); // Filter out any null results from bad data
 
-    return [
-        formatForecast(todayForecast),
-        formatForecast(tomorrowForecast),
-        // Add more days if needed by other features
-    ];
+    if (forecasts.length === 0) {
+         throw new Error("Could not extract any valid forecast days from API response.");
+    }
+
+    return forecasts;
 
 
   } catch (error) {
@@ -124,30 +160,33 @@ export async function getWeatherForecast(location: Location): Promise<WeatherFor
 
 
 // Mock data generation function
-function generateMockWeatherData(location: Location): WeatherForecast[] {
+function generateMockWeatherData(location: Location, days: number): WeatherForecast[] {
+  const forecasts: WeatherForecast[] = [];
   const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
 
-  const formatDate = (date: Date): string => date.toISOString().split('T')[0];
+  const mockConditions: WeatherCondition[] = ['sunny', 'cloudy', 'rainy', 'cloudy', 'sunny', 'stormy', 'snowy'];
 
-  // Simulate varying cloud cover based on location or just randomly
-  const todayCloud = Math.floor(Math.random() * 80) + 10; // Random cloud cover 10-90%
-  const tomorrowCloud = Math.floor(Math.random() * 80) + 10;
 
-  return [
-    {
-      date: formatDate(today),
-      cloudCover: todayCloud,
-    },
-    {
-      date: formatDate(tomorrow),
-      cloudCover: tomorrowCloud,
-    },
-    // Add more days if your calculation needs them
-     {
-      date: new Date(today.setDate(today.getDate() + 2)).toISOString().split('T')[0],
-      cloudCover: Math.floor(Math.random() * 70) + 15,
-    },
-  ];
+  for (let i = 0; i < days; i++) {
+      const currentDate = new Date(today);
+      currentDate.setDate(today.getDate() + i);
+      const formatDate = (date: Date): string => date.toISOString().split('T')[0];
+
+      const cloudCover = Math.floor(Math.random() * 90) + 5; // Random cloud cover 5-95%
+       // Assign condition somewhat based on cloud cover or randomly
+      let condition: WeatherCondition = 'unknown';
+      if (cloudCover < 20) condition = 'sunny';
+      else if (cloudCover < 70) condition = 'cloudy';
+      else if (cloudCover < 90) condition = 'rainy';
+      else condition = mockConditions[Math.floor(Math.random() * mockConditions.length)]; // More random for high cloud
+
+
+      forecasts.push({
+          date: formatDate(currentDate),
+          cloudCover: cloudCover,
+          weatherCondition: condition,
+      });
+  }
+
+  return forecasts;
 }

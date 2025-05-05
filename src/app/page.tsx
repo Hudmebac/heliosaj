@@ -1,24 +1,30 @@
+
 'use client'; // Mark as client component to use hooks
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, {useState, useEffect} from 'react';
+import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
-import type { WeatherForecast } from '@/services/weather'; // Import WeatherForecast type
+import type {WeatherForecast, WeatherCondition} from '@/services/weather'; // Import WeatherForecast type
 import { getWeatherForecast } from '@/services/weather'; // Assume this is implemented
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations'; // Assume this is implemented
-import { Loader2 } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
+import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react';
+import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
+import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
+import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip} from 'recharts';
 
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
+
+const getWeatherIcon = (condition: WeatherCondition) => {
+  switch (condition) {
+    case 'sunny': return <Sun className="w-6 h-6" />;
+    case 'cloudy': return <Cloud className="w-6 h-6" />;
+    case 'rainy': return <CloudRain className="w-6 h-6" />;
+    case 'snowy': return <CloudSnow className="w-6 h-6" />;
+    case 'stormy': return <CloudLightning className="w-6 h-6" />;
+    default: return <Droplets className="w-6 h-6" />; // Default icon for unknown conditions
+  }
+};
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -26,6 +32,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
+  const [weeklyForecast, setWeeklyForecast] = useState<CalculatedForecast[]>([]);
 
   useEffect(() => {
     const fetchAndCalculateForecast = async () => {
@@ -52,6 +59,12 @@ export default function HomePage() {
         // Adjust getWeatherForecast if it needs date ranges or count
         const weatherResult = await getWeatherForecast(currentLocation); // Assuming it gives at least today/tomorrow
 
+        // Get the next 7 days from result
+        // We need to get more days if we want a week ahead view
+        // Let's assume getWeatherForecast can take a day count
+        const weeklyWeatherRaw = await getWeatherForecast(currentLocation, 7); // Fetch 7 days
+
+
         // Assuming weatherResult is an array like [{ date: 'YYYY-MM-DD', cloudCover: number, ... }, ...]
         // And calculateSolarGeneration handles filtering/processing for today/tomorrow
         if (!settings) {
@@ -63,12 +76,26 @@ export default function HomePage() {
         const todayStr = new Date().toISOString().split('T')[0];
         const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
-        const todayWeather = weatherResult.find(f => f.date === todayStr);
-        const tomorrowWeather = weatherResult.find(f => f.date === tomorrowStr);
+        const todayWeather = weeklyWeatherRaw.find(f => f.date === todayStr);
+        const tomorrowWeather = weeklyWeatherRaw.find(f => f.date === tomorrowStr);
 
         const todayForecast = todayWeather ? calculateSolarGeneration(todayWeather, settings) : null;
         const tomorrowForecast = tomorrowWeather ? calculateSolarGeneration(tomorrowWeather, settings) : null;
 
+
+        const weeklyCalculatedForecasts = weeklyWeatherRaw.map(dayWeather => {
+          // Ensure calculateSolarGeneration can handle potentially missing weatherCondition
+          const calculated = calculateSolarGeneration(dayWeather, settings);
+          return calculated || { // Provide a default structure if calculation fails
+             date: dayWeather.date,
+             dailyTotalGenerationKWh: 0,
+             hourlyForecast: [],
+             weatherCondition: 'unknown' // Add a default condition
+          };
+        }).filter(Boolean) as CalculatedForecast[]; // Filter out nulls and assert type
+
+
+        setWeeklyForecast(weeklyCalculatedForecasts);
 
         setForecastData({ today: todayForecast, tomorrow: tomorrowForecast });
 
@@ -83,11 +110,24 @@ export default function HomePage() {
     fetchAndCalculateForecast();
   }, [settings]); // Re-run when settings change
 
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-card border p-2 rounded-md text-card-foreground shadow-lg">
+          <p className="text-sm">{data.time}</p>
+          <p className="text-sm font-medium text-primary">Est: {data.kWh} kWh</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   const formatChartData = (forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast) return [];
     return forecast.hourlyForecast.map(h => ({
-      time: h.time.split(':')[0] + ':00', // Format time for label
-      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)), // Convert Wh to kWh
+      time: h.time.split(':')[0] + ':00', // Format time for label,
+      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)) // Convert Wh to kWh
     }));
   };
 
@@ -109,13 +149,13 @@ export default function HomePage() {
                <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" fontSize={12} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" />
-                   <ChartTooltip
+                  <ChartTooltip
                       cursor={false}
-                      content={<ChartTooltipContent hideLabel />}
+                      content={<ChartTooltipContent hideLabel indicator="dot" />} // Use ShadCN tooltip
                     />
-                  <Bar dataKey="kWh" fill="var(--color-kWh)" radius={4} />
+                  <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={4} />
                 </BarChart>
                </ResponsiveContainer>
             </ChartContainer>
@@ -127,41 +167,82 @@ export default function HomePage() {
     );
   };
 
+  const renderWeeklyForecast = () => {
+    if (weeklyForecast.length === 0) return <p className="text-muted-foreground">Weekly forecast data unavailable.</p>;
+
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {weeklyForecast.map((dayForecast, index) => {
+          const date = new Date(dayForecast.date + 'T00:00:00'); // Ensure date is parsed correctly
+           if (isNaN(date.getTime())) {
+             console.warn("Invalid date encountered in weekly forecast:", dayForecast.date);
+             return null; // Skip rendering if date is invalid
+           }
+
+          const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+          const condition = dayForecast.weatherCondition || 'unknown'; // Default if missing
+
+          return (
+            <Card key={dayForecast.date || index} className="text-center flex flex-col">
+              <CardHeader className="pb-2 pt-3 px-2">
+                <CardTitle className="text-sm font-medium">{dayName}</CardTitle>
+                 <CardDescription className="text-xs">{date.toLocaleDateString('en-GB', { day:'numeric', month:'short'})}</CardDescription>
+                 <div className="pt-2 flex justify-center items-center h-8">
+                     {getWeatherIcon(condition)}
+                 </div>
+              </CardHeader>
+               <CardContent className="p-2 mt-auto">
+                  <p className="text-sm font-semibold">{dayForecast.dailyTotalGenerationKWh.toFixed(1)} kWh</p>
+              </CardContent>
+
+            </Card>
+          );
+        })}
+      </div>);};
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Solar Dashboard</h1>
-      <p className="text-muted-foreground">Forecasting for: {locationDisplay}</p>
+    <> {/* Wrap in React Fragment */}
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Solar Dashboard</h1>
+        <p className="text-muted-foreground">Forecasting for: {locationDisplay}</p>
 
-      {loading && (
-        <div className="flex justify-center items-center py-10">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="ml-2">Loading forecast...</p>
-        </div>
-      )}
+        {loading && (
+          <div className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2">Loading forecast...</p>
+          </div>
+        )}
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+        {error && (
+          <Alert variant="destructive">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {!loading && !error && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {renderForecastCard("Today", forecastData.today)}
+            {renderForecastCard("Tomorrow", forecastData.tomorrow)}
+          </div>
+        )}
+          {!loading && !settings && !error && (
+              <Alert>
+               <AlertTitle>Welcome to HelioHeggie!</AlertTitle>
+               <AlertDescription>
+                 Please go to the Settings page to configure your solar panel system details.
+                 This is required to calculate your energy forecast.
+               </AlertDescription>
+              </Alert>
+          )}
+      </div>
 
       {!loading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderForecastCard("Today", forecastData.today)}
-          {renderForecastCard("Tomorrow", forecastData.tomorrow)}
-        </div>
-      )}
-        {!loading && !settings && !error && (
-            <Alert>
-             <AlertTitle>Welcome to HelioHeggie!</AlertTitle>
-             <AlertDescription>
-               Please go to the Settings page to configure your solar panel system details.
-               This is required to calculate your energy forecast.
-             </AlertDescription>
-            </Alert>
+          <div className="mt-8">
+            <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+            {renderWeeklyForecast()}
+          </div>
         )}
-    </div>
+    </> // Close React Fragment
   );
 }
