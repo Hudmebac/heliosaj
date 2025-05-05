@@ -45,8 +45,6 @@ export interface WeatherForecast {
 }
 
 
-// IMPORTANT: Replace this with a real API call
-const MOCK_WEATHER_API_ENABLED = process.env.NEXT_PUBLIC_MOCK_WEATHER_API === 'true' || !process.env.NEXT_PUBLIC_WEATHER_API_KEY;
 const WEATHER_API_KEY = process.env.NEXT_PUBLIC_WEATHER_API_KEY;
 // Example using OpenWeatherMap One Call API (adjust URL and params as needed)
 const WEATHER_API_URL = 'https://api.openweathermap.org/data/3.0/onecall';
@@ -87,27 +85,17 @@ export async function getWeatherForecast(
 
    // --- Source Validation ---
    // For now, only 'openweathermap' is implemented for actual fetching.
-   // Others might use mock data or throw an error.
-   if (source !== 'openweathermap' && !MOCK_WEATHER_API_ENABLED) {
-     // If not using mocks and the source isn't the implemented one, throw error.
+   if (source !== 'openweathermap') {
      throw new Error(`Weather source "${source}" is not implemented for data fetching yet. Only 'openweathermap' is available.`);
    }
 
-
-  if (MOCK_WEATHER_API_ENABLED) {
-    console.warn(`Using MOCK weather data (Source: ${source}). Set NEXT_PUBLIC_WEATHER_API_KEY and NEXT_PUBLIC_MOCK_WEATHER_API=false to use real data.`);
-    return generateMockWeatherData(location, days, source); // Pass source to mock if needed later
-  }
-
-   // --- Proceed with OpenWeatherMap logic if source is correct ---
+   // --- Proceed with OpenWeatherMap logic ---
    if (!WEATHER_API_KEY) {
     throw new Error("Weather API key (NEXT_PUBLIC_WEATHER_API_KEY) is not configured for OpenWeatherMap.");
    }
 
-
   // Ensure requested days don't exceed API limits (e.g., 8 for OneCall free tier)
    const requestDays = Math.min(days, 8);
-
 
   const url = `${WEATHER_API_URL}?lat=${location.lat}&lon=${location.lng}&exclude=current,minutely,hourly,alerts&appid=${WEATHER_API_KEY}&units=metric`;
 
@@ -141,7 +129,6 @@ export async function getWeatherForecast(
          const cloudCover = Math.round(dailyData.clouds); // Cloudiness percentage
          const conditionId = dailyData.weather[0].id; // Get the weather condition ID
 
-
          return {
              date: date,
              cloudCover: cloudCover,
@@ -162,7 +149,6 @@ export async function getWeatherForecast(
 
     return forecasts;
 
-
   } catch (error) {
     console.error(`Error fetching or processing weather data from ${source}:`, error);
     // Re-throw or handle specific errors
@@ -172,38 +158,4 @@ export async function getWeatherForecast(
         throw new Error(`An unknown error occurred while fetching weather data from ${source}.`);
     }
   }
-}
-
-
-// Mock data generation function (optional: adapt based on source)
-function generateMockWeatherData(location: Location, days: number, source: string): WeatherForecast[] {
-  const forecasts: WeatherForecast[] = [];
-  const today = new Date();
-
-  // Conditions might vary slightly based on source style, but keep it simple for mock
-  const mockConditions: WeatherCondition[] = ['sunny', 'cloudy', 'rainy', 'cloudy', 'sunny', 'stormy', 'snowy'];
-
-  console.log(`Generating mock data for source: ${source}`); // Log which source is being mocked
-
-  for (let i = 0; i < days; i++) {
-      const currentDate = new Date(today);
-      currentDate.setDate(today.getDate() + i);
-      const formatDate = (date: Date): string => date.toISOString().split('T')[0];
-
-      const cloudCover = Math.floor(Math.random() * 90) + 5; // Random cloud cover 5-95%
-      let condition: WeatherCondition = 'unknown';
-      if (cloudCover < 20) condition = 'sunny';
-      else if (cloudCover < 70) condition = 'cloudy';
-      else if (cloudCover < 90) condition = 'rainy';
-      else condition = mockConditions[Math.floor(Math.random() * mockConditions.length)];
-
-
-      forecasts.push({
-          date: formatDate(currentDate),
-          cloudCover: cloudCover,
-          weatherCondition: condition,
-      });
-  }
-
-  return forecasts;
 }
