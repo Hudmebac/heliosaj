@@ -1,18 +1,20 @@
 
 'use client'; // Mark as client component to use hooks
 
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useMemo} from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
-import { getWeatherForecast, type WeatherForecast, type WeatherCondition } from '@/services/weather';
+import type { WeatherForecast, WeatherCondition, Location } from '@/services/weather';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react'; // Import weather icons
+import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets, RefreshCw} from 'lucide-react'; // Import weather icons & RefreshCw
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip} from 'recharts';
+import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the hook
+import { Button } from '@/components/ui/button'; // Import Button
 
-const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
+const DEFAULT_LOCATION: Location = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 
 
@@ -37,95 +39,94 @@ const getWeatherIcon = (condition: WeatherCondition | undefined) => {
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [forecastData, setForecastData] = useState<{ today: CalculatedForecast | null, tomorrow: CalculatedForecast | null }>({ today: null, tomorrow: null });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
-  const [weeklyForecast, setWeeklyForecast] = useState<CalculatedForecast[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
-  useEffect(() => {
-    const fetchAndCalculateForecast = async () => {
-      setLoading(true);
-      setError(null);
-      let currentLocation = DEFAULT_LOCATION;
-      let locationName = 'Default Location (London)';
-      const todayStr = new Date().toISOString().split('T')[0];
-      const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-       // Use the source selected in settings, or the default if not set
-       const selectedSource = settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID;
+   // Determine location and source from settings, providing defaults
+   const currentLocation = useMemo(() => {
+     if (settings?.latitude && settings?.longitude) {
+       return { lat: settings.latitude, lng: settings.longitude };
+     }
+     return DEFAULT_LOCATION; // Fallback to default if no settings or coords
+   }, [settings]);
+   const selectedSource = useMemo(() => settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID, [settings]);
 
+    // Fetch weather data using react-query hook
+    const {
+        data: weatherData, // Array of WeatherForecast
+        isLoading: weatherLoading,
+        error: weatherError,
+        refetch: refetchWeather,
+        isRefetching: weatherRefetching,
+        isError: isWeatherError, // Use this boolean flag
+    } = useWeatherForecast(
+        currentLocation,
+        selectedSource,
+        7, // Fetch 7 days for the week ahead
+        isMounted && !!settings // Enable only when mounted and settings are loaded
+    );
 
-      if (settings?.latitude && settings?.longitude) {
-        currentLocation = { lat: settings.latitude, lng: settings.longitude };
-        locationName = settings.location || `Lat: ${settings.latitude.toFixed(2)}, Lng: ${settings.longitude.toFixed(2)}`;
-      } else if (settings?.location) {
-        // Attempt to use location string if coordinates aren't set (though API needs coordinates)
-        locationName = settings.location;
-        console.warn("Location coordinates not available, using default for weather fetch. Please update settings.");
-      }
-      setLocationDisplay(locationName);
+  // State for calculated forecasts (derived from weatherData)
+  const [calculatedForecasts, setCalculatedForecasts] = useState<{
+      today: CalculatedForecast | null,
+      tomorrow: CalculatedForecast | null,
+      week: CalculatedForecast[]
+  }>({ today: null, tomorrow: null, week: [] });
 
-
-      if (!settings) {
-        setError("User settings not found. Please configure your system in the Settings page.");
-        setLoading(false);
-        return;
-      }
-
-
-      try {
-        // Fetch weather for the next 7 days using the selected source ID
-        const weeklyWeatherRaw: WeatherForecast[] = await getWeatherForecast(currentLocation, 7, selectedSource);
-
-        if (!weeklyWeatherRaw || weeklyWeatherRaw.length === 0) {
-          throw new Error("No weather data received from the service.");
+   useEffect(() => {
+       setIsMounted(true);
+        if (settings?.latitude && settings?.longitude) {
+            setLocationDisplay(settings.location || `Lat: ${settings.latitude.toFixed(2)}, Lng: ${settings.longitude.toFixed(2)}`);
+        } else if (settings?.location) {
+             setLocationDisplay(settings.location);
+             console.warn("Location coordinates not available, using default for weather fetch. Please update settings.");
+        } else {
+            setLocationDisplay('Default Location (London)');
         }
+   }, [settings]);
 
-        // Calculate generation for each day
-        const weeklyCalculatedForecasts = weeklyWeatherRaw.map(dayWeather => {
-          // Ensure calculateSolarGeneration can handle potentially missing weatherCondition
-           // Ensure dayWeather includes cloudCover and date as expected by calculateSolarGeneration
-          const calculated = calculateSolarGeneration(dayWeather, settings);
-          // Add weatherCondition back to the calculated forecast for display purposes
-          if (calculated) {
-              calculated.weatherCondition = dayWeather.weatherCondition;
-          }
+   // Effect to calculate solar generation when weatherData changes
+   useEffect(() => {
+     if (!settings || !weatherData || weatherData.length === 0) {
+       // Clear calculated data if prerequisites are missing
+       setCalculatedForecasts({ today: null, tomorrow: null, week: [] });
+       return;
+     }
 
-          return calculated || { // Provide a default structure if calculation fails
+     const todayStr = new Date().toISOString().split('T')[0];
+     const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+     try {
+       const weeklyCalculated = weatherData.map(dayWeather => {
+         const calculated = calculateSolarGeneration(dayWeather, settings);
+         if (calculated) {
+           calculated.weatherCondition = dayWeather.weatherCondition; // Ensure condition is passed through
+         }
+          return calculated || { // Provide default structure if calculation fails
              date: dayWeather.date,
              dailyTotalGenerationKWh: 0,
              hourlyForecast: [],
-             weatherCondition: dayWeather.weatherCondition || 'unknown' // Use weather from API or default
+             weatherCondition: dayWeather.weatherCondition || 'unknown'
           };
-        }).filter(Boolean) as CalculatedForecast[]; // Filter out nulls and assert type
+       }).filter(Boolean) as CalculatedForecast[];
 
+       const todayForecast = weeklyCalculated.find(f => f.date === todayStr) || null;
+       const tomorrowForecast = weeklyCalculated.find(f => f.date === tomorrowStr) || null;
 
-        // Find today and tomorrow from the calculated weekly forecasts
-        const todayForecast = weeklyCalculatedForecasts.find(f => f.date === todayStr) || null;
-        const tomorrowForecast = weeklyCalculatedForecasts.find(f => f.date === tomorrowStr) || null;
+       setCalculatedForecasts({
+         today: todayForecast,
+         tomorrow: tomorrowForecast,
+         week: weeklyCalculated
+       });
 
+     } catch (calcError) {
+       console.error("Error calculating solar generation:", calcError);
+       // Optionally set an error state specific to calculation
+       setCalculatedForecasts({ today: null, tomorrow: null, week: [] }); // Clear on error
+     }
 
-        setWeeklyForecast(weeklyCalculatedForecasts);
-        setForecastData({ today: todayForecast, tomorrow: tomorrowForecast });
+   }, [settings, weatherData]); // Re-calculate when settings or weather data change
 
-      } catch (err) {
-        console.error("Failed to fetch or calculate forecast:", err);
-         let errorMessage = "Could not retrieve or calculate solar forecast.";
-         if (err instanceof Error) {
-             errorMessage += ` Details: ${err.message}`;
-         }
-         // Specific message if settings are missing, overriding general error
-         if (!settings) {
-             errorMessage = "User settings not found. Please configure your system in the Settings page.";
-         }
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAndCalculateForecast();
-  }, [settings]); // Re-run when settings change (including selectedWeatherSource)
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -142,19 +143,6 @@ export default function HomePage() {
 
   const formatChartData = (forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
-
-    // No need to filter zeros anymore if calculateSolarGeneration provides full 24h
-    // const startIndex = forecast.hourlyForecast.findIndex(h => h.estimatedGenerationWh > 0);
-    // let endIndex = forecast.hourlyForecast.length - 1;
-    // for (let i = forecast.hourlyForecast.length - 1; i >= 0; i--) {
-    //   if (forecast.hourlyForecast[i].estimatedGenerationWh > 0) {
-    //     endIndex = i;
-    //     break;
-    //   }
-    // }
-    // if (startIndex === -1) return [];
-    // const relevantHours = forecast.hourlyForecast.slice(startIndex, endIndex + 1);
-
     return forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00', // Format time for label,
       kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)) // Convert Wh to kWh
@@ -171,6 +159,7 @@ export default function HomePage() {
           <CardTitle>{title} Forecast</CardTitle>
           <CardDescription>
             Estimated Generation: {forecast ? `${forecast.dailyTotalGenerationKWh.toFixed(2)} kWh` : 'N/A'}
+             {forecast?.weatherCondition && ` (${forecast.weatherCondition})`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -202,17 +191,22 @@ export default function HomePage() {
   };
 
  const renderWeeklyForecast = () => {
-    if (weeklyForecast.length === 0) {
-      return <p className="text-muted-foreground text-center">Weekly forecast data unavailable.</p>;
+     // Use calculatedForecasts.week which is derived from weatherData
+    if (calculatedForecasts.week.length === 0) {
+      // Display message based on loading/error state of the *weather* query
+       if (weatherLoading || weatherRefetching) return null; // Handled by main loading indicator
+       if (isWeatherError) return null; // Handled by main error alert
+       if (!settings) return null; // Handled by settings alert
+      return <p className="text-muted-foreground text-center py-4">Weekly forecast data unavailable or calculation failed.</p>;
     }
 
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        {weeklyForecast.map((dayForecast, index) => {
-           // Check for invalid date strings
+        {calculatedForecasts.week.map((dayForecast, index) => {
+           // Validate date
            if (!dayForecast.date || typeof dayForecast.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dayForecast.date)) {
              console.warn("Invalid or missing date encountered in weekly forecast:", dayForecast);
-             return (
+             return ( // Render placeholder for invalid data
                 <Card key={`invalid-${index}`} className="text-center flex flex-col border-destructive">
                    <CardHeader className="pb-2 pt-3 px-2">
                        <CardTitle className="text-sm font-medium text-destructive">Invalid Date</CardTitle>
@@ -230,9 +224,7 @@ export default function HomePage() {
              return null; // Skip rendering if date is invalid
            }
 
-
           const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-          // Use weatherCondition from the calculated forecast object
           const condition = dayForecast.weatherCondition || 'unknown';
 
           return (
@@ -240,7 +232,6 @@ export default function HomePage() {
               <CardHeader className="pb-2 pt-3 px-2">
                 <CardTitle className="text-sm font-medium">{dayName}</CardTitle>
                  <CardDescription className="text-xs">{date.toLocaleDateString('en-GB', { day:'numeric', month:'short'})}</CardDescription>
-                 {/* Add weather icon here */}
                  <div className="pt-2 flex justify-center items-center h-8">
                      {getWeatherIcon(condition)}
                  </div>
@@ -259,30 +250,39 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Solar Dashboard</h1>
-      <p className="text-muted-foreground">Forecasting for: {locationDisplay}</p>
+       <div className="flex justify-between items-center">
+           <div>
+                <h1 className="text-3xl font-bold">Solar Dashboard</h1>
+                <p className="text-muted-foreground">Forecasting for: {locationDisplay}</p>
+            </div>
+            <Button
+                onClick={() => refetchWeather()}
+                disabled={weatherLoading || weatherRefetching || !isMounted || !settings}
+                variant="outline"
+            >
+                <RefreshCw className={`h-4 w-4 mr-2 ${weatherRefetching ? 'animate-spin' : ''}`} />
+                {weatherRefetching ? 'Updating...' : 'Update Forecast'}
+            </Button>
+       </div>
 
-      {loading && (
+      {/* Unified Loading State */}
+      {(weatherLoading && !isMounted) || (weatherLoading && isMounted && !weatherData) && ( // Show initial loading indicator
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="ml-2">Loading forecast...</p>
         </div>
       )}
 
-      {error && (
+       {/* Weather Fetch Error */}
+      {isWeatherError && weatherError && (
         <Alert variant="destructive">
           <AlertTitle>Error Loading Forecast</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{weatherError.message}</AlertDescription>
         </Alert>
       )}
 
-      {!loading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderForecastCard("Today", forecastData.today)}
-          {renderForecastCard("Tomorrow", forecastData.tomorrow)}
-        </div>
-      )}
-        {!loading && !settings && !error && (
+       {/* Settings Missing Alert */}
+       {!settings && isMounted && !weatherLoading && !isWeatherError && (
             <Alert>
              <AlertTitle>Welcome to HelioHeggie!</AlertTitle>
              <AlertDescription>
@@ -292,12 +292,22 @@ export default function HomePage() {
             </Alert>
         )}
 
-       {!loading && !error && (
-         <div className="mt-8">
-           <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-           {renderWeeklyForecast()}
-         </div>
+      {/* Display Forecast Cards and Week Ahead only if not initial loading, no error, and settings exist */}
+      {!((weatherLoading && !isMounted) || (weatherLoading && isMounted && !weatherData)) && !isWeatherError && settings && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Use calculatedForecasts state */}
+              {renderForecastCard("Today", calculatedForecasts.today)}
+              {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow)}
+            </div>
+
+             <div className="mt-8">
+               <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+               {renderWeeklyForecast()}
+             </div>
+         </>
        )}
+
     </div>
   );
 }
