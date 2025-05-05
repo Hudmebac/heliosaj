@@ -7,7 +7,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} f
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import type { WeatherForecast, WeatherCondition, Location } from '@/services/weather';
-import { calculateSolarGeneration, type CalculatedForecast } from '../lib/solar-calculations';
+import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations';
 import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets, RefreshCw, Sunrise, Sunset, Thermometer} from 'lucide-react'; // Import weather icons & RefreshCw, Sunrise, Sunset, Thermometer
 import { getChargingAdvice } from '../lib/charging-advice';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
