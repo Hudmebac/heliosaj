@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock } from 'lucide-react'; // Import Clock icon
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car } from 'lucide-react'; // Import Clock and Car icons
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import { getWeatherForecast, type WeatherForecast } from '@/services/weather';
@@ -19,9 +19,10 @@ const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 const HOURS_IN_DAY = 24;
 const DEFAULT_BATTERY_MAX = 100; // Default max for input if settings not loaded
+const DEFAULT_EV_MAX_CHARGE_RATE = 7.5; // Default max EV charge rate
 
 export default function AdvisoryPage() {
-  const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
+  const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null); // Allow setting settings
   const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
   const [tomorrowAdvice, setTomorrowAdvice] = useState<AdviceResult | null>(null);
   const [todayAdvice, setTodayAdvice] = useState<AdviceResult | null>(null); // State for today's advice
@@ -42,6 +43,13 @@ export default function AdvisoryPage() {
   const [dailyConsumption, setDailyConsumption] = useState<number>(10);
   const [avgHourlyConsumption, setAvgHourlyConsumption] = useState<number>(0.4);
 
+  // EV Settings State (managed within the settings object via useLocalStorage)
+  // We'll use local component state to handle input changes before saving them back to the settings object
+  const [evChargeRequiredKWh, setEvChargeRequiredKWh] = useState<number>(settings?.evChargeRequiredKWh ?? 0);
+  const [evChargeByTime, setEvChargeByTime] = useState<string>(settings?.evChargeByTime ?? '07:00');
+  const [evMaxChargeRateKWh, setEvMaxChargeRateKWh] = useState<number>(settings?.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
+
+
   // Effect for client mount and initializing settings-based state
   useEffect(() => {
     setIsMounted(true);
@@ -55,17 +63,23 @@ export default function AdvisoryPage() {
       if (hourlyUsage.every(val => val === 0.4)) {
            setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
       }
-      // Set initial battery level from settings if available (or keep 0)
-      // This avoids potential hydration issues if settings load after initial render with a different default
-      // setCurrentBatteryLevel(settings.batteryCapacityKWh ? 0 : 0); // Or maybe read from another source if available?
+      // Set EV state from loaded settings
+      setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
+      setEvChargeByTime(settings.evChargeByTime ?? '07:00');
+      setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
+
     } else {
       setDailyConsumption(10);
       setAvgHourlyConsumption(0.4);
       setHourlyUsage(Array(HOURS_IN_DAY).fill(0.4));
       setCurrentBatteryLevel(0); // Reset battery if settings removed
+      // Reset EV fields if settings removed
+      setEvChargeRequiredKWh(0);
+      setEvChargeByTime('07:00');
+      setEvMaxChargeRateKWh(DEFAULT_EV_MAX_CHARGE_RATE);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings]);
+  }, [settings]); // Only depends on the main settings object loading
 
   // Effect to update current hour periodically (e.g., every minute)
   useEffect(() => {
@@ -77,6 +91,32 @@ export default function AdvisoryPage() {
      }, 60 * 1000); // Update every minute
      return () => clearInterval(timer);
    }, [isMounted]); // Dependency on isMounted
+
+   // Function to update EV settings in localStorage
+   const updateEvSettings = () => {
+     setSettings(prev => ({
+       ...(prev || { // Ensure prev is not null
+         location: '',
+         propertyDirection: 'South Facing',
+         inputMode: 'Panels',
+         // Add other required defaults if settings were initially null
+       }),
+       evChargeRequiredKWh: evChargeRequiredKWh,
+       evChargeByTime: evChargeByTime,
+       evMaxChargeRateKWh: evMaxChargeRateKWh,
+     }));
+   };
+
+   // Debounce EV settings update
+   useEffect(() => {
+       const handler = setTimeout(() => {
+           if (isMounted) { // Only update after mount and if settings exist
+               updateEvSettings();
+           }
+       }, 1000); // Update 1 second after last change
+       return () => clearTimeout(handler);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, isMounted]);
 
 
   // Function to handle changes in hourly sliders
@@ -139,10 +179,11 @@ export default function AdvisoryPage() {
 
            const adviceParams: TomorrowAdviceParams = {
                tomorrowForecast: calculatedForecast,
-               settings: settings,
+               settings: settings, // Pass the full settings object including EV prefs
                cheapTariffs: cheapTariffs,
                currentBatteryLevelKWh: currentBatteryLevel,
-               hourlyConsumptionProfile: hourlyUsage
+               hourlyConsumptionProfile: hourlyUsage,
+               // EV params are now inside settings
            };
 
            const generatedAdvice = getTomorrowChargingAdvice(adviceParams);
@@ -190,11 +231,12 @@ export default function AdvisoryPage() {
 
            const adviceParams: TodayAdviceParams = {
                todayForecast: calculatedForecast, // Pass potentially null forecast
-               settings: settings,
+               settings: settings, // Pass full settings including EV prefs
                cheapTariffs: cheapTariffs,
                currentBatteryLevelKWh: currentBatteryLevel,
                hourlyConsumptionProfile: hourlyUsage,
-               currentHour: currentHour // Pass the current hour
+               currentHour: currentHour, // Pass the current hour
+               // EV params are now inside settings
            };
 
            const generatedAdvice = getTodayChargingAdvice(adviceParams);
@@ -228,7 +270,7 @@ export default function AdvisoryPage() {
          clearTimeout(todayTimer);
      };
      // Dependencies: Recalculate if settings, tariffs, inputs, or current hour change
-   }, [settings, tariffPeriods, currentBatteryLevel, hourlyUsage, isMounted, currentHour]); // Added currentHour dependency
+   }, [settings, tariffPeriods, currentBatteryLevel, hourlyUsage, isMounted, currentHour]); // Added currentHour and settings (for EV changes) dependency
 
   // --- Render Functions ---
 
@@ -255,6 +297,12 @@ export default function AdvisoryPage() {
             {advice.estimatedSavingsKWh !== undefined && advice.estimatedSavingsKWh > 0 && (
               <span className="block mt-1 text-xs text-green-600 dark:text-green-400">Potential excess solar generation/savings: ~{advice.estimatedSavingsKWh.toFixed(1)} kWh.</span>
             )}
+             {/* EV Specific Advice Snippet */}
+             {advice.evChargeTimeSuggestion && (
+                <span className="block mt-2 text-sm font-medium text-blue-600 dark:text-blue-400">
+                    <Car className="inline h-4 w-4 mr-1"/> EV Charge: {advice.evChargeTimeSuggestion}
+                </span>
+             )}
         </AlertDescription>
       </Alert>
     );
@@ -267,7 +315,7 @@ export default function AdvisoryPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Smart Charging Advisory</h1>
-      <p className="text-muted-foreground">Get recommendations for optimizing battery charging and grid usage based on forecasts, tariffs, and your consumption patterns.</p>
+      <p className="text-muted-foreground">Get recommendations for optimizing battery and EV charging based on forecasts, tariffs, and your consumption patterns.</p>
 
       {/* Inputs Card */}
       <Card>
@@ -379,7 +427,61 @@ export default function AdvisoryPage() {
                ))}
              </div>
            </div>
+        </CardContent>
+      </Card>
 
+      {/* EV Charging Preferences Card */}
+      <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <Car className="h-5 w-5"/> EV Charging Preferences
+            </CardTitle>
+            <CardDescription>
+                Set your electric vehicle charging needs to integrate them into the recommendations (saved automatically).
+            </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                    <Label htmlFor="evChargeRequired">Charge Required (kWh)</Label>
+                    <Input
+                        id="evChargeRequired"
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="e.g., 40"
+                        value={evChargeRequiredKWh}
+                        onChange={(e) => setEvChargeRequiredKWh(Math.max(0, parseInt(e.target.value) || 0))}
+                        disabled={!isMounted}
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label htmlFor="evChargeBy">Charge By Time (HH:MM)</Label>
+                    <Input
+                        id="evChargeBy"
+                        type="time"
+                        value={evChargeByTime}
+                        onChange={(e) => setEvChargeByTime(e.target.value)}
+                        disabled={!isMounted}
+                    />
+                </div>
+                 <div className="space-y-1">
+                    <Label htmlFor="evMaxRate">Max Charge Rate (kW)</Label>
+                    <Input
+                        id="evMaxRate"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE}`}
+                        value={evMaxChargeRateKWh}
+                        onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE))}
+                        disabled={!isMounted}
+                    />
+                </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+                Set required kWh to 0 if no EV charge needed. The system will try to schedule charging during cheap/solar hours before the 'Charge By' time.
+            </p>
         </CardContent>
       </Card>
 
@@ -473,6 +575,12 @@ export default function AdvisoryPage() {
                     <p><strong>Est. Daily Consumption Input:</strong> {dailyConsumption.toFixed(1)} kWh</p>
                  </div>
              </div>
+             {/* Display EV settings used */}
+             {isMounted && settings && settings.evChargeRequiredKWh && settings.evChargeRequiredKWh > 0 && (
+                <div className="text-sm text-muted-foreground border-t pt-2 mt-2">
+                    <p><strong>EV Charge Need:</strong> {settings.evChargeRequiredKWh} kWh by {settings.evChargeByTime || 'N/A'} (Max rate: {settings.evMaxChargeRateKWh || DEFAULT_EV_MAX_CHARGE_RATE} kW)</p>
+                </div>
+             )}
             <div>
                 <strong>Defined Cheap Tariff Periods:</strong>
                 {isMounted ? (

@@ -12,6 +12,11 @@ export interface UserSettings {
   selectedWeatherSource?: string; // Identifier for the chosen weather source API/service
   dailyConsumptionKWh?: number; // Optional: Average daily household energy consumption
   avgHourlyConsumptionKWh?: number; // Optional: Average hourly household energy consumption
+
+  // EV Charging Preferences
+  evChargeRequiredKWh?: number; // How much energy the car needs
+  evChargeByTime?: string; // HH:MM format, when the car needs to be charged by
+  evMaxChargeRateKWh?: number; // Max power the charger can deliver per hour (default 7.5)
 }
 
 export interface TariffPeriod {
@@ -22,4 +27,5 @@ export interface TariffPeriod {
   isCheap: boolean; // True if this is considered an off-peak/cheap period
   rate?: number; // Optional: Cost per kWh during this period
 }
+
 
