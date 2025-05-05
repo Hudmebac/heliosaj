@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google'; // Switched to Inter
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import Header from '@/components/layout/header';
@@ -7,7 +7,7 @@ import Footer from '@/components/layout/footer';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryProvider } from '@/components/query-provider'; // Import QueryProvider
 
-const inter = Inter({ // Use Inter
+const inter = Inter({
   variable: '--font-inter', // Assign a CSS variable
   subsets: ['latin'],
 });
@@ -27,7 +27,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       {/* Add suppressHydrationWarning to html tag for next-themes */}
       {/* Apply the font variable to the body */}
-      <body className={`${inter.variable} antialiased flex flex-col min-h-screen`}>
+      <body
+        className={`${inter.variable} antialiased flex flex-col min-h-screen`}
+        suppressHydrationWarning // Add suppressHydrationWarning here as well
+        >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
