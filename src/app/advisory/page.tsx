@@ -12,8 +12,8 @@ import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as Se
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import type { WeatherForecast, Location } from '@/services/weather'; // Import Location type
-import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations';
-import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice, } from '@/lib/charging-advice'; // Import advice function
+import { calculateSolarGeneration, type CalculatedForecast } from '../../lib/solar-calculations'; // Import advice function
+import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice, } from '../../lib/charging-advice';
 import { cn } from '@/lib/utils'; // Import cn for conditional class names
 import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the new hook
 
@@ -31,7 +31,7 @@ export default function AdvisoryPage() {
     const [adviceError, setAdviceError] = useState<string | null>(null); // Single error state for advice generation
     const [tomorrowForecastCalc, setTomorrowForecastCalc] = useState<CalculatedForecast | null>(null);
     const calculateSolarPower = () => {
-        const test = calculateSolarPower(1, 2, new Date());
+        const test = calculateSolarGeneration({date: "2024-01-01", hourly: []}, {panelAreaM2: 1, efficiency: 1});
         console.log("TEST:" + test)
       };
     const [todayForecastCalc, setTodayForecastCalc] = useState<CalculatedForecast | null>(null); // State for today's calculated forecast
