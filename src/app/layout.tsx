@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { GeistSans } from 'next/font/google'; // Correct import for GeistSans
+import { Inter } from 'next/font/google'; // Switched to Inter
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import Header from '@/components/layout/header';
@@ -7,17 +7,11 @@ import Footer from '@/components/layout/footer';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryProvider } from '@/components/query-provider'; // Import QueryProvider
 
-const geistSans = GeistSans({ // Correct usage
-  variable: '--font-geist-sans',
+const inter = Inter({ // Use Inter
+  variable: '--font-inter', // Assign a CSS variable
   subsets: ['latin'],
 });
 
-// Remove GeistMono if not used or import correctly if needed
-// import { GeistMono } from 'next/font/google';
-// const geistMono = GeistMono({
-//   variable: '--font-geist-mono',
-//   subsets: ['latin'],
-// });
 
 export const metadata: Metadata = {
   title: 'HelioHeggie',
@@ -32,7 +26,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       {/* Add suppressHydrationWarning to html tag for next-themes */}
-      <body className={`${geistSans.variable} antialiased flex flex-col min-h-screen`}>
+      {/* Apply the font variable to the body */}
+      <body className={`${inter.variable} antialiased flex flex-col min-h-screen`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
