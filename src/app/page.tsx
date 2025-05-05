@@ -7,7 +7,7 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import calculateSolarGeneration, { type CalculatedForecast } from '@/lib/solar-calculations';
 import { getWeatherForecast, type WeatherForecast, type WeatherCondition } from '@/services/weather'; // Import WeatherForecast type
-import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Droplets} from 'lucide-react'; // Import weather icons
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip} from 'recharts';
@@ -15,6 +15,11 @@ import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip
 const DEFAULT_LOCATION = { lat: 51.5074, lng: 0.1278 }; // Default to London if no settings
 const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 
+/**
+ * Returns the appropriate Lucide icon based on the weather condition.
+ * @param condition The weather condition string.
+ * @returns A Lucide icon component or a default icon.
+ */
 const getWeatherIcon = (condition: WeatherCondition | undefined) => {
   // Handle undefined condition gracefully
   if (!condition) return <Droplets className="w-6 h-6 text-muted-foreground" />; // Default/unknown icon
@@ -233,6 +238,7 @@ export default function HomePage() {
               <CardHeader className="pb-2 pt-3 px-2">
                 <CardTitle className="text-sm font-medium">{dayName}</CardTitle>
                  <CardDescription className="text-xs">{date.toLocaleDateString('en-GB', { day:'numeric', month:'short'})}</CardDescription>
+                 {/* Add weather icon here */}
                  <div className="pt-2 flex justify-center items-center h-8">
                      {getWeatherIcon(condition)}
                  </div>
