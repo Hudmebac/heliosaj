@@ -5,7 +5,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} f
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput} from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset } from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltipContent} from "@/components/ui/chart";
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast';
 import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info'; // Import the new component and data
 import { addDays } from 'date-fns';
+import { HowToInfo } from '@/components/how-to-info';
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
   if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" />; // Default to Sun or a generic icon
@@ -220,93 +221,96 @@ export default function HomePage() {
                 <h1 className="text-3xl font-bold">Solar Dashboard</h1>
                 <p className="text-muted-foreground">Forecasting for: {isMounted ? locationDisplay : 'Loading...'}</p>
             </div>
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" disabled={!isMounted}>
-                    <Edit3 className="h-4 w-4 mr-2" />
-                    Edit Manual Forecast
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
-                  <DialogDescription>
-                    Input sunrise, sunset, and weather conditions for today and tomorrow.
-                    Or, select a city to pre-fill approximate sunrise/sunset times.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-6 py-4">
-                  <div className="space-y-2">
-                      <Label htmlFor="city-time-select">Apply Approx. Times from City</Label>
-                      <Select value={selectedCityForTimes} onValueChange={handleCityTimeSelect}>
-                          <SelectTrigger id="city-time-select">
-                              <SelectValue placeholder="Select city for sunrise/sunset..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                              {sunriseSunsetData.map(city => (
-                                  <SelectItem key={city.city} value={city.city}>
-                                      {city.city}
-                                  </SelectItem>
-                              ))}
-                          </SelectContent>
-                      </Select>
-                  </div>
-
-                  {(['today', 'tomorrow'] as const).map((dayKey) => {
-                    return (
-                      <div key={dayKey} className="space-y-3 p-3 border rounded-md">
-                        <h3 className="font-semibold text-lg capitalize">{dayKey} ({editableForecast[dayKey].date})</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label htmlFor={`${dayKey}-sunrise`}>Sunrise (HH:MM)</Label>
-                            <Input
-                              id={`${dayKey}-sunrise`}
-                              type="time"
-                              value={editableForecast[dayKey].sunrise}
-                              onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunrise: e.target.value}}))}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor={`${dayKey}-sunset`}>Sunset (HH:MM)</Label>
-                            <Input
-                              id={`${dayKey}-sunset`}
-                              type="time"
-                              value={editableForecast[dayKey].sunset}
-                              onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunset: e.target.value}}))}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor={`${dayKey}-condition`}>Weather Condition</Label>
-                          <Select
-                            value={editableForecast[dayKey].condition}
-                            onValueChange={(value) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], condition: value as ManualDayForecast['condition']}}))}
-                          >
-                            <SelectTrigger id={`${dayKey}-condition`}>
-                              <SelectValue placeholder="Select condition" />
+            <div className="flex items-center gap-2">
+              <HowToInfo pageKey="dashboard" />
+              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" disabled={!isMounted}>
+                      <Edit3 className="h-4 w-4 mr-2" />
+                      Edit Manual Forecast
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
+                    <DialogDescription>
+                      Input sunrise, sunset, and weather conditions for today and tomorrow.
+                      Or, select a city to pre-fill approximate sunrise/sunset times.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-6 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="city-time-select">Apply Approx. Times from City</Label>
+                        <Select value={selectedCityForTimes} onValueChange={handleCityTimeSelect}>
+                            <SelectTrigger id="city-time-select">
+                                <SelectValue placeholder="Select city for sunrise/sunset..." />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="sunny">Sunny</SelectItem>
-                              <SelectItem value="partly_cloudy">Partly Cloudy</SelectItem>
-                              <SelectItem value="cloudy">Cloudy</SelectItem>
-                              <SelectItem value="overcast">Overcast</SelectItem>
-                              <SelectItem value="rainy">Rainy</SelectItem>
+                                {sunriseSunsetData.map(city => (
+                                    <SelectItem key={city.city} value={city.city}>
+                                        {city.city}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
-                          </Select>
+                        </Select>
+                    </div>
+
+                    {(['today', 'tomorrow'] as const).map((dayKey) => {
+                      return (
+                        <div key={dayKey} className="space-y-3 p-3 border rounded-md">
+                          <h3 className="font-semibold text-lg capitalize">{dayKey} ({editableForecast[dayKey].date})</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor={`${dayKey}-sunrise`}>Sunrise (HH:MM)</Label>
+                              <Input
+                                id={`${dayKey}-sunrise`}
+                                type="time"
+                                value={editableForecast[dayKey].sunrise}
+                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunrise: e.target.value}}))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`${dayKey}-sunset`}>Sunset (HH:MM)</Label>
+                              <Input
+                                id={`${dayKey}-sunset`}
+                                type="time"
+                                value={editableForecast[dayKey].sunset}
+                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunset: e.target.value}}))}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor={`${dayKey}-condition`}>Weather Condition</Label>
+                            <Select
+                              value={editableForecast[dayKey].condition}
+                              onValueChange={(value) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], condition: value as ManualDayForecast['condition']}}))}
+                            >
+                              <SelectTrigger id={`${dayKey}-condition`}>
+                                <SelectValue placeholder="Select condition" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="sunny">Sunny</SelectItem>
+                                <SelectItem value="partly_cloudy">Partly Cloudy</SelectItem>
+                                <SelectItem value="cloudy">Cloudy</SelectItem>
+                                <SelectItem value="overcast">Overcast</SelectItem>
+                                <SelectItem value="rainy">Rainy</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                   <div className="mt-4 border-t pt-4">
-                    <ForecastInfo />
+                      );
+                    })}
+                     <div className="mt-4 border-t pt-4">
+                      <ForecastInfo />
+                    </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                  <Button onClick={handleModalSave}>Save Forecast</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                    <Button onClick={handleModalSave}>Save Forecast</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
         </div>
 
       {!isMounted && (

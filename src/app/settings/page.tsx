@@ -15,7 +15,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon } from 'lucide-react'; // Renamed HelpCircle to HelpCircleIcon
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
@@ -25,6 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { HowToInfo } from '@/components/how-to-info';
 
 
 // Define Nominatim API result structure (simplified for address selection)
@@ -209,7 +210,7 @@ export default function SettingsPage() {
       propertyDirectionFactor: propertyDirectionOptions[0].factor,
       inputMode: 'Panels',
       systemEfficiency: 0.85,
-      selectedWeatherSource: 'open-meteo',
+      selectedWeatherSource: 'manual', // Default to manual forecast
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
@@ -231,6 +232,7 @@ export default function SettingsPage() {
        form.reset({
          ...storedSettings,
          monthlyGenerationFactors: factorsToSet,
+         selectedWeatherSource: storedSettings.selectedWeatherSource || 'manual',
        });
        if(storedSettings.inputMode) {
          setCurrentInputMode(storedSettings.inputMode);
@@ -257,7 +259,7 @@ export default function SettingsPage() {
          totalKWp: undefined,
          batteryCapacityKWh: undefined,
          systemEfficiency: 0.85,
-         selectedWeatherSource: 'open-meteo',
+         selectedWeatherSource: 'manual',
          dailyConsumptionKWh: undefined,
          avgHourlyConsumptionKWh: undefined,
          evChargeRequiredKWh: 0,
@@ -316,6 +318,7 @@ export default function SettingsPage() {
     if (selectedDirectionInfo && data.propertyDirection === selectedDirectionInfo.value) {
         saveData.propertyDirectionFactor = selectedDirectionInfo.factor;
     }
+    saveData.selectedWeatherSource = data.selectedWeatherSource || 'manual';
 
 
     setStoredSettings(saveData);
@@ -390,9 +393,14 @@ export default function SettingsPage() {
   return (
     <TooltipProvider>
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+         <h1 className="text-3xl font-bold">System Configuration</h1>
+         <HowToInfo pageKey="settings" />
+      </div>
+
     <Card>
       <CardHeader>
-        <CardTitle>System Settings</CardTitle>
+        <CardTitle>General Settings</CardTitle>
         <CardDescription>Configure your solar panel system and location details. This information is used for forecast calculations.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -517,7 +525,7 @@ export default function SettingsPage() {
                     <FormLabel>Property/Panel Direction</FormLabel>
                     <Tooltip>
                       <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}> {/* Prevent form submission */}
-                         <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                         <HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-xs">
                         <p className="text-sm font-semibold mb-1">Panel Direction Factors:</p>

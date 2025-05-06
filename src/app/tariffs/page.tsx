@@ -10,7 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { TariffPeriod } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, PlusCircle, Loader2 } from 'lucide-react'; // Import Loader2
+import { Trash2, PlusCircle, Loader2, HelpCircle } from 'lucide-react'; // Import Loader2
+import { HowToInfo } from '@/components/how-to-info';
 
 export default function TariffPage() {
   const [tariffPeriods, setTariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
@@ -108,7 +109,11 @@ export default function TariffPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Energy Tariffs</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Energy Tariffs</h1>
+        <HowToInfo pageKey="tariffs" />
+      </div>
+
 
       <Card>
         <CardHeader>
