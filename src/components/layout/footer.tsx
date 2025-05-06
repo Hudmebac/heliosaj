@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname = usePathname();
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 export default function Footer() {
@@ -14,6 +14,7 @@ export default function Footer() {
         { href: '/settings', label: 'Settings' },
         { href: '/tariffs', label: 'Tariffs' },
         { href: '/info', label: 'Info' },
+        // { href: '/forecast-settings', label: 'Forecast Settings' }, // Removed as per previous manual forecast changes
     ];
 
     return (
@@ -44,3 +45,4 @@ export default function Footer() {
         </footer>
     );
 }
+
