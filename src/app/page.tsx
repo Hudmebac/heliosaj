@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ForecastInfo } from '@/components/forecast-info'; // Import the new component
+import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info'; // Import the new component and data
+import { addDays } from 'date-fns';
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
   if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" />; // Default to Sun or a generic icon
@@ -43,6 +44,8 @@ export default function HomePage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(manualForecast);
+  const [selectedCityForTimes, setSelectedCityForTimes] = useState<string>("");
+
 
   useEffect(() => {
     setIsMounted(true);
@@ -97,6 +100,31 @@ export default function HomePage() {
       title: "Forecast Updated",
       description: "Manual weather forecast has been saved.",
     });
+  };
+
+  const handleCityTimeSelect = (cityName: string) => {
+    setSelectedCityForTimes(cityName);
+    if (!cityName) return;
+
+    const todayDate = new Date();
+    const tomorrowDate = addDays(todayDate, 1);
+
+    const todayTimes = getApproximateSunriseSunset(cityName, todayDate);
+    const tomorrowTimes = getApproximateSunriseSunset(cityName, tomorrowDate);
+
+    setEditableForecast(prev => ({
+      ...prev,
+      today: {
+        ...prev.today,
+        sunrise: todayTimes?.sunrise || prev.today.sunrise,
+        sunset: todayTimes?.sunset || prev.today.sunset,
+      },
+      tomorrow: {
+        ...prev.tomorrow,
+        sunrise: tomorrowTimes?.sunrise || prev.tomorrow.sunrise,
+        sunset: tomorrowTimes?.sunset || prev.tomorrow.sunset,
+      }
+    }));
   };
 
   const formatChartData = (forecast: CalculatedForecast | null) => {
@@ -199,14 +227,31 @@ export default function HomePage() {
                     Edit Manual Forecast
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto"> {/* Increased width and added scroll */}
+              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
                   <DialogDescription>
-                    Input sunrise, sunset, and weather conditions for today and tomorrow. This will be used for solar generation estimates.
+                    Input sunrise, sunset, and weather conditions for today and tomorrow.
+                    Or, select a city to pre-fill approximate sunrise/sunset times.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4">
+                  <div className="space-y-2">
+                      <Label htmlFor="city-time-select">Apply Approx. Times from City</Label>
+                      <Select value={selectedCityForTimes} onValueChange={handleCityTimeSelect}>
+                          <SelectTrigger id="city-time-select">
+                              <SelectValue placeholder="Select city for sunrise/sunset..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {sunriseSunsetData.map(city => (
+                                  <SelectItem key={city.city} value={city.city}>
+                                      {city.city}
+                                  </SelectItem>
+                              ))}
+                          </SelectContent>
+                      </Select>
+                  </div>
+
                   {(['today', 'tomorrow'] as const).map((dayKey) => {
                     return (
                       <div key={dayKey} className="space-y-3 p-3 border rounded-md">
@@ -297,3 +342,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    

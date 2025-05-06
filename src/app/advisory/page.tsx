@@ -17,7 +17,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ForecastInfo } from '@/components/forecast-info'; // Import the new component
+import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
+import { addDays } from 'date-fns';
 
 const HOURS_IN_DAY = 24;
 const DEFAULT_BATTERY_MAX = 100; // Used as a fallback if settings.batteryCapacityKWh is not set
@@ -48,6 +49,7 @@ export default function AdvisoryPage() {
 
     const [isForecastModalOpen, setIsForecastModalOpen] = useState(false);
     const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(manualForecast);
+    const [selectedCityForTimesModal, setSelectedCityForTimesModal] = useState<string>("");
 
 
     useEffect(() => {
@@ -229,6 +231,31 @@ export default function AdvisoryPage() {
       });
     };
 
+   const handleCityTimeSelectModal = (cityName: string) => {
+        setSelectedCityForTimesModal(cityName);
+        if (!cityName) return;
+
+        const todayDate = new Date();
+        const tomorrowDate = addDays(todayDate, 1);
+
+        const todayTimes = getApproximateSunriseSunset(cityName, todayDate);
+        const tomorrowTimes = getApproximateSunriseSunset(cityName, tomorrowDate);
+
+        setEditableForecast(prev => ({
+          ...prev,
+          today: {
+            ...prev.today,
+            sunrise: todayTimes?.sunrise || prev.today.sunrise,
+            sunset: todayTimes?.sunset || prev.today.sunset,
+          },
+          tomorrow: {
+            ...prev.tomorrow,
+            sunrise: tomorrowTimes?.sunrise || prev.tomorrow.sunrise,
+            sunset: tomorrowTimes?.sunset || prev.tomorrow.sunset,
+          }
+        }));
+    };
+
 
    const renderAdvice = (advice: ChargingAdvice | null, titlePrefix: string) => {
      // Simplified loading/error: if no advice, show generic or specific error
@@ -307,14 +334,30 @@ export default function AdvisoryPage() {
                     Edit Manual Forecast
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto"> {/* Increased width and added scroll */}
+              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
                   <DialogDescription>
-                    Input sunrise, sunset, and weather conditions for today and tomorrow. This will be used for solar generation estimates.
+                    Input sunrise, sunset, and weather conditions for today and tomorrow.
+                    Or, select a city to pre-fill approximate sunrise/sunset times.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4">
+                 <div className="space-y-2">
+                      <Label htmlFor="city-time-select-modal">Apply Approx. Times from City</Label>
+                      <Select value={selectedCityForTimesModal} onValueChange={handleCityTimeSelectModal}>
+                          <SelectTrigger id="city-time-select-modal">
+                              <SelectValue placeholder="Select city for sunrise/sunset..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {sunriseSunsetData.map(city => (
+                                  <SelectItem key={city.city} value={city.city}>
+                                      {city.city}
+                                  </SelectItem>
+                              ))}
+                          </SelectContent>
+                      </Select>
+                  </div>
                   {(['today', 'tomorrow'] as const).map((dayKey) => (
                       <div key={dayKey} className="space-y-3 p-3 border rounded-md">
                         <h3 className="font-semibold text-lg capitalize">{dayKey} ({editableForecast[dayKey].date})</h3>
@@ -610,3 +653,5 @@ export default function AdvisoryPage() {
      </div>
    );
  }
+
+    

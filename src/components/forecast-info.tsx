@@ -15,19 +15,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { format } from 'date-fns'; // Import format from date-fns
 
-interface MonthData {
+export interface MonthData {
   month: string;
   sunrise: string;
   sunset: string;
 }
 
-interface CitySunriseSunsetData {
+export interface CitySunriseSunsetData {
   city: string;
   data: MonthData[];
 }
 
-const sunriseSunsetData: CitySunriseSunsetData[] = [
+export const sunriseSunsetData: CitySunriseSunsetData[] = [
   {
     city: "London, England",
     data: [
@@ -115,6 +116,35 @@ const sunriseSunsetData: CitySunriseSunsetData[] = [
   },
 ];
 
+// Helper function to extract HH:MM from "HH:MM TZ" string
+const extractTime = (timeWithTz: string): string => {
+  return timeWithTz.split(' ')[0];
+};
+
+export const getApproximateSunriseSunset = (cityName: string, date: Date): { sunrise: string; sunset: string } | null => {
+  const cityData = sunriseSunsetData.find(c => c.city === cityName);
+  if (!cityData) return null;
+
+  const monthName = format(date, 'MMMM');
+  const monthEntry = cityData.data.find(m => m.month === monthName);
+
+  if (!monthEntry) {
+    // Fallback to the closest month or just a default if exact month not found (should not happen with full data)
+    console.warn(`Month data for ${monthName} in ${cityName} not found. Using first available.`);
+    const fallbackEntry = cityData.data[0];
+    return {
+      sunrise: extractTime(fallbackEntry.sunrise),
+      sunset: extractTime(fallbackEntry.sunset),
+    };
+  }
+
+  return {
+    sunrise: extractTime(monthEntry.sunrise),
+    sunset: extractTime(monthEntry.sunset),
+  };
+};
+
+
 export function ForecastInfo() {
   return (
     <div className="space-y-4">
@@ -157,3 +187,5 @@ export function ForecastInfo() {
     </div>
   );
 }
+
+    
