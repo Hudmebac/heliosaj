@@ -15,9 +15,17 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
+import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 
 // Define Nominatim API result structure (simplified for address selection)
 interface NominatimResult {
@@ -146,7 +154,8 @@ const settingsSchema = z.object({
   location: z.string().min(3, { message: "Location must be at least 3 characters." }),
   latitude: z.coerce.number().optional(), // Made optional as it can be derived
   longitude: z.coerce.number().optional(), // Made optional as it can be derived
-  propertyDirection: z.enum(['North Facing', 'South Facing', 'East Facing', 'West Facing', 'Flat Roof']),
+  propertyDirection: z.string().min(1, { message: "Please select a property direction." }), // Changed from enum
+  propertyDirectionFactor: z.coerce.number().optional(), // Added to store the factor
   inputMode: z.enum(['Panels', 'TotalPower']),
   panelCount: z.coerce.number().int().positive().optional(),
   panelWatts: z.coerce.number().int().positive().optional(),
@@ -155,8 +164,7 @@ const settingsSchema = z.object({
   systemEfficiency: z.coerce.number().min(0).max(1).optional(), // 0.0 to 1.0
   dailyConsumptionKWh: z.coerce.number().positive().optional(),
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
-  selectedWeatherSource: z.string().optional(), // Added for weather source selection
-  // EV fields already in UserSettings, ensure they are included here if form manages them
+  selectedWeatherSource: z.string().optional(),
   evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
   evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
   evMaxChargeRateKWh: z.coerce.number().positive().optional(),
@@ -168,7 +176,7 @@ const settingsSchema = z.object({
     return true;
   }, {
     message: "Panel Count and Watts per Panel are required when 'By Panel' is selected.",
-    path: ["panelCount"], // Or apply to a general form error
+    path: ["panelCount"],
   }).refine(data => {
     if (data.inputMode === 'TotalPower') {
       return data.totalKWp !== undefined;
@@ -176,7 +184,7 @@ const settingsSchema = z.object({
     return true;
   }, {
     message: "Total System Power (kWp) is required when 'By Total Power' is selected.",
-    path: ["totalKWp"], // Or apply to a general form error
+    path: ["totalKWp"],
 });
 
 
@@ -190,20 +198,22 @@ export default function SettingsPage() {
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [selectedAddressValue, setSelectedAddressValue] = useState<string | undefined>(undefined);
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedDirectionInfo, setSelectedDirectionInfo] = useState<PropertyDirectionInfo | null>(null);
 
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
     defaultValues: storedSettings || {
       location: '',
-      propertyDirection: 'South Facing',
+      propertyDirection: propertyDirectionOptions[0].value, // Default to South
+      propertyDirectionFactor: propertyDirectionOptions[0].factor,
       inputMode: 'Panels',
       systemEfficiency: 0.85,
       selectedWeatherSource: 'open-meteo',
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
-      monthlyGenerationFactors: [...defaultMonthlyFactors], // Initialize with defaults
+      monthlyGenerationFactors: [...defaultMonthlyFactors],
     },
     mode: 'onChange',
   });
@@ -214,9 +224,6 @@ export default function SettingsPage() {
 
    useEffect(() => {
      if(isMounted && storedSettings) {
-      const currentMonthFactor = storedSettings.monthlyGenerationFactors?.[new Date().getMonth()];
-      // Example: if you want to highlight the current month's factor in some way
-      // Or just ensure defaults are applied if not present in storage
       const factorsToSet = storedSettings.monthlyGenerationFactors && storedSettings.monthlyGenerationFactors.length === 12
         ? storedSettings.monthlyGenerationFactors
         : [...defaultMonthlyFactors];
@@ -229,16 +236,21 @@ export default function SettingsPage() {
          setCurrentInputMode(storedSettings.inputMode);
        }
        if (storedSettings.location) {
-         setSelectedAddressValue(storedSettings.location);
+         setSelectedAddressValue(storedSettings.location); // This might need adjustment if 'location' is not 'place_id'
        } else {
           setSelectedAddressValue(undefined);
        }
+       // Set selectedDirectionInfo based on stored propertyDirection
+        const currentDirection = propertyDirectionOptions.find(opt => opt.value === storedSettings.propertyDirection);
+        setSelectedDirectionInfo(currentDirection || propertyDirectionOptions[0]);
+
      } else if (isMounted) { // No stored settings, set initial defaults
         form.reset({
          location: '',
          latitude: undefined,
          longitude: undefined,
-         propertyDirection: 'South Facing',
+         propertyDirection: propertyDirectionOptions[0].value,
+         propertyDirectionFactor: propertyDirectionOptions[0].factor,
          inputMode: 'Panels',
          panelCount: undefined,
          panelWatts: undefined,
@@ -254,6 +266,7 @@ export default function SettingsPage() {
          monthlyGenerationFactors: [...defaultMonthlyFactors],
        });
        setSelectedAddressValue(undefined);
+       setSelectedDirectionInfo(propertyDirectionOptions[0]);
      }
    }, [storedSettings, form, isMounted]);
 
@@ -279,7 +292,7 @@ export default function SettingsPage() {
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
         'batteryCapacityKWh', 'systemEfficiency', 'dailyConsumptionKWh',
-        'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh'
+        'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh', 'propertyDirectionFactor'
     ];
     numericFields.forEach(field => {
        if (saveData[field] === '' || saveData[field] === null || isNaN(Number(saveData[field]))) {
@@ -292,13 +305,16 @@ export default function SettingsPage() {
         saveData.evChargeByTime = undefined;
     }
 
-    // Ensure monthly factors are numbers
     if (saveData.monthlyGenerationFactors) {
         saveData.monthlyGenerationFactors = saveData.monthlyGenerationFactors.map(factor =>
             (factor === null || factor === undefined || isNaN(Number(factor))) ? 1.0 : Number(factor)
         );
     } else {
         saveData.monthlyGenerationFactors = [...defaultMonthlyFactors];
+    }
+    // Ensure propertyDirectionFactor is set from the selectedDirectionInfo if not directly from form
+    if (selectedDirectionInfo && data.propertyDirection === selectedDirectionInfo.value) {
+        saveData.propertyDirectionFactor = selectedDirectionInfo.factor;
     }
 
 
@@ -317,8 +333,8 @@ export default function SettingsPage() {
     setLookupLoading(true);
     setLookupError(null);
     setAddresses([]);
-    setSelectedAddressValue(undefined);
-    form.setValue('location', '');
+    setSelectedAddressValue(undefined); // Use place_id for value
+    form.setValue('location', ''); // Clear manual location if doing lookup
     form.setValue('latitude', undefined);
     form.setValue('longitude', undefined);
 
@@ -336,8 +352,8 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAddressSelect = (selectedValue: string) => {
-      const selectedData = addresses.find(addr => addr.place_id.toString() === selectedValue); // Compare with place_id as string
+  const handleAddressSelect = (selectedValue: string) => { // selectedValue is place_id as string
+      const selectedData = addresses.find(addr => addr.place_id.toString() === selectedValue);
       if (selectedData) {
         setSelectedAddressValue(selectedData.place_id.toString());
         form.setValue('location', selectedData.address, { shouldValidate: true });
@@ -345,6 +361,15 @@ export default function SettingsPage() {
         form.setValue('longitude', selectedData.lng, { shouldValidate: true });
         setLookupError(null);
       }
+  };
+
+  const handleDirectionChange = (value: string) => {
+    const direction = propertyDirectionOptions.find(opt => opt.value === value);
+    if (direction) {
+      form.setValue('propertyDirection', direction.value, { shouldValidate: true });
+      form.setValue('propertyDirectionFactor', direction.factor, { shouldValidate: true });
+      setSelectedDirectionInfo(direction);
+    }
   };
 
   const monthNames = [
@@ -363,6 +388,7 @@ export default function SettingsPage() {
   }
 
   return (
+    <TooltipProvider>
     <div className="space-y-6">
     <Card>
       <CardHeader>
@@ -373,7 +399,6 @@ export default function SettingsPage() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
-             {/* Postcode Lookup Section */}
              <div className="space-y-2 p-4 border rounded-md bg-muted/50">
                <h3 className="text-lg font-medium mb-2">Location Lookup</h3>
                  <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
@@ -392,7 +417,7 @@ export default function SettingsPage() {
                      type="button"
                      onClick={handlePostcodeLookup}
                      disabled={lookupLoading || !postcode}
-                     variant="secondary" // Or your preferred variant
+                     variant="secondary"
                      className="w-full sm:w-auto"
                      aria-label="Find addresses for entered postcode"
                    >
@@ -416,7 +441,7 @@ export default function SettingsPage() {
                     <div className="space-y-1 mt-2">
                        <Label htmlFor="addressSelect">Select Address</Label>
                       <Select
-                         value={selectedAddressValue}
+                         value={selectedAddressValue} // Should be the place_id string
                          onValueChange={handleAddressSelect}
                          aria-label="Select an address from the lookup results"
                        >
@@ -488,26 +513,50 @@ export default function SettingsPage() {
               name="propertyDirection"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Property/Panel Direction</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <div className="flex items-center gap-2">
+                    <FormLabel>Property/Panel Direction</FormLabel>
+                    <Tooltip>
+                      <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}> {/* Prevent form submission */}
+                         <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">
+                        <p className="text-sm font-semibold mb-1">Panel Direction Factors:</p>
+                        <ul className="list-disc list-inside text-xs space-y-0.5">
+                            {propertyDirectionOptions.map(opt => (
+                                <li key={opt.value}><strong>{opt.label.split('(')[0].trim()}:</strong> {opt.notes}</li>
+                            ))}
+                        </ul>
+                        <p className="text-xs mt-2">These factors adjust estimated generation based on panel orientation relative to South (1.00).</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                   <Select
+                        onValueChange={(value) => {
+                           handleDirectionChange(value); // This will set field.value and factor
+                           field.onChange(value); // Ensure RHF knows value changed
+                        }}
+                        value={field.value} // Use field.value for RHF controlled component
+                        defaultValue={propertyDirectionOptions[0].value}
+                    >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select facing direction" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="South Facing">South Facing</SelectItem>
-                      <SelectItem value="North Facing">North Facing</SelectItem>
-                      <SelectItem value="East Facing">East Facing</SelectItem>
-                      <SelectItem value="West Facing">West Facing</SelectItem>
-                      <SelectItem value="Flat Roof">Flat Roof</SelectItem>
+                      {propertyDirectionOptions.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>Approximate direction your main solar panels face.</FormDescription>
+                  <FormDescription>Approximate direction your main solar panels face. Factor applied: {selectedDirectionInfo?.factor.toFixed(2) ?? 'N/A'}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
 
             <FormField
                 control={form.control}
@@ -521,8 +570,8 @@ export default function SettingsPage() {
                           field.onChange(value);
                           setCurrentInputMode(value as 'Panels' | 'TotalPower');
                         }}
-                        defaultValue={field.value}
-                        value={field.value}
+                        value={field.value} // Ensure RHF controls this
+                        defaultValue={currentInputMode}
                         className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-4"
                       >
                         <FormItem className="flex items-center space-x-3 space-y-0">
@@ -716,5 +765,7 @@ export default function SettingsPage() {
       </CardContent>
     </Card>
     </div>
+    </TooltipProvider>
   );
 }
+
