@@ -62,7 +62,7 @@ export default function AdvisoryPage() {
         setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
         const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
         setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
-        if (hourlyUsage.every(val => val === 0.4)) {
+        if (hourlyUsage.every(val => val === 0.4)) { // Only set if still default
              setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
         }
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
@@ -70,7 +70,7 @@ export default function AdvisoryPage() {
         setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
         const lastKnown = settings.lastKnownBatteryLevelKWh;
         const batteryCapacity = settings.batteryCapacityKWh ?? 0;
-        setCurrentBatteryLevel(lastKnown !== undefined && lastKnown !== null && batteryCapacity > 0 ? Math.min(batteryCapacity, lastKnown) : 0);
+        setCurrentBatteryLevel(lastKnown !== undefined && lastKnown !== null && batteryCapacity > 0 ? Math.max(0, Math.min(batteryCapacity, lastKnown)) : 0);
       } else {
         setDailyConsumption(10);
         setAvgHourlyConsumption(0.4);
@@ -80,6 +80,7 @@ export default function AdvisoryPage() {
         setEvChargeByTime('07:00');
         setEvMaxChargeRateKWh(DEFAULT_EV_MAX_CHARGE_RATE);
       }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [settings, isMounted]); // Removed hourlyUsage from deps to avoid re-init on every slider change
 
     useEffect(() => {
@@ -103,12 +104,18 @@ export default function AdvisoryPage() {
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
-                   lastKnownBatteryLevelKWh: currentBatteryLevel,
+                   lastKnownBatteryLevelKWh: currentBatteryLevel, // Save current battery level
+                   // Save consumption preferences too
+                   dailyConsumptionKWh: dailyConsumption,
+                   avgHourlyConsumptionKWh: avgHourlyConsumption,
+                   // Note: Saving full hourlyUsage profile to localStorage might be too much / too frequent.
+                   // Consider if this level of persistence is needed or if daily/avg is enough.
                }));
-           }, 1000);
+           }, 1000); // Debounce saving
            return () => clearTimeout(handler);
        }
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, isMounted, settings, setSettings]);
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, isMounted, settings, setSettings]);
 
     const handleSliderChange = (index: number, value: number[]) => {
       const newHourlyUsage = [...hourlyUsage];
@@ -180,11 +187,12 @@ export default function AdvisoryPage() {
 
         try {
             const overnightParams: ChargingAdviceParams = {
-                forecast: tomorrowCalculated,
+                forecast: tomorrowCalculated, // Use tomorrow's forecast for overnight advice
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel,
-                hourlyConsumptionProfile: hourlyUsage,
+                currentBatteryLevelKWh: currentBatteryLevel, // Base overnight on current battery
+                hourlyConsumptionProfile: hourlyUsage, // Use the same profile for planning
+                currentHour: currentHour, // Pass current hour to help determine start of "overnight" window
                 evNeeds: evNeeds,
                 adviceType: 'overnight',
             };
@@ -664,3 +672,4 @@ export default function AdvisoryPage() {
      </div>
    );
  }
+
