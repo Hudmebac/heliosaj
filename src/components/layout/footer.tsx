@@ -2,13 +2,12 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation'; // Import usePathname
-import { cn } from '@/lib/utils'; // Import cn utility
+import { usePathname = usePathname();
+import { cn } from '@/lib/utils';
 
 export default function Footer() {
-    const pathname = usePathname(); // Get current path
+    const pathname = usePathname();
 
-    // Updated order: Dashboard, Advisory, Settings, Tariffs, Info
     const navItems = [
         { href: '/', label: 'Dashboard' },
         { href: '/advisory', label: 'Advisory' },
@@ -20,7 +19,6 @@ export default function Footer() {
     return (
         <footer className="bg-secondary text-secondary-foreground mt-auto shadow-inner">
             <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center">
-                {/* Navigation Links */}
                 <nav className="flex gap-2 sm:gap-4 items-center flex-wrap justify-center mb-2 sm:mb-0 order-2 sm:order-1">
                     {navItems.map((item) => (
                         <Link
@@ -28,9 +26,9 @@ export default function Footer() {
                             href={item.href}
                             className={cn(
                                 "px-2 py-1 rounded-md text-sm transition-colors duration-200 ease-in-out",
-                                "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary", // Glow effect on hover/focus
-                                "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent", // Silver text glow
-                                pathname === item.href ? 'font-semibold text-accent' : 'font-medium hover:shadow-accent/80 focus:shadow-accent' // Active link styling
+                                "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary",
+                                "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent", // Silver glow
+                                pathname === item.href ? 'font-semibold text-accent' : 'font-medium hover:shadow-accent/80 focus:shadow-accent'
                             )}
                             aria-current={pathname === item.href ? 'page' : undefined}
                         >

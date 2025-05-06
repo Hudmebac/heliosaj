@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -9,92 +8,66 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, RefreshCw, Percent } from 'lucide-react'; // Import Clock, Car, RefreshCw, Percent icons
-import { useLocalStorage } from '@/hooks/use-local-storage';
-import type { UserSettings, TariffPeriod } from '@/types/settings';
-import type { WeatherForecast, Location } from '@/services/weather'; // Import Location type
-import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations'; // Import calculation function
-import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice } from '@/lib/charging-advice'; // Import advice function
-import { cn } from '@/lib/utils'; // Import cn for conditional class names
-import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the new hook
-import { useToast } from "@/hooks/use-toast"; // Import useToast
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, RefreshCw, Percent, Edit3 } from 'lucide-react';
+import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
+import type { UserSettings, TariffPeriod, ManualDayForecast, ManualForecastInput } from '@/types/settings';
+import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
+import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice } from '@/lib/charging-advice';
+import { cn } from '@/lib/utils';
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-
-const DEFAULT_LOCATION: Location = { lat: 51.5074, lng: 0.1278 }; // Default to London
-const DEFAULT_WEATHER_SOURCE_ID = 'open-meteo'; // Default source
 const HOURS_IN_DAY = 24;
-const DEFAULT_BATTERY_MAX = 100; // Default max for input if settings not loaded
-const DEFAULT_EV_MAX_CHARGE_RATE = 7.5; // Default max EV charge rate
+const DEFAULT_BATTERY_MAX = 100; // Used as a fallback if settings.batteryCapacityKWh is not set
+const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 
 export default function AdvisoryPage() {
-    const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null); // Allow setting settings
+    const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
+    const [manualForecast, setManualForecast] = useManualForecast(); // Use the new hook
+
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
-    const [todayAdvice, setTodayAdvice] = useState<ChargingAdvice | null>(null); // State for today's advice
-    const [adviceError, setAdviceError] = useState<string | null>(null); // Single error state for advice generation
+    const [todayAdvice, setTodayAdvice] = useState<ChargingAdvice | null>(null);
+    const [adviceError, setAdviceError] = useState<string | null>(null);
     const [tomorrowForecastCalc, setTomorrowForecastCalc] = useState<CalculatedForecast | null>(null);
-    const [todayForecastCalc, setTodayForecastCalc] = useState<CalculatedForecast | null>(null); // State for today's calculated forecast
+    const [todayForecastCalc, setTodayForecastCalc] = useState<CalculatedForecast | null>(null);
     const [isMounted, setIsMounted] = useState(false);
-    const [currentHour, setCurrentHour] = useState<number | null>(null); // Initialize to null
-    const { toast } = useToast(); // Initialize useToast
+    const [currentHour, setCurrentHour] = useState<number | null>(null);
+    const { toast } = useToast();
 
-
-    // State for user inputs
     const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(0);
-    const [hourlyUsage, setHourlyUsage] = useState<number[]>(
-        () => Array(HOURS_IN_DAY).fill(0.4)
-    );
+    const [hourlyUsage, setHourlyUsage] = useState<number[]>(() => Array(HOURS_IN_DAY).fill(0.4));
     const [dailyConsumption, setDailyConsumption] = useState<number>(10);
     const [avgHourlyConsumption, setAvgHourlyConsumption] = useState<number>(0.4);
 
-    // EV Settings State
     const [evChargeRequiredKWh, setEvChargeRequiredKWh] = useState<number>(0);
     const [evChargeByTime, setEvChargeByTime] = useState<string>('07:00');
     const [evMaxChargeRateKWh, setEvMaxChargeRateKWh] = useState<number>(DEFAULT_EV_MAX_CHARGE_RATE);
 
-    // Determine location and source from settings, providing defaults
-    const currentLocation = useMemo(() => {
-        if (settings?.latitude && settings?.longitude) {
-            return { lat: settings.latitude, lng: settings.longitude };
-        }
-        return DEFAULT_LOCATION; // Fallback to default if no settings or coords
-    }, [settings]);
-    const selectedSource = useMemo(() => settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID, [settings]);
+    const [isForecastModalOpen, setIsForecastModalOpen] = useState(false);
+    const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(manualForecast);
 
-    // Fetch weather data using react-query hook
-    const {
-        data: weatherData, // Array of WeatherForecast
-        isLoading: weatherLoading,
-        error: weatherError,
-        refetch: refetchWeather,
-        isRefetching: weatherRefetching,
-    } = useWeatherForecast(
-        currentLocation,
-        selectedSource,
-        2, // Fetch today and tomorrow
-        isMounted && !!settings // Enable only when mounted and settings are loaded
-    );
 
-    // Effect for client mount and initializing settings-based state
     useEffect(() => {
       setIsMounted(true);
-      setCurrentHour(new Date().getHours()); // Set current hour only on client mount
+      setCurrentHour(new Date().getHours());
 
       if (settings) {
         setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
         const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
         setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
-        if (hourlyUsage.every(val => val === 0.4)) { // Only set if still default
+        if (hourlyUsage.every(val => val === 0.4)) { // Only set if it's still the default
              setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
         }
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
         setEvChargeByTime(settings.evChargeByTime ?? '07:00');
         setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
-        // Load lastKnownBatteryLevel safely
-        const lastKnown = (settings as any).lastKnownBatteryLevelKWh;
+        // Use lastKnownBatteryLevelKWh from settings if available
+        const lastKnown = settings.lastKnownBatteryLevelKWh;
         setCurrentBatteryLevel(lastKnown !== undefined && lastKnown !== null && settings.batteryCapacityKWh ? Math.min(settings.batteryCapacityKWh, lastKnown) : 0);
-
       } else {
+        // Defaults if no settings
         setDailyConsumption(10);
         setAvgHourlyConsumption(0.4);
         setHourlyUsage(Array(HOURS_IN_DAY).fill(0.4));
@@ -103,19 +76,22 @@ export default function AdvisoryPage() {
         setEvChargeByTime('07:00');
         setEvMaxChargeRateKWh(DEFAULT_EV_MAX_CHARGE_RATE);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [settings]); // Depend only on the main settings object loading
+    }, [settings, isMounted]); // Removed hourlyUsage from deps to avoid loop with setHourlyUsage
 
-    // Effect to update current hour periodically
+    useEffect(() => {
+      setEditableForecast(manualForecast);
+    }, [manualForecast]);
+
+
     useEffect(() => {
        if (!isMounted) return;
        const timer = setInterval(() => {
          setCurrentHour(new Date().getHours());
-       }, 60 * 1000); // Update every minute
+       }, 60 * 1000); // Update current hour every minute
        return () => clearInterval(timer);
      }, [isMounted]);
 
-     // Effect to save EV settings and current battery level to localStorage when they change
+     // Effect to save EV prefs and battery level to UserSettings
      useEffect(() => {
        if (isMounted && settings) {
            const handler = setTimeout(() => {
@@ -124,28 +100,13 @@ export default function AdvisoryPage() {
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
-                   lastKnownBatteryLevelKWh: currentBatteryLevel, // Save the current level
+                   lastKnownBatteryLevelKWh: currentBatteryLevel, // Save this too
                }));
            }, 1000); // Debounce saving
            return () => clearTimeout(handler);
        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, isMounted, setSettings]);
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, isMounted, settings, setSettings]); // Added settings to deps
 
-   // Effect to show notification if non-functional source is selected
-   useEffect(() => {
-     if (isMounted && settings?.selectedWeatherSource !== 'open-meteo') {
-       toast({
-         title: "Data Source Note",
-         description: "Currently, only Open-Meteo provides live forecast data. Other sources are for informational purposes only.",
-         variant: "default", // Or use a more prominent variant if needed
-         duration: 9000, // Optional: display for longer
-       });
-     }
-   }, [settings?.selectedWeatherSource, isMounted, toast]);
-
-
-    // Function to handle changes in hourly sliders
     const handleSliderChange = (index: number, value: number[]) => {
       const newHourlyUsage = [...hourlyUsage];
       newHourlyUsage[index] = value[0];
@@ -154,23 +115,21 @@ export default function AdvisoryPage() {
       setDailyConsumption(parseFloat(newDailyTotal.toFixed(2)));
     };
 
-    // Function to distribute daily consumption evenly
     const distributeDailyConsumption = () => {
       const avg = dailyConsumption / HOURS_IN_DAY;
       setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
       setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
     };
 
-    // Function to apply average consumption
     const applyAverageConsumption = () => {
       setHourlyUsage(Array(HOURS_IN_DAY).fill(avgHourlyConsumption));
       setDailyConsumption(parseFloat((avgHourlyConsumption * HOURS_IN_DAY).toFixed(2)));
     };
 
-    // --- Advice Generation Logic (triggered by weatherData changes) ---
+    // Recalculate advice
     useEffect(() => {
-        if (!isMounted || !settings || currentHour === null || !weatherData || weatherLoading || weatherRefetching) {
-            // Clear advice if inputs are not ready or weather is loading/refetching
+        if (!isMounted || !settings || currentHour === null) {
+             // Reset states if conditions not met
              setTodayAdvice(null);
              setTomorrowAdvice(null);
              setTodayForecastCalc(null);
@@ -179,40 +138,28 @@ export default function AdvisoryPage() {
              if (isMounted && !settings) setAdviceError("Please configure your system in Settings first.");
             return;
         }
+         setAdviceError(null); // Clear previous errors
 
-         // Clear previous errors if data is now available
-         setAdviceError(null);
-
+        // Check for battery capacity
         if (!settings.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) {
-             setAdviceError("Battery capacity not set. Required for advice.");
+             setAdviceError("Battery capacity not set. This is required for charging advice.");
             return;
         }
 
-        // Find today's and tomorrow's weather from the fetched data
-        const todayStr = new Date().toISOString().split('T')[0];
-        const tomorrowDate = new Date();
-        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-        const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
-
-        const todayWeatherRaw = weatherData.find(f => f.date === todayStr);
-        const tomorrowWeatherRaw = weatherData.find(f => f.date === tomorrowStr);
-
-        // Calculate solar generation for today and tomorrow
-        const todayCalculated = todayWeatherRaw ? calculateSolarGeneration(todayWeatherRaw, settings) : null;
-        const tomorrowCalculated = tomorrowWeatherRaw ? calculateSolarGeneration(tomorrowWeatherRaw, settings) : null;
+        // Calculate solar generation based on manual forecast
+        const todayCalculated = calculateSolarGeneration(manualForecast.today, settings);
+        const tomorrowCalculated = calculateSolarGeneration(manualForecast.tomorrow, settings);
 
         setTodayForecastCalc(todayCalculated);
         setTomorrowForecastCalc(tomorrowCalculated);
 
-        // --- Prepare EV Charging Needs ---
          const evNeeds = {
              chargeRequiredKWh: evChargeRequiredKWh ?? 0,
-             chargeByHour: evChargeByTime ? parseInt(evChargeByTime.split(':')[0]) : 7, // Default to 7 AM if invalid
+             chargeByHour: evChargeByTime ? parseInt(evChargeByTime.split(':')[0]) : 7,
              maxChargeRateKWh: evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE,
          };
 
-
-        // --- Generate Today's Advice ---
+        // Generate Today's Advice
         try {
             const todayParams: ChargingAdviceParams = {
                 forecast: todayCalculated,
@@ -221,7 +168,7 @@ export default function AdvisoryPage() {
                 currentBatteryLevelKWh: currentBatteryLevel,
                 hourlyConsumptionProfile: hourlyUsage,
                 currentHour: currentHour,
-                evNeeds: evNeeds, // Pass EV needs
+                evNeeds: evNeeds,
                 adviceType: 'today',
             };
             const todayGeneratedAdvice = getChargingAdvice(todayParams);
@@ -230,120 +177,99 @@ export default function AdvisoryPage() {
         } catch (err: any) {
             console.error("Error generating today's advice:", err);
              setAdviceError(`Today's Advice Error: ${err.message}`);
-             setTodayAdvice(null); // Clear potentially stale advice
+             setTodayAdvice(null);
         }
 
-        // --- Generate Tomorrow's (Overnight) Advice ---
+        // Generate Tomorrow's/Overnight Advice
         try {
-            // For overnight advice, we simulate the battery level at the *end* of today (e.g., midnight)
-            // This requires a simplified simulation or an assumption. Let's use the current battery level
-            // plus estimated remaining solar generation minus estimated remaining consumption for today.
-            // This is complex, so for now, let's use a simpler approach:
-            // Assume the overnight advice starts planning from the current battery level.
-            // A more advanced version would project the end-of-day battery state.
-
             const overnightParams: ChargingAdviceParams = {
-                forecast: tomorrowCalculated, // Use tomorrow's solar forecast
+                forecast: tomorrowCalculated, // Use tomorrow's forecast
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel, // Base planning on current level for now
-                hourlyConsumptionProfile: hourlyUsage, // Use the defined profile for tomorrow's usage estimate
-                // currentHour is not needed for overnight planning which looks ahead
-                 evNeeds: evNeeds, // Pass EV needs for overnight planning
+                currentBatteryLevelKWh: currentBatteryLevel, // Current battery level
+                hourlyConsumptionProfile: hourlyUsage, // Same consumption profile for simplicity
+                // currentHour is not strictly needed for 'overnight' as it plans from start of day or night
+                evNeeds: evNeeds,
                 adviceType: 'overnight',
             };
             const tomorrowGeneratedAdvice = getChargingAdvice(overnightParams);
             if (!tomorrowGeneratedAdvice) throw new Error("Failed to generate tomorrow's advice.");
             setTomorrowAdvice(tomorrowGeneratedAdvice);
-        } catch (err: any) {
+        } catch (err: any)
+{
              console.error("Error generating tomorrow's advice:", err);
-             // Append to existing error or set if first error
+             // Append to existing error if one exists
              setAdviceError(prev => prev ? `${prev}\nTomorrow's Advice Error: ${err.message}` : `Tomorrow's Advice Error: ${err.message}`);
-             setTomorrowAdvice(null); // Clear potentially stale advice
+             setTomorrowAdvice(null);
         }
-
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
-        weatherData, weatherLoading, weatherRefetching, // Depend on weather query state
-        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh // Depend on EV settings
+        manualForecast, // Depend on manualForecast changes
+        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh
     ]);
 
+    const handleForecastModalSave = () => {
+      // Basic validation for time format HH:MM
+      const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+      if (!timeRegex.test(editableForecast.today.sunrise) || !timeRegex.test(editableForecast.today.sunset) ||
+          !timeRegex.test(editableForecast.tomorrow.sunrise) || !timeRegex.test(editableForecast.tomorrow.sunset)) {
+        toast({
+          title: "Invalid Time Format",
+          description: "Please use HH:MM for sunrise and sunset times.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setManualForecast(editableForecast);
+      setIsForecastModalOpen(false);
+      toast({
+        title: "Forecast Updated",
+        description: "Manual weather forecast has been saved.",
+      });
+    };
 
-   // --- Render Functions ---
 
-   const renderAdvice = (advice: ChargingAdvice | null, titlePrefix: string, isLoading: boolean, errorMsg: string | null) => {
-     if (isLoading && !advice) { // Show loading only if advice isn't already available
-        return (
-             <div className="flex items-center text-muted-foreground">
-               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-               <span>Loading {titlePrefix.toLowerCase()} forecast & advice...</span>
-             </div>
-           );
-     }
-     // Display error specific to this advice type (today or overnight)
-     if (errorMsg) {
-        return (
+   const renderAdvice = (advice: ChargingAdvice | null, titlePrefix: string) => {
+     // Simplified loading/error: if no advice, show generic or specific error
+     if (!advice) {
+        if (adviceError && adviceError.toLowerCase().includes(titlePrefix.toLowerCase())) {
+           return (
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4"/>
                <AlertTitle>Error</AlertTitle>
-               <AlertDescription>{errorMsg}</AlertDescription>
+               <AlertDescription>{adviceError.split('\n').find(line => line.toLowerCase().includes(titlePrefix.toLowerCase())) || adviceError}</AlertDescription>
              </Alert>
            );
-     }
-      // Display general advice error if no specific message and no advice
-     if (!advice && adviceError && !isLoading) {
-         return (
-              <Alert variant="destructive">
-                 <AlertCircle className="h-4 w-4"/>
-                 <AlertTitle>Error Generating Advice</AlertTitle>
-                 <AlertDescription>{adviceError}</AlertDescription>
-              </Alert>
-         );
-     }
-     // If still loading but advice exists from previous run, show nothing here (avoids flicker)
-     if (isLoading && advice) {
-         return null;
-     }
-
-     if (!advice) {
-        // Generic message if no advice could be generated and no error was caught
+        }
+        if(isMounted && !settings) return null; // Will be handled by main settings alert
         return (
-             <Alert variant="default">
+             <Alert variant="default"> {/* Changed from destructive to default for "Could not generate" */}
                  <SettingsIcon className="h-4 w-4" />
                  <AlertTitle>Could Not Generate Advice</AlertTitle>
-                 <AlertDescription>Unable to provide a recommendation. Check settings, ensure forecast data is available, and try updating.</AlertDescription>
+                 <AlertDescription>Unable to provide a recommendation. Please check your system settings, tariff periods, and manual forecast inputs.</AlertDescription>
              </Alert>
          );
      }
 
      const Icon = advice.recommendChargeNow || advice.recommendChargeLater ? BatteryCharging : advice.reason.includes("Sufficient") || advice.reason.includes("Solar") ? Sun : Cloudy;
-     const alertVariant = advice.recommendChargeNow || advice.recommendChargeLater ? "default" : "default"; // Customize as needed
-
      let title = `${titlePrefix}: `;
-     if (advice.recommendChargeNow) {
-         title += `Charge/Utilize Grid Now`;
-     } else if (advice.recommendChargeLater) {
-         title += `Prepare for Grid Charging Later`;
-     } else {
-         title += `Avoid Grid Charging / Rely on Solar/Battery`;
-     }
-
+     if (advice.recommendChargeNow) title += `Charge/Utilize Grid Now`;
+     else if (advice.recommendChargeLater) title += `Prepare for Grid Charging Later`;
+     else title += `Avoid Grid Charging / Rely on Solar/Battery`;
 
      return (
-        <Alert variant={alertVariant} className={`mt-4 ${advice.recommendChargeNow || advice.recommendChargeLater ? 'border-primary/50 dark:border-primary/40' : ''}`}>
+        <Alert className={`mt-4 ${advice.recommendChargeNow || advice.recommendChargeLater ? 'border-primary/50 dark:border-primary/40' : ''}`}>
           <Icon className={`h-5 w-5 ${advice.recommendChargeNow || advice.recommendChargeLater ? 'text-primary' : 'text-muted-foreground'}`} />
          <AlertTitle className="ml-7 font-semibold">{title}</AlertTitle>
          <AlertDescription className="ml-7">
            {advice.reason}
            {advice.details && <span className="block mt-1 text-xs text-muted-foreground">{advice.details}</span>}
             {advice.chargeNeededKWh !== undefined && advice.chargeNeededKWh > 0 && (
-              <span className="block mt-1 text-xs text-primary">Estimated grid energy needed for battery: {advice.chargeNeededKWh.toFixed(1)} kWh {advice.chargeWindow && `(${advice.chargeWindow})`}.</span>
+              <span className="block mt-1 text-xs text-primary">Est. grid energy for battery: {advice.chargeNeededKWh.toFixed(1)} kWh {advice.chargeWindow && `(${advice.chargeWindow})`}.</span>
             )}
              {advice.potentialSavingsKWh !== undefined && advice.potentialSavingsKWh > 0 && (
-               <span className="block mt-1 text-xs text-green-600 dark:text-green-400">Potential excess solar generation/savings: ~{advice.potentialSavingsKWh.toFixed(1)} kWh.</span>
+               <span className="block mt-1 text-xs text-green-600 dark:text-green-400">Potential excess solar/savings: ~{advice.potentialSavingsKWh.toFixed(1)} kWh.</span>
              )}
-              {/* EV Specific Advice */}
               {advice.evRecommendation && (
                  <span className={cn(
                     "block mt-2 text-sm font-medium",
@@ -358,16 +284,9 @@ export default function AdvisoryPage() {
      );
    };
 
-    // Calculate max value for battery input safely after mount
+    // Determine battery max for input validation, ensure it's a positive number
     const batteryMaxInput = isMounted ? (settings?.batteryCapacityKWh ?? DEFAULT_BATTERY_MAX) : DEFAULT_BATTERY_MAX;
-    // Calculate max value for hourly slider
-    const sliderMax = isMounted ? Math.max(2, avgHourlyConsumption * 5) : 2;
-
-    // Split adviceError into today and tomorrow errors
-    const todayErrorMsg = adviceError?.split('\n').find(line => line.startsWith("Today's")) || (adviceError && !adviceError.includes("Tomorrow's") ? adviceError : null);
-    const tomorrowErrorMsg = adviceError?.split('\n').find(line => line.startsWith("Tomorrow's")) || (adviceError && !adviceError.includes("Today's") ? adviceError : null);
-
-   // Calculate current battery percentage
+    const sliderMax = isMounted ? Math.max(2, avgHourlyConsumption * 5, 1) : 2; // Ensure slider max is at least 1
     const currentBatteryPercentage = useMemo(() => {
         if (!isMounted || !settings?.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) return 0;
         return Math.round((currentBatteryLevel / settings.batteryCapacityKWh) * 100);
@@ -378,33 +297,76 @@ export default function AdvisoryPage() {
        <div className="flex justify-between items-center">
             <div>
                 <h1 className="text-3xl font-bold">Smart Charging Advisory</h1>
-                <p className="text-muted-foreground">Optimize battery & EV charging based on forecasts, tariffs, and consumption.</p>
+                <p className="text-muted-foreground">Optimize battery & EV charging based on your manual forecast, tariffs, and consumption.</p>
             </div>
-            <Button
-                onClick={() => refetchWeather()}
-                disabled={weatherLoading || weatherRefetching || !isMounted || !settings}
-                variant="outline"
-            >
-                <RefreshCw className={`h-4 w-4 mr-2 ${weatherRefetching ? 'animate-spin' : ''}`} />
-                {weatherRefetching ? 'Updating...' : 'Update Forecast'}
-            </Button>
+            <Dialog open={isForecastModalOpen} onOpenChange={setIsForecastModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" disabled={!isMounted || !settings}>
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Edit Manual Forecast
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[480px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
+                  <DialogDescription>
+                    Input sunrise, sunset, and weather conditions for today and tomorrow. This will be used for solar generation estimates.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-6 py-4">
+                  {(['today', 'tomorrow'] as const).map((dayKey) => (
+                      <div key={dayKey} className="space-y-3 p-3 border rounded-md">
+                        <h3 className="font-semibold text-lg capitalize">{dayKey} ({editableForecast[dayKey].date})</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label htmlFor={`${dayKey}-sunrise-adv`}>Sunrise (HH:MM)</Label>
+                            <Input
+                              id={`${dayKey}-sunrise-adv`}
+                              type="time"
+                              value={editableForecast[dayKey].sunrise}
+                              onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunrise: e.target.value}}))}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor={`${dayKey}-sunset-adv`}>Sunset (HH:MM)</Label>
+                            <Input
+                              id={`${dayKey}-sunset-adv`}
+                              type="time"
+                              value={editableForecast[dayKey].sunset}
+                              onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunset: e.target.value}}))}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor={`${dayKey}-condition-adv`}>Weather Condition</Label>
+                          <Select
+                            value={editableForecast[dayKey].condition}
+                            onValueChange={(value) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], condition: value as ManualDayForecast['condition']}}))}
+                          >
+                            <SelectTrigger id={`${dayKey}-condition-adv`}>
+                              <SelectValue placeholder="Select condition" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="sunny">Sunny</SelectItem>
+                              <SelectItem value="partly_cloudy">Partly Cloudy</SelectItem>
+                              <SelectItem value="cloudy">Cloudy</SelectItem>
+                              <SelectItem value="overcast">Overcast</SelectItem>
+                              <SelectItem value="rainy">Rainy</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsForecastModalOpen(false)}>Cancel</Button>
+                  <Button onClick={handleForecastModalSave}>Save Forecast</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
        </div>
 
-         {/* Combined Loading/Error state for weather fetch */}
-        {(!isMounted || (isMounted && weatherLoading && !weatherData)) && ( // Show initial loading
-          <div className="flex items-center text-muted-foreground py-4">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            <span>Loading initial weather forecast...</span>
-          </div>
-        )}
-        {isMounted && weatherError && (
-             <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4"/>
-               <AlertTitle>Weather Forecast Error</AlertTitle>
-               <AlertDescription>{weatherError.message}</AlertDescription>
-             </Alert>
-         )}
-        {isMounted && !settings && !weatherLoading && !weatherError && (
+        {isMounted && !settings && (
              <Alert>
                  <SettingsIcon className="h-4 w-4" />
                  <AlertTitle>Configuration Needed</AlertTitle>
@@ -412,16 +374,13 @@ export default function AdvisoryPage() {
              </Alert>
         )}
 
-
-       {/* Inputs Card */}
-       {isMounted && settings && ( // Only show inputs if mounted and settings loaded
+       {isMounted && settings && (
        <Card>
          <CardHeader>
            <CardTitle>Your Energy Inputs</CardTitle>
            <CardDescription>Provide current battery level and typical energy usage for accurate advice.</CardDescription>
          </CardHeader>
          <CardContent className="space-y-4">
-           {/* Current Battery Level */}
            <div className="space-y-2">
              <Label htmlFor="batteryLevel" className="flex items-center gap-2">
                <Battery className="h-4 w-4" /> Current Battery Level (kWh)
@@ -431,23 +390,21 @@ export default function AdvisoryPage() {
                type="number"
                step="0.1"
                min="0"
-               max={batteryMaxInput}
+               max={batteryMaxInput} // Use the calculated max based on settings
                value={currentBatteryLevel}
                onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput, parseFloat(e.target.value) || 0)))}
                placeholder="e.g., 5.2"
                className="max-w-xs"
-               disabled={!isMounted} // Technically redundant due to outer check, but safe
              />
               {isMounted && settings?.batteryCapacityKWh ? (
                  <p className="text-xs text-muted-foreground flex items-center gap-1">
                    (<Percent className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh} kWh)
                  </p>
               ) : (
-                  <p className="text-xs text-muted-foreground">{isMounted ? '(Set Capacity in Settings)' : ''}</p> // Simplified
+                  <p className="text-xs text-muted-foreground">{isMounted ? '(Set Battery Capacity in Settings to see %)' : ''}</p>
               )}
            </div>
 
-            {/* Daily/Average Hourly Consumption */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                 <div className="space-y-2">
                     <Label htmlFor="dailyConsumption" className="flex items-center gap-2">
@@ -462,10 +419,9 @@ export default function AdvisoryPage() {
                        onChange={(e) => setDailyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
                        placeholder="e.g., 10.5"
                        className="max-w-xs"
-                       disabled={!isMounted}
                     />
                 </div>
-                <Button variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto" disabled={!isMounted}>
+                <Button variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
                   Distribute Evenly to Hourly
                 </Button>
             </div>
@@ -483,18 +439,16 @@ export default function AdvisoryPage() {
                          onChange={(e) => setAvgHourlyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
                          placeholder="e.g., 0.4"
                          className="max-w-xs"
-                         disabled={!isMounted}
                      />
                  </div>
-                  <Button variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto" disabled={!isMounted}>
+                  <Button variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
                      Apply Average to All Hours
                   </Button>
             </div>
 
-            {/* Hourly Usage Sliders */}
             <div className="space-y-3 pt-4">
               <Label className="flex items-center gap-2">Adjust Hourly Consumption Profile (kWh)</Label>
-               <p className="text-xs text-muted-foreground">Fine-tune expected usage. Total daily consumption updates automatically.</p>
+               <p className="text-xs text-muted-foreground">Fine-tune expected usage per hour. Total daily consumption updates automatically.</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
                 {hourlyUsage.map((usage, index) => (
                   <div key={index} className="space-y-1">
@@ -518,7 +472,6 @@ export default function AdvisoryPage() {
                        onValueChange={(value) => handleSliderChange(index, value)}
                        className="flex-grow"
                        aria-label={`Hourly consumption slider for hour ${index}`}
-                       disabled={!isMounted}
                      />
                       <span className="text-xs font-mono w-8 text-right">{usage.toFixed(1)}</span>
                     </div>
@@ -530,15 +483,14 @@ export default function AdvisoryPage() {
        </Card>
        )}
 
-       {/* EV Charging Preferences Card */}
-        {isMounted && settings && ( // Only show if mounted and settings loaded
+        {isMounted && settings && (
        <Card>
          <CardHeader>
              <CardTitle className="flex items-center gap-2">
                  <Car className="h-5 w-5"/> EV Charging Preferences
              </CardTitle>
              <CardDescription>
-                 Set EV needs to integrate them into recommendations (saved automatically).
+                 Set your EV charging needs to integrate them into recommendations (values are saved automatically).
              </CardDescription>
          </CardHeader>
          <CardContent className="space-y-4">
@@ -553,7 +505,6 @@ export default function AdvisoryPage() {
                          placeholder="e.g., 40"
                          value={evChargeRequiredKWh}
                          onChange={(e) => setEvChargeRequiredKWh(Math.max(0, parseInt(e.target.value) || 0))}
-                         disabled={!isMounted}
                      />
                  </div>
                  <div className="space-y-1">
@@ -563,7 +514,6 @@ export default function AdvisoryPage() {
                          type="time"
                          value={evChargeByTime}
                          onChange={(e) => setEvChargeByTime(e.target.value)}
-                         disabled={!isMounted}
                      />
                  </div>
                   <div className="space-y-1">
@@ -572,33 +522,29 @@ export default function AdvisoryPage() {
                          id="evMaxRate"
                          type="number"
                          step="0.1"
-                         min="0.1" // Minimum charge rate
+                         min="0.1" // Should be a positive value
                          placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE}`}
                          value={evMaxChargeRateKWh}
                          onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE))}
-                         disabled={!isMounted}
                      />
                  </div>
              </div>
              <p className="text-xs text-muted-foreground">
-                 Set required kWh to 0 if no EV charge needed. The system will try to schedule charging during cheap/solar hours before the 'Charge By' time. Max charge rate affects how quickly the target kWh can be added.
+                 Set required kWh to 0 if no EV charge is needed. Values are saved as you type.
              </p>
          </CardContent>
        </Card>
        )}
 
-
-       {/* Recommendation Section */}
-       {isMounted && settings && ( // Only show recommendations if mounted and settings loaded
+       {isMounted && settings && ( // Ensure settings are loaded before rendering advice sections
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Today's Recommendation Card */}
            <Card>
              <CardHeader>
                <CardTitle>Today's Recommendation</CardTitle>
-                <CardDescription>Based on current conditions and today's forecast.</CardDescription>
+                <CardDescription>Based on current conditions and today's manual forecast.</CardDescription>
              </CardHeader>
              <CardContent>
-                {renderAdvice(todayAdvice, "Today", weatherLoading || weatherRefetching, todayErrorMsg)}
+                {renderAdvice(todayAdvice, "Today")}
                  <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                      <Clock className="h-3 w-3"/>
                      Current Hour: {isMounted && currentHour !== null ? `${currentHour.toString().padStart(2,'0')}:00` : 'Loading...'}
@@ -606,67 +552,57 @@ export default function AdvisoryPage() {
              </CardContent>
            </Card>
 
-
-            {/* Tomorrow's (Overnight) Recommendation Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Overnight Charging (for Tomorrow)</CardTitle>
-                <CardDescription>Recommendation based on tomorrow's forecast.</CardDescription>
+                <CardDescription>Recommendation based on tomorrow's manual forecast and overnight tariffs.</CardDescription>
               </CardHeader>
               <CardContent>
-                 {renderAdvice(tomorrowAdvice, "Overnight", weatherLoading || weatherRefetching, tomorrowErrorMsg)}
+                 {renderAdvice(tomorrowAdvice, "Overnight")}
               </CardContent>
             </Card>
          </div>
         )}
 
-
-       {/* Forecast & Config Summary Card */}
-       {isMounted && settings && ( // Only show summary if mounted and settings loaded
+       {isMounted && settings && (
         <Card>
           <CardHeader>
             <CardTitle>Forecast & Configuration Used</CardTitle>
-             <CardDescription>Summary of data used for the advice.</CardDescription>
+             <CardDescription>Summary of the data used to generate the current advice.</CardDescription>
           </CardHeader>
           <CardContent className="text-sm space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div>
-                     <p><strong>Today's Est. Generation:</strong> {todayForecastCalc ? `${todayForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${todayForecastCalc.weatherCondition || 'N/A'})` : 'N/A'}</p>
-                     <p><strong>Tomorrow's Est. Generation:</strong> {tomorrowForecastCalc ? `${tomorrowForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${tomorrowForecastCalc.weatherCondition || 'N/A'})` : 'N/A'}</p>
+                     <p><strong>Today's Est. Generation:</strong> {todayForecastCalc ? `${todayForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${todayForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'N/A'}</p>
+                     <p><strong>Tomorrow's Est. Generation:</strong> {tomorrowForecastCalc ? `${tomorrowForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${tomorrowForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'N/A'}</p>
                  </div>
                   <div>
-                     <p><strong>Battery Capacity:</strong> {isMounted ? (settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set') : 'Loading...'}</p>
+                     <p><strong>Battery Capacity:</strong> {settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set'}</p>
                      <p><strong>Current Battery Input:</strong> {currentBatteryLevel.toFixed(1)} kWh ({currentBatteryPercentage}%)</p>
                      <p><strong>Est. Daily Consumption Input:</strong> {dailyConsumption.toFixed(1)} kWh</p>
                   </div>
               </div>
-              {/* Display EV settings used */}
-              {isMounted && evChargeRequiredKWh > 0 && (
+              {evChargeRequiredKWh > 0 && (
                  <div className="text-sm text-muted-foreground border-t pt-2 mt-2">
                      <p><strong>EV Charge Need:</strong> {evChargeRequiredKWh} kWh by {evChargeByTime || 'N/A'} (Max rate: {evMaxChargeRateKWh} kW)</p>
                  </div>
               )}
              <div>
                  <strong>Defined Cheap Tariff Periods:</strong>
-                 {isMounted && tariffPeriods ? (
-                     tariffPeriods.filter(p => p.isCheap).length > 0 ? (
-                         <ul className="list-disc list-inside ml-4 text-muted-foreground">
-                             {tariffPeriods.filter(p => p.isCheap).map(p => (
-                                 <li key={p.id}>{p.name} ({p.startTime} - {p.endTime})</li>
-                             ))}
-                         </ul>
-                     ) : (
-                         <span className="text-muted-foreground"> None defined</span>
-                     )
+                 {tariffPeriods.filter(p => p.isCheap).length > 0 ? (
+                     <ul className="list-disc list-inside ml-4 text-muted-foreground">
+                         {tariffPeriods.filter(p => p.isCheap).map(p => (
+                             <li key={p.id}>{p.name} ({p.startTime} - {p.endTime})</li>
+                         ))}
+                     </ul>
                  ) : (
-                     <span className="text-muted-foreground"> Loading tariffs...</span>
+                     <span className="text-muted-foreground"> None defined</span>
                  )}
              </div>
-              <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on forecast quality (using {isMounted ? (settings?.selectedWeatherSource || DEFAULT_WEATHER_SOURCE_ID) : '...'} source via Open-Meteo API), system settings, tariffs, and consumption inputs. Recommendations are estimates.</p>
+              <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on your manual forecast inputs, system settings, tariff periods, and current consumption inputs. Recommendations are estimates.</p>
           </CardContent>
         </Card>
         )}
      </div>
    );
  }
-
