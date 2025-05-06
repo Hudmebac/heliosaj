@@ -140,6 +140,7 @@ const settingsSchema = z.object({
   systemEfficiency: z.coerce.number().min(0).max(1).optional(), // 0.0 to 1.0
   dailyConsumptionKWh: z.coerce.number().positive().optional(),
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
+  selectedWeatherSource: z.string().optional(), // Added for weather source selection
   // EV fields already in UserSettings, ensure they are included here if form manages them
   evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
   evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
@@ -166,12 +167,12 @@ const settingsSchema = z.object({
 export default function SettingsPage() {
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const { toast } = useToast();
-  const [currentInputMode, setCurrentInputMode = useState<'Panels' | 'TotalPower'>(storedSettings?.inputMode || 'Panels');
-  const [postcode, setPostcode = useState<string>('');
-  const [addresses, setAddresses = useState<AddressLookupResult[]>([]);
-  const [lookupLoading, setLookupLoading = useState<boolean>(false);
-  const [lookupError, setLookupError = useState<string | null>(null);
-  const [selectedAddressValue, setSelectedAddressValue = useState<string | undefined>(undefined);
+  const [currentInputMode, setCurrentInputMode] = useState<'Panels' | 'TotalPower'>(storedSettings?.inputMode || 'Panels');
+  const [postcode, setPostcode] = useState<string>('');
+  const [addresses, setAddresses] = useState<AddressLookupResult[]>([]);
+  const [lookupLoading, setLookupLoading] = useState<boolean>(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [selectedAddressValue, setSelectedAddressValue] = useState<string | undefined>(undefined);
 
 
   const form = useForm<UserSettings>({
@@ -182,6 +183,7 @@ export default function SettingsPage() {
       propertyDirection: 'South Facing',
       inputMode: 'Panels',
       systemEfficiency: 0.85, // Default efficiency
+      selectedWeatherSource: 'open-meteo', // Default to Open-Meteo
       // Default EV settings (can be adjusted by user)
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
@@ -193,14 +195,18 @@ export default function SettingsPage() {
    // Watch for changes in inputMode to conditionally render fields
    const watchedInputMode = form.watch('inputMode');
    useEffect(() => {
-     setCurrentInputMode(watchedInputMode);
+     if(watchedInputMode) {
+      setCurrentInputMode(watchedInputMode);
+     }
    }, [watchedInputMode]);
 
   // Effect to reset form when storedSettings change (e.g., on initial load)
   useEffect(() => {
     if (storedSettings) {
       form.reset(storedSettings);
-      setCurrentInputMode(storedSettings.inputMode);
+      if(storedSettings.inputMode) {
+        setCurrentInputMode(storedSettings.inputMode);
+      }
        // If location exists, pre-select it in the dropdown if it came from a previous lookup
        // This is tricky because addresses list is ephemeral. Better to just set the text field.
        if (storedSettings.location) {
@@ -221,6 +227,7 @@ export default function SettingsPage() {
          totalKWp: undefined,
          batteryCapacityKWh: undefined,
          systemEfficiency: 0.85,
+         selectedWeatherSource: 'open-meteo',
          dailyConsumptionKWh: undefined,
          avgHourlyConsumptionKWh: undefined,
          evChargeRequiredKWh: 0,
@@ -229,7 +236,7 @@ export default function SettingsPage() {
        });
        setSelectedAddressValue(undefined);
     }
-  }, [storedSettings, form.reset]);
+  }, [storedSettings, form]); // form.reset was removed as per react-hook-form docs, form itself is stable
 
 
    // Clear address list and selection when postcode changes
@@ -630,3 +637,4 @@ export default function SettingsPage() {
     </Card>
   );
 }
+
