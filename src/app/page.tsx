@@ -16,7 +16,7 @@ import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from '
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info'; // Import the new component and data
-import { addDays } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { HowToInfo } from '@/components/how-to-info';
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
@@ -64,10 +64,22 @@ export default function HomePage() {
   }, [manualForecast]);
 
   useEffect(() => {
-    if (!isMounted || !settings) {
+    if (!isMounted || !settings ) {
       setCalculatedForecasts({ today: null, tomorrow: null });
       return;
     }
+    // Ensure manualForecast has valid dates before calculating
+    const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+    const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+
+    if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
+        // console.warn("Manual forecast dates are stale, waiting for update from useManualForecast hook.");
+        // This condition might occur if useManualForecast hasn't updated its state yet after a date change.
+        // The calculation will re-run when manualForecast updates.
+        return;
+    }
+
+
     try {
       const todayCalc = calculateSolarGeneration(manualForecast.today, settings);
       const tomorrowCalc = calculateSolarGeneration(manualForecast.tomorrow, settings);
@@ -95,7 +107,7 @@ export default function HomePage() {
       });
       return;
     }
-    setManualForecast(editableForecast);
+    setManualForecast(editableForecast); // This will trigger the useEffect for calculation
     setIsModalOpen(false);
     toast({
       title: "Forecast Updated",
@@ -183,7 +195,7 @@ export default function HomePage() {
                 ) : (
                     <div className="flex justify-center items-center h-[250px]">
                         <p className="text-muted-foreground text-sm">
-                            {forecastData ? 'No significant generation expected or data missing for chart.' : 'Forecast data unavailable.'}
+                            {forecastData ? 'No significant generation expected or data missing for chart.' : isMounted && settings ? 'Calculating...' : 'Forecast data unavailable.'}
                         </p>
                     </div>
                 )}
@@ -346,5 +358,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    

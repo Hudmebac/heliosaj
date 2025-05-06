@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
-import { addDays } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { HowToInfo } from '@/components/how-to-info';
 
@@ -89,12 +89,14 @@ export default function AdvisoryPage() {
 
 
     useEffect(() => {
-       if (!isMounted) return;
-       const timer = setInterval(() => {
-         setCurrentHour(new Date().getHours());
-       }, 60 * 1000);
-       return () => clearInterval(timer);
-     }, [isMounted]);
+       if (isMounted && settings) {
+           const timer = setInterval(() => {
+             setCurrentHour(new Date().getHours());
+           }, 60 * 1000);
+           return () => clearInterval(timer);
+       }
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [isMounted, settings]);
 
      useEffect(() => {
        if (isMounted && settings) {
@@ -115,7 +117,7 @@ export default function AdvisoryPage() {
            return () => clearTimeout(handler);
        }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, isMounted, settings, setSettings]);
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, isMounted, /* settings object itself not needed here */ setSettings]);
 
     const handleSliderChange = (index: number, value: number[]) => {
       const newHourlyUsage = [...hourlyUsage];
@@ -153,6 +155,15 @@ export default function AdvisoryPage() {
             return;
         }
 
+        // Ensure manualForecast has valid dates before calculating
+        const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+        const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+
+        if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
+            // console.warn("Advisory: Manual forecast dates are stale, waiting for update from useManualForecast hook.");
+            return;
+        }
+
         const todayCalculated = calculateSolarGeneration(manualForecast.today, settings);
         const tomorrowCalculated = calculateSolarGeneration(manualForecast.tomorrow, settings);
 
@@ -166,6 +177,7 @@ export default function AdvisoryPage() {
          };
 
         try {
+            if (!todayCalculated) throw new Error("Today's solar forecast could not be calculated.");
             const todayParams: ChargingAdviceParams = {
                 forecast: todayCalculated,
                 settings: settings,
@@ -186,6 +198,7 @@ export default function AdvisoryPage() {
         }
 
         try {
+             if (!tomorrowCalculated) throw new Error("Tomorrow's solar forecast could not be calculated.");
             const overnightParams: ChargingAdviceParams = {
                 forecast: tomorrowCalculated, // Use tomorrow's forecast for overnight advice
                 settings: settings,
@@ -221,7 +234,7 @@ export default function AdvisoryPage() {
         });
         return;
       }
-      setManualForecast(editableForecast);
+      setManualForecast(editableForecast); // This triggers re-calculation in useEffect
       setIsForecastModalOpen(false);
       toast({
         title: "Forecast Updated",
@@ -258,7 +271,12 @@ export default function AdvisoryPage() {
    const renderAdviceCard = (advice: ChargingAdvice | null, title: string, description: string, icon?: React.ReactNode) => {
      if (!isMounted) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;
      if (!settings) return null; // Main settings alert will cover this
-     if (adviceError && adviceError.toLowerCase().includes(title.split(':')[0].toLowerCase())) {
+
+     const errorKey = title.split(':')[0].toLowerCase(); // e.g., "today's recommendation" -> "today's recommendation"
+     const relevantError = adviceError?.split('\n').find(line => line.toLowerCase().includes(errorKey));
+
+
+     if (relevantError) {
         return (
           <Card>
             <CardHeader>
@@ -269,7 +287,7 @@ export default function AdvisoryPage() {
               <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4"/>
                 <AlertTitle>Error Generating Advice</AlertTitle>
-                <AlertDescription>{adviceError.split('\n').find(line => line.toLowerCase().includes(title.split(':')[0].toLowerCase())) || adviceError}</AlertDescription>
+                <AlertDescription>{relevantError}</AlertDescription>
               </Alert>
             </CardContent>
           </Card>
@@ -286,7 +304,7 @@ export default function AdvisoryPage() {
              <Alert variant="default">
                  <SettingsIcon className="h-4 w-4" />
                  <AlertTitle>Could Not Generate Advice</AlertTitle>
-                 <AlertDescription>Unable to provide a recommendation. Please check inputs and settings.</AlertDescription>
+                 <AlertDescription>Unable to provide a recommendation. Please check inputs and settings, or if forecast calculation is pending.</AlertDescription>
              </Alert>
            </CardContent>
          </Card>
@@ -326,6 +344,9 @@ export default function AdvisoryPage() {
                          <Car className="inline h-4 w-4 mr-1"/> EV Charge: {advice.evRecommendation}
                          {advice.evChargeWindow && <span className="text-xs block ml-5 text-muted-foreground">{advice.evChargeWindow}</span>}
                      </span>
+                  )}
+                  {advice.chargeCostPence !== undefined && advice.chargeCostPence > 0 && (
+                    <span className="block mt-1 text-xs text-amber-700 dark:text-amber-500">Est. cost for this charge: {(advice.chargeCostPence / 100).toFixed(2)} GBP.</span>
                   )}
              </AlertDescription>
            </Alert>
@@ -470,9 +491,9 @@ export default function AdvisoryPage() {
                type="number"
                step="0.1"
                min="0"
-               max={batteryMaxInput}
+               max={batteryMaxInput > 0 ? batteryMaxInput : undefined} // Only set max if capacity is known and > 0
                value={currentBatteryLevel}
-               onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput, parseFloat(e.target.value) || 0)))}
+               onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput > 0 ? batteryMaxInput : Infinity, parseFloat(e.target.value) || 0)))}
                placeholder="e.g., 5.2"
                className="max-w-xs"
              />
@@ -635,8 +656,8 @@ export default function AdvisoryPage() {
           <CardContent className="text-sm space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div>
-                     <p><strong>Today's Est. Generation:</strong> {todayForecastCalc ? `${todayForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${todayForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'N/A'}</p>
-                     <p><strong>Tomorrow's Est. Generation:</strong> {tomorrowForecastCalc ? `${tomorrowForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${tomorrowForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'N/A'}</p>
+                     <p><strong>Today's Est. Generation:</strong> {todayForecastCalc ? `${todayForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${todayForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'Calculating...'}</p>
+                     <p><strong>Tomorrow's Est. Generation:</strong> {tomorrowForecastCalc ? `${tomorrowForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${tomorrowForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'Calculating...'}</p>
                  </div>
                   <div>
                      <p><strong>Battery Capacity:</strong> {settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set'}</p>
@@ -672,4 +693,3 @@ export default function AdvisoryPage() {
      </div>
    );
  }
-
