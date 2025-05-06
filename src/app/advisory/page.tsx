@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ForecastInfo } from '@/components/forecast-info'; // Import the new component
 
 const HOURS_IN_DAY = 24;
 const DEFAULT_BATTERY_MAX = 100; // Used as a fallback if settings.batteryCapacityKWh is not set
@@ -306,7 +307,7 @@ export default function AdvisoryPage() {
                     Edit Manual Forecast
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[480px]">
+              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto"> {/* Increased width and added scroll */}
                 <DialogHeader>
                   <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
                   <DialogDescription>
@@ -357,6 +358,9 @@ export default function AdvisoryPage() {
                         </div>
                       </div>
                     ))}
+                    <div className="mt-4 border-t pt-4">
+                      <ForecastInfo />
+                    </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsForecastModalOpen(false)}>Cancel</Button>

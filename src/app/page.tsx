@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { ForecastInfo } from '@/components/forecast-info'; // Import the new component
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
   if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" />; // Default to Sun or a generic icon
@@ -198,7 +199,7 @@ export default function HomePage() {
                     Edit Manual Forecast
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[480px]">
+              <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto"> {/* Increased width and added scroll */}
                 <DialogHeader>
                   <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
                   <DialogDescription>
@@ -251,6 +252,9 @@ export default function HomePage() {
                       </div>
                     );
                   })}
+                   <div className="mt-4 border-t pt-4">
+                    <ForecastInfo />
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
