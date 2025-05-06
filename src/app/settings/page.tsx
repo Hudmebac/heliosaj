@@ -15,8 +15,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, CalendarDays } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { format } from 'date-fns';
 
 // Define Nominatim API result structure (simplified for address selection)
 interface NominatimResult {
@@ -126,6 +127,20 @@ async function lookupAddressesByPostcode(postcode: string): Promise<AddressLooku
   }
 }
 
+const defaultMonthlyFactors = [
+  0.3, // Jan
+  0.4, // Feb
+  0.6, // Mar
+  0.8, // Apr
+  1.0, // May
+  1.1, // Jun
+  1.0, // Jul
+  0.9, // Aug
+  0.7, // Sep
+  0.5, // Oct
+  0.35, // Nov
+  0.25  // Dec
+];
 
 const settingsSchema = z.object({
   location: z.string().min(3, { message: "Location must be at least 3 characters." }),
@@ -145,6 +160,7 @@ const settingsSchema = z.object({
   evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
   evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
   evMaxChargeRateKWh: z.coerce.number().positive().optional(),
+  monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
 }).refine(data => {
     if (data.inputMode === 'Panels') {
       return data.panelCount !== undefined && data.panelWatts !== undefined;
@@ -173,50 +189,52 @@ export default function SettingsPage() {
   const [lookupLoading, setLookupLoading] = useState<boolean>(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [selectedAddressValue, setSelectedAddressValue] = useState<string | undefined>(undefined);
+  const [isMounted, setIsMounted] = useState(false);
 
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
     defaultValues: storedSettings || {
       location: '',
-      // latitude and longitude will be set by lookup or manually
       propertyDirection: 'South Facing',
       inputMode: 'Panels',
-      systemEfficiency: 0.85, // Default efficiency
-      selectedWeatherSource: 'open-meteo', // Default to Open-Meteo
-      // Default EV settings (can be adjusted by user)
+      systemEfficiency: 0.85,
+      selectedWeatherSource: 'open-meteo',
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
+      monthlyGenerationFactors: [...defaultMonthlyFactors], // Initialize with defaults
     },
-    mode: 'onChange', // Validate on change for better UX
+    mode: 'onChange',
   });
 
-   // Watch for changes in inputMode to conditionally render fields
-   const watchedInputMode = form.watch('inputMode');
-   useEffect(() => {
-     if(watchedInputMode) {
-      setCurrentInputMode(watchedInputMode);
-     }
-   }, [watchedInputMode]);
-
-  // Effect to reset form when storedSettings change (e.g., on initial load)
   useEffect(() => {
-    if (storedSettings) {
-      form.reset(storedSettings);
-      if(storedSettings.inputMode) {
-        setCurrentInputMode(storedSettings.inputMode);
-      }
-       // If location exists, pre-select it in the dropdown if it came from a previous lookup
-       // This is tricky because addresses list is ephemeral. Better to just set the text field.
+    setIsMounted(true);
+  }, []);
+
+   useEffect(() => {
+     if(isMounted && storedSettings) {
+      const currentMonthFactor = storedSettings.monthlyGenerationFactors?.[new Date().getMonth()];
+      // Example: if you want to highlight the current month's factor in some way
+      // Or just ensure defaults are applied if not present in storage
+      const factorsToSet = storedSettings.monthlyGenerationFactors && storedSettings.monthlyGenerationFactors.length === 12
+        ? storedSettings.monthlyGenerationFactors
+        : [...defaultMonthlyFactors];
+
+       form.reset({
+         ...storedSettings,
+         monthlyGenerationFactors: factorsToSet,
+       });
+       if(storedSettings.inputMode) {
+         setCurrentInputMode(storedSettings.inputMode);
+       }
        if (storedSettings.location) {
-         setSelectedAddressValue(storedSettings.location); // This might not match if list isn't populated
+         setSelectedAddressValue(storedSettings.location);
        } else {
           setSelectedAddressValue(undefined);
        }
-    } else {
-       // Reset to initial defaults if no settings are stored
-       form.reset({
+     } else if (isMounted) { // No stored settings, set initial defaults
+        form.reset({
          location: '',
          latitude: undefined,
          longitude: undefined,
@@ -233,40 +251,31 @@ export default function SettingsPage() {
          evChargeRequiredKWh: 0,
          evChargeByTime: '07:00',
          evMaxChargeRateKWh: 7.5,
+         monthlyGenerationFactors: [...defaultMonthlyFactors],
        });
        setSelectedAddressValue(undefined);
-    }
-  }, [storedSettings, form]); // form.reset was removed as per react-hook-form docs, form itself is stable
+     }
+   }, [storedSettings, form, isMounted]);
 
 
-   // Clear address list and selection when postcode changes
    useEffect(() => {
        setAddresses([]);
-       setSelectedAddressValue(undefined); // Clear selection display
-       setLookupError(null); // Clear previous errors
-       // Optionally, clear location/lat/lng fields in form if postcode changes and no selection made yet
-       // form.setValue('location', '');
-       // form.setValue('latitude', undefined);
-       // form.setValue('longitude', undefined);
+       setSelectedAddressValue(undefined);
+       setLookupError(null);
    }, [postcode]);
 
 
   const onSubmit = (data: UserSettings) => {
-    // Calculate totalKWp if inputMode is 'Panels'
     if (data.inputMode === 'Panels' && data.panelCount && data.panelWatts) {
       data.totalKWp = parseFloat(((data.panelCount * data.panelWatts) / 1000).toFixed(2));
     }
 
-    // Create a clean object to save, ensuring numeric types and handling undefined for optional fields
     const saveData: UserSettings = { ...data };
-
-    // If mode is TotalPower, clear panel specific fields if they exist
     if (saveData.inputMode === 'TotalPower') {
       saveData.panelCount = undefined;
       saveData.panelWatts = undefined;
     }
 
-    // Ensure numeric fields are numbers or undefined, not empty strings or NaN
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
         'batteryCapacityKWh', 'systemEfficiency', 'dailyConsumptionKWh',
@@ -279,9 +288,17 @@ export default function SettingsPage() {
             (saveData as any)[field] = Number(saveData[field]);
         }
     });
-    // Ensure evChargeByTime is valid or undefined
     if (!saveData.evChargeByTime || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(saveData.evChargeByTime)) {
         saveData.evChargeByTime = undefined;
+    }
+
+    // Ensure monthly factors are numbers
+    if (saveData.monthlyGenerationFactors) {
+        saveData.monthlyGenerationFactors = saveData.monthlyGenerationFactors.map(factor =>
+            (factor === null || factor === undefined || isNaN(Number(factor))) ? 1.0 : Number(factor)
+        );
+    } else {
+        saveData.monthlyGenerationFactors = [...defaultMonthlyFactors];
     }
 
 
@@ -299,9 +316,9 @@ export default function SettingsPage() {
     }
     setLookupLoading(true);
     setLookupError(null);
-    setAddresses([]); // Clear previous results
-    setSelectedAddressValue(undefined); // Clear selection
-    form.setValue('location', ''); // Clear form fields
+    setAddresses([]);
+    setSelectedAddressValue(undefined);
+    form.setValue('location', '');
     form.setValue('latitude', undefined);
     form.setValue('longitude', undefined);
 
@@ -311,10 +328,8 @@ export default function SettingsPage() {
            setLookupError("No addresses found for this postcode via Nominatim. Try a nearby or broader postcode, or enter details manually.");
       } else {
           setAddresses(results);
-          // Do not auto-select here, let user pick or confirm
       }
     } catch (error) {
-        // error.message should be user-friendly from lookupAddressesByPostcode
         setLookupError(error instanceof Error ? error.message : "Address lookup failed. Please check the postcode or try again later.");
     } finally {
       setLookupLoading(false);
@@ -322,20 +337,33 @@ export default function SettingsPage() {
   };
 
   const handleAddressSelect = (selectedValue: string) => {
-      // selectedValue is the 'display_name' which is unique enough for selection key
-      const selectedData = addresses.find(addr => addr.address === selectedValue);
-      setSelectedAddressValue(selectedValue); // For the Select component's controlled value
-
+      const selectedData = addresses.find(addr => addr.place_id.toString() === selectedValue); // Compare with place_id as string
       if (selectedData) {
+        setSelectedAddressValue(selectedData.place_id.toString());
         form.setValue('location', selectedData.address, { shouldValidate: true });
         form.setValue('latitude', selectedData.lat, { shouldValidate: true });
         form.setValue('longitude', selectedData.lng, { shouldValidate: true });
-        setLookupError(null); // Clear error if selection is successful
+        setLookupError(null);
       }
   };
 
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+
+  if (!isMounted) {
+    return (
+      <div className="flex justify-center items-center py-10">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Loading settings...</p>
+      </div>
+    );
+  }
 
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle>System Settings</CardTitle>
@@ -388,8 +416,8 @@ export default function SettingsPage() {
                     <div className="space-y-1 mt-2">
                        <Label htmlFor="addressSelect">Select Address</Label>
                       <Select
-                         value={selectedAddressValue} // Controlled by state
-                         onValueChange={handleAddressSelect} // Function to update form fields
+                         value={selectedAddressValue}
+                         onValueChange={handleAddressSelect}
                          aria-label="Select an address from the lookup results"
                        >
                          <SelectTrigger id="addressSelect">
@@ -397,7 +425,7 @@ export default function SettingsPage() {
                          </SelectTrigger>
                          <SelectContent>
                            {addresses.map((addr) => (
-                             <SelectItem key={addr.place_id} value={addr.address}>
+                             <SelectItem key={addr.place_id} value={addr.place_id.toString()}>
                                {addr.address}
                              </SelectItem>
                            ))}
@@ -491,9 +519,10 @@ export default function SettingsPage() {
                       <RadioGroup
                         onValueChange={value => {
                           field.onChange(value);
-                          setCurrentInputMode(value as 'Panels' | 'TotalPower'); // Update state for conditional rendering
+                          setCurrentInputMode(value as 'Panels' | 'TotalPower');
                         }}
                         defaultValue={field.value}
+                        value={field.value}
                         className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-4"
                       >
                         <FormItem className="flex items-center space-x-3 space-y-0">
@@ -578,7 +607,6 @@ export default function SettingsPage() {
               )}
             />
 
-            {/* Consumption Estimates Section (Optional but recommended for Advisory) */}
             <div className="space-y-2 p-4 border rounded-md bg-muted/50">
                 <h3 className="text-lg font-medium mb-2">Consumption Estimates (Optional)</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -630,11 +658,63 @@ export default function SettingsPage() {
               )}
             />
 
-            <Button type="submit" className="btn-silver w-full sm:w-auto">Save Settings</Button>
+            <Button type="submit" className="btn-silver w-full sm:w-auto">Save General Settings</Button>
           </form>
         </Form>
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
+          </CardTitle>
+          <CardDescription>
+            Adjust the relative generation factor for each month (e.g., 1.0 for average, 0.75 for 75% of average).
+            The current month ({format(new Date(), "MMMM")}) is highlighted. Default values are estimates.
+          </CardDescription>
+      </CardHeader>
+      <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {monthNames.map((monthName, index) => (
+                  <FormField
+                    key={monthName}
+                    control={form.control}
+                    name={`monthlyGenerationFactors.${index}` as `monthlyGenerationFactors.${number}`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className={index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
+                          {monthName} Factor
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="2"
+                            placeholder="e.g., 1.0"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+              <FormDescription>
+                These factors adjust the baseline solar generation estimate for seasonality.
+                A factor of 1.0 means average generation for that month, 0.5 means 50%, 1.2 means 120%.
+              </FormDescription>
+              <Button type="submit" className="btn-silver w-full sm:w-auto">Save Monthly Factors</Button>
+            </form>
+          </Form>
+      </CardContent>
+    </Card>
+    </div>
   );
 }
-

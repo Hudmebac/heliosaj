@@ -18,6 +18,8 @@ export interface UserSettings {
   evChargeByTime?: string; // HH:MM format, when the car needs to be charged by
   evMaxChargeRateKWh?: number; // Max power the charger can deliver per hour (default 7.5)
   lastKnownBatteryLevelKWh?: number; // Added to store last known battery level from advisory
+
+  monthlyGenerationFactors?: number[]; // Array of 12 numbers, one for each month (0=Jan, 11=Dec)
 }
 
 export interface TariffPeriod {
@@ -40,3 +42,4 @@ export interface ManualForecastInput {
   today: ManualDayForecast;
   tomorrow: ManualDayForecast;
 }
+
