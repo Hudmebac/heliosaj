@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,7 +9,7 @@ body {
 
 @layer base {
   :root {
-    /* Light Theme */
+    /* Light Theme (Default) */
     --background: 0 0% 100%; /* White/Light Grey for Light Mode */
     --foreground: 0 0% 0%; /* Black for text in Light Mode */
     --card: 0 0% 100%;
@@ -17,8 +18,8 @@ body {
     --popover-foreground: 0 0% 0%;
     --primary: 39 100% 50%; /* Orange */
     --primary-foreground: 0 0% 0%; /* Black text on Orange */
-    --secondary: 0 0% 100%; /* Black */
-    --secondary-foreground: 0 0% 0%; /* White text on Black */
+    --secondary: 0 0% 100%; /* White for secondary elements in light mode */
+    --secondary-foreground: 0 0% 0%; /* Black text for secondary elements in light mode */
     --muted: 0 0% 96.1%; /* Light Grey */
     --muted-foreground: 0 0% 45.1%; /* Darker Grey text on Muted */
     --accent: 0 0% 75.3%; /* Silver */
@@ -54,8 +55,8 @@ body {
     --popover-foreground: 0 0% 100%; /* White text on popover */
     --primary: 39 100% 50%; /* Orange */
     --primary-foreground: 0 0% 0%; /* Black text on Orange */
-    --secondary: 0 0% 0%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 0 0% 10%; /* Dark grey for secondary elements in dark mode */
+    --secondary-foreground: 0 0% 95%; /* Light text for secondary elements in dark mode */
     --muted: 0 0% 15%; /* Darker Grey */
     --muted-foreground: 0 0% 63.9%; /* Lighter Grey text */
     --accent: 0 0% 75.3%; /* Silver */
@@ -80,8 +81,9 @@ body {
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
-  .high-contrast {
-    /* High Contrast Theme */
+  /* High Contrast Mode Overrides */
+  /* Applied when 'high-contrast-enabled' class is on the html element */
+  html.high-contrast-enabled {
     --background: 0 0% 0%; /* Black */
     --foreground: 0 0% 100%; /* White */
     --card: 0 0% 5%; /* Very dark grey */
@@ -90,9 +92,9 @@ body {
     --popover-foreground: 0 0% 100%; /* White */
     --primary: 60 100% 50%; /* Bright Yellow */
     --primary-foreground: 0 0% 0%; /* Black text on Yellow */
-    --secondary: 0 0% 10%; /* Dark Grey (consistent with dark theme secondary) */
-    --secondary-foreground: 0 0% 90%; /* Light Grey (consistent with dark theme secondary) */
-    --muted: 0 0% 20%; /* Darker grey, but distinct */
+    --secondary: 0 0% 10%; /* Dark Grey */
+    --secondary-foreground: 0 0% 90%; /* Light Grey */
+    --muted: 0 0% 20%; /* Darker grey, distinct */
     --muted-foreground: 0 0% 80%; /* Lighter grey for contrast */
     --accent: 180 100% 50%; /* Bright Cyan */
     --accent-foreground: 0 0% 0%; /* Black text on Cyan */
@@ -101,11 +103,13 @@ body {
     --border: 0 0% 50%; /* Clearly visible grey border */
     --input: 0 0% 10%; /* Dark grey input background */
     --ring: 60 100% 50%; /* Bright Yellow for focus rings */
+    
     --chart-1: 60 100% 50%; /* Yellow */
     --chart-2: 180 100% 50%; /* Cyan */
     --chart-3: 300 100% 50%; /* Magenta */
     --chart-4: 120 100% 50%; /* Green */
     --chart-5: 30 100% 50%; /* Orange (distinct from primary yellow) */
+    
     --sidebar-background: 0 0% 3%;
     --sidebar-foreground: 0 0% 97%;
     --sidebar-primary: 60 100% 50%; /* Yellow */
