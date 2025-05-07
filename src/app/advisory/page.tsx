@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -90,7 +90,7 @@ export default function AdvisoryPage() {
         setPreferredOvernightBatteryChargePercent(100);
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [settings, isMounted]); // Removed hourlyUsage from deps to avoid re-init if settings don't have profile
+    }, [settings, isMounted]); 
 
     useEffect(() => {
       setEditableForecast(manualForecast);
@@ -104,7 +104,6 @@ export default function AdvisoryPage() {
            }, 60 * 1000);
            return () => clearInterval(timer);
        }
-   // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [isMounted, settings]);
 
      useEffect(() => {
@@ -125,7 +124,7 @@ export default function AdvisoryPage() {
            return () => clearTimeout(handler);
        }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted, setSettings]);
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted]);
 
     const handleSliderChange = (index: number, value: number[]) => {
       const newHourlyUsage = [...hourlyUsage];
@@ -154,7 +153,7 @@ export default function AdvisoryPage() {
       setDailyConsumption(parseFloat((avgHourlyConsumption * HOURS_IN_DAY).toFixed(2)));
     };
 
-    useEffect(() => {
+    const generateAdvice = useCallback(() => {
         if (!isMounted || !settings || currentHour === null) {
              setTodayAdvice(null);
              setTomorrowAdvice(null);
@@ -175,7 +174,7 @@ export default function AdvisoryPage() {
         const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
         if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-             refreshForecastDates();
+             refreshForecastDates(); // This will update dates and trigger a re-render and re-calculation
             return;
         }
 
@@ -221,7 +220,7 @@ export default function AdvisoryPage() {
                 tariffPeriods: tariffPeriods,
                 currentBatteryLevelKWh: currentBatteryLevel, 
                 hourlyConsumptionProfile: hourlyUsage, 
-                currentHour: currentHour, 
+                currentHour: currentHour, // For overnight, currentHour represents when planning starts (e.g., evening before)
                 evNeeds: evNeeds,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -234,12 +233,17 @@ export default function AdvisoryPage() {
              setAdviceError(prev => prev ? `${prev}\nTomorrow's Advice Error: ${err.message}` : `Tomorrow's Advice Error: ${err.message}`);
              setTomorrowAdvice(null);
         }
-    }, [
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ // Added all dependencies that generateAdvice relies on
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
-        manualForecast,
-        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent,
-        refreshForecastDates
+        manualForecast, refreshForecastDates, // refreshForecastDates is stable due to useCallback
+        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent
     ]);
+
+    useEffect(() => {
+        generateAdvice();
+    }, [generateAdvice]);
+
 
     const handleForecastModalSave = () => {
       const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -419,6 +423,7 @@ export default function AdvisoryPage() {
              <Button
                 onClick={() => {
                     refreshForecastDates(); // This will trigger a re-calculation via useEffect
+                    generateAdvice(); // Explicitly call to re-generate advice with current state
                     toast({title: "Refreshing Advice", description: "Updating advice based on latest data."});
                 }}
                 disabled={!isMounted || !settings}
