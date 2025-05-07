@@ -15,7 +15,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon } from 'lucide-react'; // Renamed HelpCircle to HelpCircleIcon
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
@@ -26,7 +26,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { HowToInfo } from '@/components/how-to-info';
-
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Slider } from '@/components/ui/slider';
+import { cn } from '@/lib/utils';
 
 // Define Nominatim API result structure (simplified for address selection)
 interface NominatimResult {
@@ -189,6 +191,7 @@ const settingsSchema = z.object({
     path: ["totalKWp"],
 });
 
+const HOURS_IN_DAY = 24;
 
 export default function SettingsPage() {
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -201,6 +204,7 @@ export default function SettingsPage() {
   const [selectedAddressValue, setSelectedAddressValue] = useState<string | undefined>(undefined);
   const [isMounted, setIsMounted] = useState(false);
   const [selectedDirectionInfo, setSelectedDirectionInfo] = useState<PropertyDirectionInfo | null>(null);
+  const [currentHour, setCurrentHour] = useState<number | null>(null);
 
 
   const form = useForm<UserSettings>({
@@ -212,17 +216,24 @@ export default function SettingsPage() {
       inputMode: 'Panels',
       systemEfficiency: 0.85,
       selectedWeatherSource: 'manual', // Default to manual forecast
+      dailyConsumptionKWh: 10,
+      avgHourlyConsumptionKWh: 0.4,
+      hourlyUsageProfile: Array(HOURS_IN_DAY).fill(0.4), // Default hourly usage
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
       monthlyGenerationFactors: [...defaultMonthlyFactors],
-      hourlyUsageProfile: Array(24).fill(0.4), // Default hourly usage
     },
     mode: 'onChange',
   });
 
   useEffect(() => {
     setIsMounted(true);
+    setCurrentHour(new Date().getHours());
+    const timer = setInterval(() => {
+        setCurrentHour(new Date().getHours());
+    }, 60 * 1000);
+    return () => clearInterval(timer);
   }, []);
 
    useEffect(() => {
@@ -231,9 +242,9 @@ export default function SettingsPage() {
         ? storedSettings.monthlyGenerationFactors
         : [...defaultMonthlyFactors];
       
-      const hourlyProfileToSet = storedSettings.hourlyUsageProfile && storedSettings.hourlyUsageProfile.length === 24
+      const hourlyProfileToSet = storedSettings.hourlyUsageProfile && storedSettings.hourlyUsageProfile.length === HOURS_IN_DAY
         ? storedSettings.hourlyUsageProfile
-        : Array(24).fill(storedSettings.avgHourlyConsumptionKWh || 0.4);
+        : Array(HOURS_IN_DAY).fill(storedSettings.avgHourlyConsumptionKWh || 0.4);
 
        form.reset({
          ...storedSettings,
@@ -264,9 +275,9 @@ export default function SettingsPage() {
          batteryCapacityKWh: undefined,
          systemEfficiency: 0.85,
          selectedWeatherSource: 'manual',
-         dailyConsumptionKWh: undefined,
-         avgHourlyConsumptionKWh: undefined,
-         hourlyUsageProfile: Array(24).fill(0.4),
+         dailyConsumptionKWh: 10,
+         avgHourlyConsumptionKWh: 0.4,
+         hourlyUsageProfile: Array(HOURS_IN_DAY).fill(0.4),
          evChargeRequiredKWh: 0,
          evChargeByTime: '07:00',
          evMaxChargeRateKWh: 7.5,
@@ -326,7 +337,7 @@ export default function SettingsPage() {
             (usage === null || usage === undefined || isNaN(Number(usage))) ? 0 : Number(usage)
         );
     } else {
-        saveData.hourlyUsageProfile = Array(24).fill(saveData.avgHourlyConsumptionKWh || 0.4);
+        saveData.hourlyUsageProfile = Array(HOURS_IN_DAY).fill(saveData.avgHourlyConsumptionKWh || 0.4);
     }
 
 
@@ -396,6 +407,40 @@ export default function SettingsPage() {
     "July", "August", "September", "October", "November", "December"
   ];
 
+  const handleHourlySliderChange = (index: number, value: number[]) => {
+    const currentHourlyProfile = form.getValues('hourlyUsageProfile') || Array(HOURS_IN_DAY).fill(0);
+    const newHourlyProfile = [...currentHourlyProfile];
+    newHourlyProfile[index] = value[0];
+    form.setValue('hourlyUsageProfile', newHourlyProfile, { shouldValidate: true, shouldDirty: true });
+
+    const newDailyTotal = newHourlyProfile.reduce((sum, val) => sum + val, 0);
+    form.setValue('dailyConsumptionKWh', parseFloat(newDailyTotal.toFixed(2)), { shouldValidate: true, shouldDirty: true });
+  };
+
+  const distributeDailyConsumption = () => {
+    const dailyConsumption = form.getValues('dailyConsumptionKWh');
+    if (dailyConsumption === undefined || dailyConsumption <= 0) {
+        toast({ title: "Invalid Input", description: "Daily consumption must be greater than 0 to distribute.", variant: "destructive" });
+        return;
+    }
+    const avg = dailyConsumption / HOURS_IN_DAY;
+    form.setValue('avgHourlyConsumptionKWh', parseFloat(avg.toFixed(2)), { shouldValidate: true, shouldDirty: true });
+    form.setValue('hourlyUsageProfile', Array(HOURS_IN_DAY).fill(avg), { shouldValidate: true, shouldDirty: true });
+  };
+
+  const applyAverageConsumption = () => {
+    const avgHourlyConsumption = form.getValues('avgHourlyConsumptionKWh');
+    if (avgHourlyConsumption === undefined || avgHourlyConsumption < 0) {
+        toast({ title: "Invalid Input", description: "Average hourly consumption must be 0 or greater to apply.", variant: "destructive" });
+        return;
+    }
+    form.setValue('hourlyUsageProfile', Array(HOURS_IN_DAY).fill(avgHourlyConsumption), { shouldValidate: true, shouldDirty: true });
+    form.setValue('dailyConsumptionKWh', parseFloat((avgHourlyConsumption * HOURS_IN_DAY).toFixed(2)), { shouldValidate: true, shouldDirty: true });
+  };
+
+  const watchedHourlyProfile = form.watch('hourlyUsageProfile') || Array(HOURS_IN_DAY).fill(0);
+  const watchedAvgHourlyConsumption = form.watch('avgHourlyConsumptionKWh') || 0.4;
+  const sliderMax = Math.max(1, watchedAvgHourlyConsumption * 3, 0.5);
 
   if (!isMounted) {
     return (
@@ -680,39 +725,91 @@ export default function SettingsPage() {
               )}
             />
 
-            <div className="space-y-2 p-4 border rounded-md bg-muted/50">
-                <h3 className="text-lg font-medium mb-2">Consumption Estimates (Optional)</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   <FormField
+            <div className="space-y-4 p-4 border rounded-md bg-muted/50">
+                <h3 className="text-lg font-medium">Consumption Estimates (Optional)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <FormField
                       control={form.control}
                       name="dailyConsumptionKWh"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Avg. Daily Consumption (kWh)</FormLabel>
+                          <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.1" placeholder="e.g., 10.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                            <Input type="number" step="0.1" placeholder="e.g., 10.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs" />
                           </FormControl>
-                           <FormDescription>Your typical daily household energy usage.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                   <FormField
+                    <Button type="button" variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
+                        Distribute Evenly to Hourly
+                    </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <FormField
                       control={form.control}
                       name="avgHourlyConsumptionKWh"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Avg. Hourly Consumption (kWh)</FormLabel>
+                          <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.1" placeholder="e.g., 0.4" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                            <Input type="number" step="0.1" placeholder="e.g., 0.4" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs"/>
                           </FormControl>
-                          <FormDescription>Average energy used per hour (can be estimated from daily).</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                     <Button type="button" variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
+                        Apply Average to All Hours
+                    </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Providing these helps refine charging advice on the Advisory page. They are not directly used for solar generation forecast.</p>
+
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="hourly-consumption-profile">
+                    <AccordionTrigger>
+                      <Label className="flex items-center gap-2 text-base font-semibold">
+                        Adjust Hourly Consumption Profile (kWh)
+                      </Label>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="pt-2 space-y-3">
+                        <p className="text-xs text-muted-foreground">Fine-tune expected usage per hour. Total daily consumption updates automatically when sliders are used.</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
+                          {watchedHourlyProfile.map((usage, index) => (
+                            <div key={index} className="space-y-1">
+                              <Label
+                                htmlFor={`hour-profile-${index}`}
+                                className={cn(
+                                  "text-xs",
+                                  currentHour === index ? 'text-primary font-semibold' : 'text-muted-foreground'
+                                )}
+                              >
+                                {`${index.toString().padStart(2, '0')}:00`}
+                                {currentHour === index ? ' (Now)' : ''}
+                              </Label>
+                              <div className="flex items-center gap-2">
+                                <Slider
+                                  id={`hour-profile-${index}`}
+                                  min={0}
+                                  max={sliderMax}
+                                  step={0.1}
+                                  value={[usage]}
+                                  onValueChange={(value) => handleHourlySliderChange(index, value)}
+                                  className="flex-grow"
+                                  aria-label={`Hourly consumption slider for hour ${index}`}
+                                />
+                                <span className="text-xs font-mono w-8 text-right">{usage.toFixed(1)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+                <FormDescription>
+                    Providing these helps refine charging advice on the Advisory page. They are not directly used for solar generation forecast but are saved with your settings.
+                </FormDescription>
             </div>
 
 
@@ -792,3 +889,4 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
+
