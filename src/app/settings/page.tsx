@@ -253,7 +253,12 @@ export default function SettingsPage() {
          selectedWeatherSource: storedSettings.selectedWeatherSource || 'manual',
        });
        setCurrentInputMode(storedSettings.inputMode || 'Panels');
-       if (storedSettings.location) {
+       if (storedSettings.location && storedSettings.latitude && storedSettings.longitude) {
+          // If full location data exists, try to find it in address list (in case of postcode lookup)
+          // Or, just set it as the selected value if it's a manual entry.
+          const matchingAddress = addresses.find(addr => addr.lat === storedSettings.latitude && addr.lng === storedSettings.longitude);
+          setSelectedAddressValue(matchingAddress ? matchingAddress.place_id.toString() : storedSettings.location);
+       } else if (storedSettings.location) {
          setSelectedAddressValue(storedSettings.location); 
        } else {
           setSelectedAddressValue(undefined);
@@ -287,12 +292,12 @@ export default function SettingsPage() {
        setSelectedAddressValue(undefined);
        setSelectedDirectionInfo(propertyDirectionOptions[0]);
      }
-   }, [storedSettings, form, isMounted]);
+   }, [storedSettings, form, isMounted, addresses]);
 
 
    useEffect(() => {
        setAddresses([]);
-       setSelectedAddressValue(undefined);
+       // Don't reset selectedAddressValue here to allow persistence from storedSettings
        setLookupError(null);
    }, [postcode]);
 
@@ -767,7 +772,7 @@ export default function SettingsPage() {
                 <Accordion type="single" collapsible className="w-full">
                   <AccordionItem value="hourly-consumption-profile">
                     <AccordionTrigger>
-                      <Label className="flex items-center gap-2 text-base font-semibold">
+                      <Label className="flex items-center gap-2 text-base font-semibold cursor-pointer">
                         Adjust Hourly Consumption Profile (kWh)
                       </Label>
                     </AccordionTrigger>
@@ -835,55 +840,63 @@ export default function SettingsPage() {
     </Card>
 
     <Card>
-      <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
-          </CardTitle>
-          <CardDescription>
-            Adjust the relative generation factor for each month (e.g., 1.0 for average, 0.75 for 75% of average).
-            The current month ({format(new Date(), "MMMM")}) is highlighted. Default values are estimates.
-          </CardDescription>
-      </CardHeader>
-      <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {monthNames.map((monthName, index) => (
-                  <FormField
-                    key={monthName}
-                    control={form.control}
-                    name={`monthlyGenerationFactors.${index}` as `monthlyGenerationFactors.${number}`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className={index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
-                          {monthName} Factor
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="2"
-                            placeholder="e.g., 1.0"
-                            {...field}
-                            value={field.value ?? ''}
-                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
-              </div>
-              <FormDescription>
-                These factors adjust the baseline solar generation estimate for seasonality.
-                A factor of 1.0 means average generation for that month, 0.5 means 50%, 1.2 means 120%.
-              </FormDescription>
-              <Button type="submit" className="btn-silver w-full sm:w-auto">Save Monthly Factors</Button>
-            </form>
-          </Form>
-      </CardContent>
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="monthly-efficiency">
+          <AccordionTrigger className="px-6 py-3 hover:no-underline">
+            <div className="flex-1">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                  <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
+              </CardTitle>
+              <CardDescription className="text-left mt-1">
+                Adjust the relative generation factor for each month. Default values are estimates.
+                Current month: {format(new Date(), "MMMM")}.
+              </CardDescription>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <CardContent className="pt-2"> {/* Adjusted padding for content within accordion */}
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {monthNames.map((monthName, index) => (
+                      <FormField
+                        key={monthName}
+                        control={form.control}
+                        name={`monthlyGenerationFactors.${index}` as `monthlyGenerationFactors.${number}`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
+                              {monthName} Factor
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="2"
+                                placeholder="e.g., 1.0"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <FormDescription>
+                    These factors adjust the baseline solar generation estimate for seasonality.
+                    A factor of 1.0 means average generation for that month, 0.5 means 50%, 1.2 means 120%.
+                  </FormDescription>
+                  <Button type="submit" className="btn-silver w-full sm:w-auto">Save Monthly Factors</Button>
+                </form>
+              </Form>
+            </CardContent>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </Card>
     </div>
     </TooltipProvider>
