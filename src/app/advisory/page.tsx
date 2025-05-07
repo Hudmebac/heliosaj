@@ -191,7 +191,7 @@ export default function AdvisoryPage() {
          };
 
         try {
-            if (!todayCalculated || todayCalculated.errorMessage) throw new Error(todayCalculated?.errorMessage || "Today's solar forecast could not be calculated.");
+            if (!todayCalculated || todayCalculated.errorMessage || !todayCalculated.hourlyForecast) throw new Error(todayCalculated?.errorMessage || "Today's solar forecast could not be calculated or hourly data missing.");
             const todayParams: ChargingAdviceParams = {
                 forecast: todayCalculated,
                 settings: settings,
@@ -213,14 +213,14 @@ export default function AdvisoryPage() {
         }
 
         try {
-             if (!tomorrowCalculated || tomorrowCalculated.errorMessage) throw new Error(tomorrowCalculated?.errorMessage || "Tomorrow's solar forecast could not be calculated.");
+             if (!tomorrowCalculated || tomorrowCalculated.errorMessage || !tomorrowCalculated.hourlyForecast) throw new Error(tomorrowCalculated?.errorMessage || "Tomorrow's solar forecast could not be calculated or hourly data missing.");
             const overnightParams: ChargingAdviceParams = {
                 forecast: tomorrowCalculated, 
                 settings: settings,
                 tariffPeriods: tariffPeriods,
                 currentBatteryLevelKWh: currentBatteryLevel, 
                 hourlyConsumptionProfile: hourlyUsage, 
-                currentHour: currentHour, // For overnight, currentHour represents when planning starts (e.g., evening before)
+                currentHour: currentHour, 
                 evNeeds: evNeeds,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -234,9 +234,9 @@ export default function AdvisoryPage() {
              setTomorrowAdvice(null);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ // Added all dependencies that generateAdvice relies on
+    }, [ 
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
-        manualForecast, refreshForecastDates, // refreshForecastDates is stable due to useCallback
+        manualForecast, refreshForecastDates, 
         evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent
     ]);
 
@@ -422,8 +422,8 @@ export default function AdvisoryPage() {
              <HowToInfo pageKey="advisory" />
              <Button
                 onClick={() => {
-                    refreshForecastDates(); // This will trigger a re-calculation via useEffect
-                    generateAdvice(); // Explicitly call to re-generate advice with current state
+                    refreshForecastDates(); 
+                    generateAdvice(); 
                     toast({title: "Refreshing Advice", description: "Updating advice based on latest data."});
                 }}
                 disabled={!isMounted || !settings}
@@ -446,6 +446,8 @@ export default function AdvisoryPage() {
                     <DialogDescription>
                       Input sunrise, sunset, and weather conditions for today and tomorrow.
                       Or, select a city to pre-fill approximate sunrise/sunset times.
+                      For general weather conditions, you can refer to sites like {' '}
+                       <a href="https://weather.com/en-GB/weather/today" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">weather.com</a>.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-6 py-4">

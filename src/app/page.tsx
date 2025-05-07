@@ -312,6 +312,8 @@ export default function HomePage() {
                     <DialogDescription>
                       Input sunrise, sunset, and weather conditions for today and tomorrow.
                       Or, select a city to pre-fill approximate sunrise/sunset times.
+                      For general weather conditions, you can refer to sites like {' '}
+                      <a href="https://weather.com/en-GB/weather/today" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">weather.com</a>.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-6 py-4">
