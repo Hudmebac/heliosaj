@@ -79,6 +79,42 @@ body {
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  .high-contrast {
+    /* High Contrast Theme */
+    --background: 0 0% 0%; /* Black */
+    --foreground: 0 0% 100%; /* White */
+    --card: 0 0% 5%; /* Very dark grey */
+    --card-foreground: 0 0% 95%; /* Near white */
+    --popover: 0 0% 0%; /* Black */
+    --popover-foreground: 0 0% 100%; /* White */
+    --primary: 60 100% 50%; /* Bright Yellow */
+    --primary-foreground: 0 0% 0%; /* Black text on Yellow */
+    --secondary: 0 0% 10%; /* Dark Grey (consistent with dark theme secondary) */
+    --secondary-foreground: 0 0% 90%; /* Light Grey (consistent with dark theme secondary) */
+    --muted: 0 0% 20%; /* Darker grey, but distinct */
+    --muted-foreground: 0 0% 80%; /* Lighter grey for contrast */
+    --accent: 180 100% 50%; /* Bright Cyan */
+    --accent-foreground: 0 0% 0%; /* Black text on Cyan */
+    --destructive: 0 100% 50%; /* Bright Red */
+    --destructive-foreground: 0 0% 0%; /* Black */
+    --border: 0 0% 50%; /* Clearly visible grey border */
+    --input: 0 0% 10%; /* Dark grey input background */
+    --ring: 60 100% 50%; /* Bright Yellow for focus rings */
+    --chart-1: 60 100% 50%; /* Yellow */
+    --chart-2: 180 100% 50%; /* Cyan */
+    --chart-3: 300 100% 50%; /* Magenta */
+    --chart-4: 120 100% 50%; /* Green */
+    --chart-5: 30 100% 50%; /* Orange (distinct from primary yellow) */
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 0 0% 97%;
+    --sidebar-primary: 60 100% 50%; /* Yellow */
+    --sidebar-primary-foreground: 0 0% 0%; /* Black */
+    --sidebar-accent: 180 100% 50%; /* Cyan */
+    --sidebar-accent-foreground: 0 0% 0%; /* Black */
+    --sidebar-border: 0 0% 30%;
+    --sidebar-ring: 60 100% 50%; /* Yellow */
+  }
 }
 
 @layer base {
