@@ -23,6 +23,7 @@ export interface UserSettings {
 
   monthlyGenerationFactors?: number[]; // Array of 12 numbers, one for each month (0=Jan, 11=Dec)
   selectedWeatherSource?: string; // ID of the selected weather source
+  preferredOvernightBatteryChargePercent?: number; // Percentage (0-100) for target overnight charge
 }
 
 export interface TariffPeriod {

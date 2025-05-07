@@ -15,7 +15,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
@@ -164,6 +164,7 @@ const settingsSchema = z.object({
   panelWatts: z.coerce.number().int().positive().optional(),
   totalKWp: z.coerce.number().positive().optional(),
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
+  preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
   systemEfficiency: z.coerce.number().min(0).max(1).optional(), // 0.0 to 1.0
   dailyConsumptionKWh: z.coerce.number().positive().optional(),
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
@@ -223,6 +224,7 @@ export default function SettingsPage() {
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
       monthlyGenerationFactors: [...defaultMonthlyFactors],
+      preferredOvernightBatteryChargePercent: 100,
     },
     mode: 'onChange',
   });
@@ -251,11 +253,10 @@ export default function SettingsPage() {
          monthlyGenerationFactors: factorsToSet,
          hourlyUsageProfile: hourlyProfileToSet,
          selectedWeatherSource: storedSettings.selectedWeatherSource || 'manual',
+         preferredOvernightBatteryChargePercent: storedSettings.preferredOvernightBatteryChargePercent ?? 100,
        });
        setCurrentInputMode(storedSettings.inputMode || 'Panels');
        if (storedSettings.location && storedSettings.latitude && storedSettings.longitude) {
-          // If full location data exists, try to find it in address list (in case of postcode lookup)
-          // Or, just set it as the selected value if it's a manual entry.
           const matchingAddress = addresses.find(addr => addr.lat === storedSettings.latitude && addr.lng === storedSettings.longitude);
           setSelectedAddressValue(matchingAddress ? matchingAddress.place_id.toString() : storedSettings.location);
        } else if (storedSettings.location) {
@@ -287,6 +288,7 @@ export default function SettingsPage() {
          evChargeByTime: '07:00',
          evMaxChargeRateKWh: 7.5,
          monthlyGenerationFactors: [...defaultMonthlyFactors],
+         preferredOvernightBatteryChargePercent: 100,
        });
        setCurrentInputMode('Panels');
        setSelectedAddressValue(undefined);
@@ -297,7 +299,6 @@ export default function SettingsPage() {
 
    useEffect(() => {
        setAddresses([]);
-       // Don't reset selectedAddressValue here to allow persistence from storedSettings
        setLookupError(null);
    }, [postcode]);
 
@@ -316,7 +317,8 @@ export default function SettingsPage() {
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
         'batteryCapacityKWh', 'systemEfficiency', 'dailyConsumptionKWh',
-        'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh', 'propertyDirectionFactor'
+        'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh', 
+        'propertyDirectionFactor', 'preferredOvernightBatteryChargePercent'
     ];
     numericFields.forEach(field => {
        if (saveData[field] === '' || saveData[field] === null || isNaN(Number(saveData[field]))) {
@@ -345,12 +347,11 @@ export default function SettingsPage() {
         saveData.hourlyUsageProfile = Array(HOURS_IN_DAY).fill(saveData.avgHourlyConsumptionKWh || 0.4);
     }
 
-
-    // Ensure propertyDirectionFactor is set from the selectedDirectionInfo if not directly from form
     if (selectedDirectionInfo && data.propertyDirection === selectedDirectionInfo.value) {
         saveData.propertyDirectionFactor = selectedDirectionInfo.factor;
     }
     saveData.selectedWeatherSource = data.selectedWeatherSource || 'manual';
+    saveData.preferredOvernightBatteryChargePercent = data.preferredOvernightBatteryChargePercent ?? 100;
 
 
     setStoredSettings(saveData);
@@ -368,8 +369,8 @@ export default function SettingsPage() {
     setLookupLoading(true);
     setLookupError(null);
     setAddresses([]);
-    setSelectedAddressValue(undefined); // Use place_id for value
-    form.setValue('location', ''); // Clear manual location if doing lookup
+    setSelectedAddressValue(undefined); 
+    form.setValue('location', ''); 
     form.setValue('latitude', undefined);
     form.setValue('longitude', undefined);
 
@@ -387,7 +388,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAddressSelect = (selectedValue: string) => { // selectedValue is place_id as string
+  const handleAddressSelect = (selectedValue: string) => { 
       const selectedData = addresses.find(addr => addr.place_id.toString() === selectedValue);
       if (selectedData) {
         setSelectedAddressValue(selectedData.place_id.toString());
@@ -515,7 +516,7 @@ export default function SettingsPage() {
                     <div className="space-y-1 mt-2">
                        <Label htmlFor="addressSelect">Select Address</Label>
                       <Select
-                         value={selectedAddressValue} // Should be the place_id string
+                         value={selectedAddressValue} 
                          onValueChange={handleAddressSelect}
                          aria-label="Select an address from the lookup results"
                        >
@@ -590,7 +591,7 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <FormLabel>Property/Panel Direction</FormLabel>
                     <Tooltip>
-                      <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}> {/* Prevent form submission */}
+                      <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}> 
                          <HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-xs">
@@ -606,10 +607,10 @@ export default function SettingsPage() {
                   </div>
                    <Select
                         onValueChange={(value) => {
-                           handleDirectionChange(value); // This will set field.value and factor
-                           field.onChange(value); // Ensure RHF knows value changed
+                           handleDirectionChange(value); 
+                           field.onChange(value); 
                         }}
-                        value={field.value} // Use field.value for RHF controlled component
+                        value={field.value} 
                         defaultValue={propertyDirectionOptions[0].value}
                     >
                     <FormControl>
@@ -644,7 +645,7 @@ export default function SettingsPage() {
                           field.onChange(value);
                           setCurrentInputMode(value as 'Panels' | 'TotalPower');
                         }}
-                        value={field.value} // Ensure RHF controls this
+                        value={field.value} 
                         defaultValue={currentInputMode}
                         className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-4"
                       >
@@ -715,20 +716,37 @@ export default function SettingsPage() {
               />
             )}
 
-            <FormField
-              control={form.control}
-              name="batteryCapacityKWh"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Battery Storage Capacity (kWh, Optional)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.1" placeholder="e.g., 19" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
-                  </FormControl>
-                  <FormDescription>Total usable capacity of your battery system. Leave blank if no battery.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="batteryCapacityKWh"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1"><BatteryChargingIcon className="h-4 w-4"/>Battery Capacity (kWh)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.1" placeholder="e.g., 19" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                      </FormControl>
+                      <FormDescription>Total usable capacity of your battery system. Leave blank if no battery.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="preferredOvernightBatteryChargePercent"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Preferred Overnight Battery Target (%)</FormLabel>
+                            <FormControl>
+                                <Input type="number" step="1" min="0" max="100" placeholder="e.g., 90" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                            </FormControl>
+                            <FormDescription>Target charge level for overnight charging (0-100%). Default 100%.</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
+
 
             <div className="space-y-4 p-4 border rounded-md bg-muted/50">
                 <h3 className="text-lg font-medium">Consumption Estimates (Optional)</h3>
@@ -854,7 +872,7 @@ export default function SettingsPage() {
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <CardContent className="pt-2"> {/* Adjusted padding for content within accordion */}
+            <CardContent className="pt-2"> 
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, RefreshCw, Percent, Edit3, HelpCircle } from 'lucide-react';
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, RefreshCw, Percent, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon } from 'lucide-react';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
@@ -23,8 +23,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { HowToInfo } from '@/components/how-to-info';
 
 const HOURS_IN_DAY = 24;
-const DEFAULT_BATTERY_MAX = 100; // Used as a fallback if settings.batteryCapacityKWh is not set
-const DEFAULT_EV_MAX_CHARGE_RATE = 7.5; // Default EV charge rate in kW
+const DEFAULT_BATTERY_MAX = 100; 
+const DEFAULT_EV_MAX_CHARGE_RATE = 7.5; 
 
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -44,6 +44,8 @@ export default function AdvisoryPage() {
     const [hourlyUsage, setHourlyUsage] = useState<number[]>(() => Array(HOURS_IN_DAY).fill(0.4));
     const [dailyConsumption, setDailyConsumption] = useState<number>(10);
     const [avgHourlyConsumption, setAvgHourlyConsumption] = useState<number>(0.4);
+    const [preferredOvernightBatteryChargePercent, setPreferredOvernightBatteryChargePercent] = useState<number>(100);
+
 
     const [evChargeRequiredKWh, setEvChargeRequiredKWh] = useState<number>(0);
     const [evChargeByTime, setEvChargeByTime] = useState<string>('07:00');
@@ -62,10 +64,10 @@ export default function AdvisoryPage() {
         setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
         const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
         setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
-        // If hourlyUsage is saved in settings (and is valid), use it, otherwise initialize based on avg.
+        
         if (settings.hourlyUsageProfile && settings.hourlyUsageProfile.length === HOURS_IN_DAY) {
             setHourlyUsage(settings.hourlyUsageProfile);
-        } else if (hourlyUsage.every(val => val === 0.4)) { // Only set if still default
+        } else if (hourlyUsage.every(val => val === 0.4)) { 
              setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
         }
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
@@ -74,6 +76,8 @@ export default function AdvisoryPage() {
         const lastKnown = settings.lastKnownBatteryLevelKWh;
         const batteryCapacity = settings.batteryCapacityKWh ?? 0;
         setCurrentBatteryLevel(lastKnown !== undefined && lastKnown !== null && batteryCapacity > 0 ? Math.max(0, Math.min(batteryCapacity, lastKnown)) : 0);
+        setPreferredOvernightBatteryChargePercent(settings.preferredOvernightBatteryChargePercent ?? 100);
+
       } else {
         setDailyConsumption(10);
         setAvgHourlyConsumption(0.4);
@@ -82,6 +86,7 @@ export default function AdvisoryPage() {
         setEvChargeRequiredKWh(0);
         setEvChargeByTime('07:00');
         setEvMaxChargeRateKWh(DEFAULT_EV_MAX_CHARGE_RATE);
+        setPreferredOvernightBatteryChargePercent(100);
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [settings, isMounted]);
@@ -112,13 +117,14 @@ export default function AdvisoryPage() {
                    lastKnownBatteryLevelKWh: currentBatteryLevel,
                    dailyConsumptionKWh: dailyConsumption,
                    avgHourlyConsumptionKWh: avgHourlyConsumption,
-                   hourlyUsageProfile: hourlyUsage, // Save the full hourly profile
+                   hourlyUsageProfile: hourlyUsage, 
+                   preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
                }));
-           }, 1000); // Debounce saving
+           }, 1000); 
            return () => clearTimeout(handler);
        }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, isMounted, /* settings object itself not needed here */ setSettings]);
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted, setSettings]);
 
     const handleSliderChange = (index: number, value: number[]) => {
       const newHourlyUsage = [...hourlyUsage];
@@ -139,7 +145,7 @@ export default function AdvisoryPage() {
     };
 
     const applyAverageConsumption = () => {
-      if (avgHourlyConsumption <0) { // Allow 0 for avgHourlyConsumption
+      if (avgHourlyConsumption <0) { 
          toast({title: "Invalid Input", description:"Average hourly consumption must be 0 or greater to apply.", variant: "destructive"});
          return;
       }
@@ -164,12 +170,10 @@ export default function AdvisoryPage() {
             return;
         }
 
-        // Ensure manualForecast has valid dates before calculating
         const todayDateStr = format(new Date(), 'yyyy-MM-dd');
         const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
         if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-            // console.warn("Advisory: Manual forecast dates are stale, waiting for update from useManualForecast hook.");
             return;
         }
 
@@ -196,6 +200,7 @@ export default function AdvisoryPage() {
                 currentHour: currentHour,
                 evNeeds: evNeeds,
                 adviceType: 'today',
+                preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
             };
             const todayGeneratedAdvice = getChargingAdvice(todayParams);
             if (!todayGeneratedAdvice) throw new Error("Failed to generate today's advice.");
@@ -209,14 +214,15 @@ export default function AdvisoryPage() {
         try {
              if (!tomorrowCalculated) throw new Error("Tomorrow's solar forecast could not be calculated.");
             const overnightParams: ChargingAdviceParams = {
-                forecast: tomorrowCalculated, // Use tomorrow's forecast for overnight advice
+                forecast: tomorrowCalculated, 
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel, // Base overnight on current battery
-                hourlyConsumptionProfile: hourlyUsage, // Use the same profile for planning
-                currentHour: currentHour, // Pass current hour to help determine start of "overnight" window
+                currentBatteryLevelKWh: currentBatteryLevel, 
+                hourlyConsumptionProfile: hourlyUsage, 
+                currentHour: currentHour, 
                 evNeeds: evNeeds,
                 adviceType: 'overnight',
+                preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
             };
             const tomorrowGeneratedAdvice = getChargingAdvice(overnightParams);
             if (!tomorrowGeneratedAdvice) throw new Error("Failed to generate tomorrow's advice.");
@@ -229,7 +235,7 @@ export default function AdvisoryPage() {
     }, [
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
         manualForecast,
-        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh
+        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent
     ]);
 
     const handleForecastModalSave = () => {
@@ -243,7 +249,7 @@ export default function AdvisoryPage() {
         });
         return;
       }
-      setManualForecast(editableForecast); // This triggers re-calculation in useEffect
+      setManualForecast(editableForecast); 
       setIsForecastModalOpen(false);
       toast({
         title: "Forecast Updated",
@@ -279,9 +285,9 @@ export default function AdvisoryPage() {
 
    const renderAdviceCard = (advice: ChargingAdvice | null, title: string, description: string, icon?: React.ReactNode) => {
      if (!isMounted) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;
-     if (!settings) return null; // Main settings alert will cover this
+     if (!settings) return null; 
 
-     const errorKey = title.split(':')[0].toLowerCase(); // e.g., "today's recommendation" -> "today's recommendation"
+     const errorKey = title.split(':')[0].toLowerCase(); 
      const relevantError = adviceError?.split('\n').find(line => line.toLowerCase().includes(errorKey));
 
 
@@ -333,9 +339,9 @@ export default function AdvisoryPage() {
             <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Alert className="border-none p-0"> {/* Removed border for nested Alert, added padding to CardContent */}
+            <Alert className="border-none p-0"> 
               <RecommendationIcon className={`h-5 w-5 ${advice.recommendChargeNow || advice.recommendChargeLater ? 'text-primary' : 'text-muted-foreground'}`} />
-             <AlertTitle className="ml-7 font-semibold">{/* Title moved to CardHeader */}</AlertTitle>
+             <AlertTitle className="ml-7 font-semibold"></AlertTitle>
              <AlertDescription className="ml-7">
                {advice.reason}
                {advice.details && <span className="block mt-1 text-xs text-muted-foreground">{advice.details}</span>}
@@ -475,7 +481,6 @@ export default function AdvisoryPage() {
              </Alert>
         )}
 
-      {/* Recommendations Section - Moved to Top */}
       {isMounted && settings && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
            {renderAdviceCard(todayAdvice, "Today's Recommendation", "Based on current conditions and today's manual forecast.", <Sun className="h-5 w-5" />)}
@@ -500,7 +505,7 @@ export default function AdvisoryPage() {
                type="number"
                step="0.1"
                min="0"
-               max={batteryMaxInput > 0 ? batteryMaxInput : undefined} // Only set max if capacity is known and > 0
+               max={batteryMaxInput > 0 ? batteryMaxInput : undefined} 
                value={currentBatteryLevel}
                onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput > 0 ? batteryMaxInput : Infinity, parseFloat(e.target.value) || 0)))}
                placeholder="e.g., 5.2"
@@ -514,6 +519,35 @@ export default function AdvisoryPage() {
                   <p className="text-xs text-muted-foreground">{isMounted ? '(Set Battery Capacity in Settings to see %)' : ''}</p>
               )}
            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="preferredOvernightCharge" className="flex items-center gap-2">
+                <BatteryChargingIcon className="h-4 w-4" /> Preferred Overnight Battery Target
+              </Label>
+              <div className="flex items-center gap-4 max-w-md">
+                <Slider
+                  id="preferredOvernightCharge"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={[preferredOvernightBatteryChargePercent]}
+                  onValueChange={(value) => setPreferredOvernightBatteryChargePercent(value[0])}
+                  className="flex-grow"
+                  aria-label="Preferred overnight battery charge percentage"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={preferredOvernightBatteryChargePercent}
+                  onChange={(e) => setPreferredOvernightBatteryChargePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                  className="w-20"
+                />
+                <span className="text-sm">%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Set how full you want your battery by morning (0-100%). Default is 100%.</p>
+            </div>
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                 <div className="space-y-2">
@@ -702,3 +736,4 @@ export default function AdvisoryPage() {
      </div>
    );
  }
+
