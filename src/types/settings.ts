@@ -13,6 +13,7 @@ export interface UserSettings {
   systemEfficiency?: number; // Optional: 0 to 1 (e.g., 0.85 for 85%) - defaults can be used if not set
   dailyConsumptionKWh?: number; // Optional: Average daily household energy consumption
   avgHourlyConsumptionKWh?: number; // Optional: Average hourly household energy consumption
+  hourlyUsageProfile?: number[]; // Optional: Array of 24 numbers for hourly consumption
 
   // EV Charging Preferences
   evChargeRequiredKWh?: number; // How much energy the car needs

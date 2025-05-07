@@ -62,7 +62,10 @@ export default function AdvisoryPage() {
         setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
         const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
         setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
-        if (hourlyUsage.every(val => val === 0.4)) { // Only set if still default
+        // If hourlyUsage is saved in settings (and is valid), use it, otherwise initialize based on avg.
+        if (settings.hourlyUsageProfile && settings.hourlyUsageProfile.length === HOURS_IN_DAY) {
+            setHourlyUsage(settings.hourlyUsageProfile);
+        } else if (hourlyUsage.every(val => val === 0.4)) { // Only set if still default
              setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
         }
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
@@ -81,7 +84,7 @@ export default function AdvisoryPage() {
         setEvMaxChargeRateKWh(DEFAULT_EV_MAX_CHARGE_RATE);
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [settings, isMounted]); // Removed hourlyUsage from deps to avoid re-init on every slider change
+    }, [settings, isMounted]);
 
     useEffect(() => {
       setEditableForecast(manualForecast);
@@ -106,18 +109,16 @@ export default function AdvisoryPage() {
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
-                   lastKnownBatteryLevelKWh: currentBatteryLevel, // Save current battery level
-                   // Save consumption preferences too
+                   lastKnownBatteryLevelKWh: currentBatteryLevel,
                    dailyConsumptionKWh: dailyConsumption,
                    avgHourlyConsumptionKWh: avgHourlyConsumption,
-                   // Note: Saving full hourlyUsage profile to localStorage might be too much / too frequent.
-                   // Consider if this level of persistence is needed or if daily/avg is enough.
+                   hourlyUsageProfile: hourlyUsage, // Save the full hourly profile
                }));
            }, 1000); // Debounce saving
            return () => clearTimeout(handler);
        }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, isMounted, /* settings object itself not needed here */ setSettings]);
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, isMounted, /* settings object itself not needed here */ setSettings]);
 
     const handleSliderChange = (index: number, value: number[]) => {
       const newHourlyUsage = [...hourlyUsage];
@@ -128,12 +129,20 @@ export default function AdvisoryPage() {
     };
 
     const distributeDailyConsumption = () => {
+      if (dailyConsumption <=0) {
+         toast({title: "Invalid Input", description:"Daily consumption must be greater than 0 to distribute.", variant: "destructive"});
+         return;
+      }
       const avg = dailyConsumption / HOURS_IN_DAY;
       setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
       setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
     };
 
     const applyAverageConsumption = () => {
+      if (avgHourlyConsumption <0) { // Allow 0 for avgHourlyConsumption
+         toast({title: "Invalid Input", description:"Average hourly consumption must be 0 or greater to apply.", variant: "destructive"});
+         return;
+      }
       setHourlyUsage(Array(HOURS_IN_DAY).fill(avgHourlyConsumption));
       setDailyConsumption(parseFloat((avgHourlyConsumption * HOURS_IN_DAY).toFixed(2)));
     };
@@ -550,7 +559,7 @@ export default function AdvisoryPage() {
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="hourly-consumption">
                 <AccordionTrigger>
-                  <Label className="flex items-center gap-2 text-base">
+                  <Label className="flex items-center gap-2 text-base font-semibold">
                     Adjust Hourly Consumption Profile (kWh)
                   </Label>
                 </AccordionTrigger>

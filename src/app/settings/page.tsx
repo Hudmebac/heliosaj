@@ -165,6 +165,7 @@ const settingsSchema = z.object({
   systemEfficiency: z.coerce.number().min(0).max(1).optional(), // 0.0 to 1.0
   dailyConsumptionKWh: z.coerce.number().positive().optional(),
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
+  hourlyUsageProfile: z.array(z.coerce.number().nonnegative()).length(24).optional(),
   selectedWeatherSource: z.string().optional(),
   evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
   evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
@@ -192,7 +193,7 @@ const settingsSchema = z.object({
 export default function SettingsPage() {
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const { toast } = useToast();
-  const [currentInputMode, setCurrentInputMode] = useState<'Panels' | 'TotalPower'>(storedSettings?.inputMode || 'Panels');
+  const [currentInputMode, setCurrentInputMode] = useState<'Panels' | 'TotalPower'>('Panels');
   const [postcode, setPostcode] = useState<string>('');
   const [addresses, setAddresses] = useState<AddressLookupResult[]>([]);
   const [lookupLoading, setLookupLoading] = useState<boolean>(false);
@@ -204,7 +205,7 @@ export default function SettingsPage() {
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
-    defaultValues: storedSettings || {
+    defaultValues: {
       location: '',
       propertyDirection: propertyDirectionOptions[0].value, // Default to South
       propertyDirectionFactor: propertyDirectionOptions[0].factor,
@@ -215,6 +216,7 @@ export default function SettingsPage() {
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
       monthlyGenerationFactors: [...defaultMonthlyFactors],
+      hourlyUsageProfile: Array(24).fill(0.4), // Default hourly usage
     },
     mode: 'onChange',
   });
@@ -228,25 +230,27 @@ export default function SettingsPage() {
       const factorsToSet = storedSettings.monthlyGenerationFactors && storedSettings.monthlyGenerationFactors.length === 12
         ? storedSettings.monthlyGenerationFactors
         : [...defaultMonthlyFactors];
+      
+      const hourlyProfileToSet = storedSettings.hourlyUsageProfile && storedSettings.hourlyUsageProfile.length === 24
+        ? storedSettings.hourlyUsageProfile
+        : Array(24).fill(storedSettings.avgHourlyConsumptionKWh || 0.4);
 
        form.reset({
          ...storedSettings,
          monthlyGenerationFactors: factorsToSet,
+         hourlyUsageProfile: hourlyProfileToSet,
          selectedWeatherSource: storedSettings.selectedWeatherSource || 'manual',
        });
-       if(storedSettings.inputMode) {
-         setCurrentInputMode(storedSettings.inputMode);
-       }
+       setCurrentInputMode(storedSettings.inputMode || 'Panels');
        if (storedSettings.location) {
-         setSelectedAddressValue(storedSettings.location); // This might need adjustment if 'location' is not 'place_id'
+         setSelectedAddressValue(storedSettings.location); 
        } else {
           setSelectedAddressValue(undefined);
        }
-       // Set selectedDirectionInfo based on stored propertyDirection
         const currentDirection = propertyDirectionOptions.find(opt => opt.value === storedSettings.propertyDirection);
         setSelectedDirectionInfo(currentDirection || propertyDirectionOptions[0]);
 
-     } else if (isMounted) { // No stored settings, set initial defaults
+     } else if (isMounted) { 
         form.reset({
          location: '',
          latitude: undefined,
@@ -262,11 +266,13 @@ export default function SettingsPage() {
          selectedWeatherSource: 'manual',
          dailyConsumptionKWh: undefined,
          avgHourlyConsumptionKWh: undefined,
+         hourlyUsageProfile: Array(24).fill(0.4),
          evChargeRequiredKWh: 0,
          evChargeByTime: '07:00',
          evMaxChargeRateKWh: 7.5,
          monthlyGenerationFactors: [...defaultMonthlyFactors],
        });
+       setCurrentInputMode('Panels');
        setSelectedAddressValue(undefined);
        setSelectedDirectionInfo(propertyDirectionOptions[0]);
      }
@@ -314,6 +320,16 @@ export default function SettingsPage() {
     } else {
         saveData.monthlyGenerationFactors = [...defaultMonthlyFactors];
     }
+
+    if (saveData.hourlyUsageProfile) {
+        saveData.hourlyUsageProfile = saveData.hourlyUsageProfile.map(usage => 
+            (usage === null || usage === undefined || isNaN(Number(usage))) ? 0 : Number(usage)
+        );
+    } else {
+        saveData.hourlyUsageProfile = Array(24).fill(saveData.avgHourlyConsumptionKWh || 0.4);
+    }
+
+
     // Ensure propertyDirectionFactor is set from the selectedDirectionInfo if not directly from form
     if (selectedDirectionInfo && data.propertyDirection === selectedDirectionInfo.value) {
         saveData.propertyDirectionFactor = selectedDirectionInfo.factor;
@@ -776,4 +792,3 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
-
