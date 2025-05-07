@@ -29,7 +29,7 @@ const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
-    const [manualForecast, setManualForecast] = useManualForecast();
+    const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
 
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
     const [todayAdvice, setTodayAdvice] = useState<ChargingAdvice | null>(null);
@@ -58,7 +58,8 @@ export default function AdvisoryPage() {
 
     useEffect(() => {
       setIsMounted(true);
-      setCurrentHour(new Date().getHours());
+      const now = new Date();
+      setCurrentHour(now.getHours());
 
       if (settings) {
         setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
@@ -89,7 +90,7 @@ export default function AdvisoryPage() {
         setPreferredOvernightBatteryChargePercent(100);
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [settings, isMounted]);
+    }, [settings, isMounted]); // Removed hourlyUsage from deps to avoid re-init if settings don't have profile
 
     useEffect(() => {
       setEditableForecast(manualForecast);
@@ -174,6 +175,9 @@ export default function AdvisoryPage() {
         const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
         if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
+             // Dates in manualForecast might be stale, refresh them.
+             // This can happen if the page was loaded on a new day before refreshForecastDates runs.
+             refreshForecastDates(); // Trigger refresh, calculation will re-run when manualForecast updates.
             return;
         }
 
@@ -190,7 +194,7 @@ export default function AdvisoryPage() {
          };
 
         try {
-            if (!todayCalculated) throw new Error("Today's solar forecast could not be calculated.");
+            if (!todayCalculated || todayCalculated.errorMessage) throw new Error(todayCalculated?.errorMessage || "Today's solar forecast could not be calculated.");
             const todayParams: ChargingAdviceParams = {
                 forecast: todayCalculated,
                 settings: settings,
@@ -212,14 +216,14 @@ export default function AdvisoryPage() {
         }
 
         try {
-             if (!tomorrowCalculated) throw new Error("Tomorrow's solar forecast could not be calculated.");
+             if (!tomorrowCalculated || tomorrowCalculated.errorMessage) throw new Error(tomorrowCalculated?.errorMessage || "Tomorrow's solar forecast could not be calculated.");
             const overnightParams: ChargingAdviceParams = {
                 forecast: tomorrowCalculated, 
                 settings: settings,
                 tariffPeriods: tariffPeriods,
                 currentBatteryLevelKWh: currentBatteryLevel, 
                 hourlyConsumptionProfile: hourlyUsage, 
-                currentHour: currentHour, 
+                currentHour: currentHour, // For overnight, currentHour represents when planning starts (e.g., evening before)
                 evNeeds: evNeeds,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -235,7 +239,8 @@ export default function AdvisoryPage() {
     }, [
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
         manualForecast,
-        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent
+        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent,
+        refreshForecastDates // Add refreshForecastDates to dependencies
     ]);
 
     const handleForecastModalSave = () => {
@@ -245,6 +250,23 @@ export default function AdvisoryPage() {
         toast({
           title: "Invalid Time Format",
           description: "Please use HH:MM for sunrise and sunset times.",
+          variant: "destructive",
+        });
+        return;
+      }
+       // Validate sunrise is before sunset
+      if (editableForecast.today.sunrise >= editableForecast.today.sunset) {
+        toast({
+          title: "Invalid Times for Today",
+          description: "Sunrise time must be before sunset time for today.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (editableForecast.tomorrow.sunrise >= editableForecast.tomorrow.sunset) {
+        toast({
+          title: "Invalid Times for Tomorrow",
+          description: "Sunrise time must be before sunset time for tomorrow.",
           variant: "destructive",
         });
         return;
@@ -377,15 +399,37 @@ export default function AdvisoryPage() {
         return Math.round((currentBatteryLevel / settings.batteryCapacityKWh) * 100);
     }, [isMounted, settings?.batteryCapacityKWh, currentBatteryLevel]);
 
+   const displayGeneration = (forecast: CalculatedForecast | null) => {
+        if (!forecast) return 'Calculating...';
+        if (forecast.errorMessage) return `Error: ${forecast.errorMessage}`;
+        if (typeof forecast.dailyTotalGenerationKWh !== 'number' || isNaN(forecast.dailyTotalGenerationKWh)) {
+            return 'N/A';
+        }
+        const conditionText = forecast.weatherCondition ? forecast.weatherCondition.replace(/_/g, ' ') : 'N/A';
+        return `${forecast.dailyTotalGenerationKWh.toFixed(2)} kWh (${conditionText})`;
+    };
+
    return (
      <div className="space-y-6">
        <div className="flex justify-between items-center mb-6">
             <div>
                 <h1 className="text-3xl font-bold">Smart Charging Advisory</h1>
-                <p className="text-muted-foreground">Optimize battery & EV charging based on your manual forecast, tariffs, and consumption.</p>
+                <p className="text-muted-foreground">Optimize battery &amp; EV charging based on your manual forecast, tariffs, and consumption.</p>
             </div>
             <div className="flex items-center gap-2">
              <HowToInfo pageKey="advisory" />
+             <Button
+                onClick={() => {
+                    refreshForecastDates(); // This will trigger a re-calculation via useEffect
+                    toast({title: "Refreshing Advice", description: "Updating advice based on latest data."});
+                }}
+                disabled={!isMounted || !settings}
+                variant="outline"
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Advice & Dates
+              </Button>
              <Dialog open={isForecastModalOpen} onOpenChange={setIsForecastModalOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline" disabled={!isMounted || !settings}>
@@ -699,8 +743,8 @@ export default function AdvisoryPage() {
           <CardContent className="text-sm space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div>
-                     <p><strong>Today's Est. Generation:</strong> {todayForecastCalc ? `${todayForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${todayForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'Calculating...'}</p>
-                     <p><strong>Tomorrow's Est. Generation:</strong> {tomorrowForecastCalc ? `${tomorrowForecastCalc.dailyTotalGenerationKWh.toFixed(2)} kWh (${tomorrowForecastCalc.weatherCondition.replace('_',' ') || 'N/A'})` : 'Calculating...'}</p>
+                     <p><strong>Today's Est. Generation:</strong> {displayGeneration(todayForecastCalc)}</p>
+                     <p><strong>Tomorrow's Est. Generation:</strong> {displayGeneration(tomorrowForecastCalc)}</p>
                  </div>
                   <div>
                      <p><strong>Battery Capacity:</strong> {settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set'}</p>
