@@ -30,10 +30,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-       {/* Alternative way to add favicon (less preferred than Metadata API) */}
-       {/* <head>
+       <head>
          <link rel="icon" href="/favicon.ico" sizes="any" />
-       </head> */}
+       </head>
       {/* Apply the font variable to the body */}
       <body
         className={`${inter.variable} antialiased flex flex-col min-h-screen`}
@@ -44,6 +43,7 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
+          themes={['light', 'dark', 'system', 'high-contrast']}
         >
           <QueryProvider> {/* Wrap with QueryProvider */}
             <Header />
