@@ -175,9 +175,7 @@ export default function AdvisoryPage() {
         const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
         if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-             // Dates in manualForecast might be stale, refresh them.
-             // This can happen if the page was loaded on a new day before refreshForecastDates runs.
-             refreshForecastDates(); // Trigger refresh, calculation will re-run when manualForecast updates.
+             refreshForecastDates();
             return;
         }
 
@@ -223,7 +221,7 @@ export default function AdvisoryPage() {
                 tariffPeriods: tariffPeriods,
                 currentBatteryLevelKWh: currentBatteryLevel, 
                 hourlyConsumptionProfile: hourlyUsage, 
-                currentHour: currentHour, // For overnight, currentHour represents when planning starts (e.g., evening before)
+                currentHour: currentHour, 
                 evNeeds: evNeeds,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -240,7 +238,7 @@ export default function AdvisoryPage() {
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
         manualForecast,
         evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent,
-        refreshForecastDates // Add refreshForecastDates to dependencies
+        refreshForecastDates
     ]);
 
     const handleForecastModalSave = () => {

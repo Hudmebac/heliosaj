@@ -5,7 +5,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} f
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput} from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle } from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltipContent} from "@/components/ui/chart";
 import { Button } from '@/components/ui/button';
@@ -20,20 +20,20 @@ import { addDays, format } from 'date-fns';
 import { HowToInfo } from '@/components/how-to-info';
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
-  if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" />; // Default to Sun or a generic icon
+  if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />; // Default to Sun or a generic icon
   switch (condition) {
-    case 'sunny': return <Sun className="w-6 h-6 text-yellow-500" />;
-    case 'partly_cloudy': return <Cloud className="w-6 h-6 text-yellow-400" />;
-    case 'cloudy': return <Cloud className="w-6 h-6 text-gray-500" />;
-    case 'overcast': return <Cloud className="w-6 h-6 text-gray-700" />;
-    case 'rainy': return <CloudRain className="w-6 h-6 text-blue-500" />;
-    default: return <Sun className="w-6 h-6 text-muted-foreground" />;
+    case 'sunny': return <Sun className="w-6 h-6 text-yellow-500" data-ai-hint="sun weather" />;
+    case 'partly_cloudy': return <Cloud className="w-6 h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
+    case 'cloudy': return <Cloud className="w-6 h-6 text-gray-500" data-ai-hint="cloud icon" />;
+    case 'overcast': return <Cloud className="w-6 h-6 text-gray-700" data-ai-hint="dark cloud" />;
+    case 'rainy': return <CloudRain className="w-6 h-6 text-blue-500" data-ai-hint="rain cloud" />;
+    default: return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="weather icon" />;
   }
 };
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [manualForecast, setManualForecast] = useManualForecast();
+  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
@@ -73,9 +73,9 @@ export default function HomePage() {
     const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        // console.warn("Manual forecast dates are stale, waiting for update from useManualForecast hook.");
         // This condition might occur if useManualForecast hasn't updated its state yet after a date change.
         // The calculation will re-run when manualForecast updates.
+        // Or user can click refresh button.
         return;
     }
 
@@ -107,6 +107,25 @@ export default function HomePage() {
       });
       return;
     }
+
+    // Validate sunrise is before sunset
+    if (editableForecast.today.sunrise >= editableForecast.today.sunset) {
+      toast({
+        title: "Invalid Times for Today",
+        description: "Sunrise time must be before sunset time for today.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (editableForecast.tomorrow.sunrise >= editableForecast.tomorrow.sunset) {
+      toast({
+        title: "Invalid Times for Tomorrow",
+        description: "Sunrise time must be before sunset time for tomorrow.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setManualForecast(editableForecast); // This will trigger the useEffect for calculation
     setIsModalOpen(false);
     toast({
@@ -144,13 +163,40 @@ export default function HomePage() {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
     return forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00',
-      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
+      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(3)) // Use toFixed(3) for better precision
     }));
   };
 
   const renderForecastCard = (title: string, forecastData: CalculatedForecast | null, manualDayData: ManualDayForecast) => {
     const chartData = formatChartData(forecastData);
-    const weatherIcon = getWeatherIcon(manualDayData.condition);
+    const weatherIcon = getWeatherIcon(manualDayData?.condition); // Ensure manualDayData exists
+
+    const generationValue = forecastData?.dailyTotalGenerationKWh;
+    const displayGeneration = (typeof generationValue === 'number' && !isNaN(generationValue))
+      ? `${generationValue.toFixed(2)} kWh`
+      : 'N/A';
+    
+    const conditionText = manualDayData?.condition ? manualDayData.condition.replace(/_/g, ' ') : 'Condition N/A';
+    
+    let chartPlaceholderMessage = '';
+    if (!isMounted) {
+        chartPlaceholderMessage = 'Loading forecast data...';
+    } else if (!settings) {
+        chartPlaceholderMessage = 'Forecast data unavailable. Please configure your system in Settings first.';
+    } else if (forecastData?.errorMessage) {
+        chartPlaceholderMessage = forecastData.errorMessage;
+    } else if (!forecastData) {
+        chartPlaceholderMessage = 'Calculating forecast... Ensure manual forecast inputs are saved.';
+    } else { 
+        if (!manualDayData || !manualDayData.sunrise || !manualDayData.sunset || manualDayData.sunrise >= manualDayData.sunset) {
+            chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset in the forecast settings.";
+        } else if (!forecastData.hourlyForecast || forecastData.hourlyForecast.length === 0) {
+            chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
+        } else if (chartData.length === 0 || !chartData.some(d => d.kWh > 0)) { // Check if any kWh > 0
+             chartPlaceholderMessage = "No significant solar generation is expected, or data is too small to display. Please check inputs and factors.";
+        }
+    }
+
 
     return (
         <Card>
@@ -159,8 +205,8 @@ export default function HomePage() {
                     <div>
                         <CardTitle>{title} Forecast</CardTitle>
                         <CardDescription>
-                            Est. Generation: {forecastData ? `${forecastData.dailyTotalGenerationKWh.toFixed(2)} kWh` : 'N/A'}
-                            {` (${manualDayData.condition.replace('_', ' ')})`}
+                            Est. Generation: {displayGeneration}
+                            {` (${conditionText})`}
                         </CardDescription>
                     </div>
                     <div className="text-2xl">
@@ -169,21 +215,21 @@ export default function HomePage() {
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                     <span className="flex items-center gap-1">
-                        <Sunrise className="w-3 h-3"/> {manualDayData.sunrise}
+                        <Sunrise className="w-3 h-3"/> {manualDayData?.sunrise || 'N/A'}
                     </span>
                     <span className="flex items-center gap-1">
-                        <Sunset className="w-3 h-3"/> {manualDayData.sunset}
+                        <Sunset className="w-3 h-3"/> {manualDayData?.sunset || 'N/A'}
                     </span>
                 </div>
             </CardHeader>
             <CardContent>
-                {forecastData && chartData.length > 0 && chartData.some(d => d.kWh > 0) ? (
+                {forecastData && !forecastData.errorMessage && chartData.length > 0 && chartData.some(d => d.kWh > 0) ? (
                     <ChartContainer config={{kWh: { label: "kWh", color: "hsl(var(--primary))" }}} className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                                 <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={false} stroke="hsl(var(--muted-foreground))" />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" />
+                                <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" domain={[0, 'auto']} />
                                 <ChartTooltipContent
                                     cursor={false}
                                     content={<ChartTooltipContent hideLabel indicator="dot" />}
@@ -193,9 +239,10 @@ export default function HomePage() {
                         </ResponsiveContainer>
                     </ChartContainer>
                 ) : (
-                    <div className="flex justify-center items-center h-[250px]">
+                    <div className="flex flex-col justify-center items-center h-[250px] text-center p-4">
+                        <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
                         <p className="text-muted-foreground text-sm">
-                            {forecastData ? 'No significant generation expected or data missing for chart.' : isMounted && settings ? 'Calculating...' : 'Forecast data unavailable.'}
+                           {chartPlaceholderMessage}
                         </p>
                     </div>
                 )}
@@ -213,7 +260,7 @@ export default function HomePage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Day {index + 1}</CardTitle>
                  <CardDescription className="text-xs text-muted-foreground">N/A</CardDescription>
                  <div className="pt-2 flex justify-center items-center h-8">
-                     <Sun className="w-6 h-6 text-muted-foreground/50" />
+                     <Sun className="w-6 h-6 text-muted-foreground/50" data-ai-hint="weather sun" />
                  </div>
                </CardHeader>
                <CardContent className="p-2 mt-auto">
@@ -225,6 +272,14 @@ export default function HomePage() {
       </div>);
    };
 
+ const handleRefreshForecast = () => {
+    refreshForecastDates(); // This will update dates in localStorage and trigger re-calculations
+    toast({
+      title: "Forecast Dates Refreshed",
+      description: "Manual forecast dates have been updated to today and tomorrow. Recalculating generation...",
+    });
+  };
+
 
   return (
     <div className="space-y-6">
@@ -235,6 +290,15 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-2">
               <HowToInfo pageKey="dashboard" />
+              <Button
+                onClick={handleRefreshForecast}
+                disabled={!isMounted}
+                variant="outline"
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Forecast Dates
+              </Button>
               <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" disabled={!isMounted}>
@@ -358,3 +422,4 @@ export default function HomePage() {
     </div>
   );
 }
+
