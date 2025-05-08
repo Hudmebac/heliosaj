@@ -79,8 +79,8 @@ export default function HomePage() {
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        refreshForecastDates();
-        return;
+        refreshForecastDates(); // This will update dates and trigger re-calculation via useEffect on manualForecast
+        return; // Exit early, calculation will re-run when manualForecast updates
     }
 
     try {
@@ -112,7 +112,6 @@ export default function HomePage() {
       toast({
         title: "Invalid Time Format",
         description: "Please use HH:MM for sunrise and sunset times.",
-        variant: "destructive",
         variant: "destructive",
       });
       return;
@@ -169,47 +168,11 @@ export default function HomePage() {
   };
 
  const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
-    if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
-
-    const sunriseHour = forecast.sunrise ? parseInt(forecast.sunrise.split(':')[0]) : 0;
-    const sunsetHour = forecast.sunset ? parseInt(forecast.sunset.split(':')[0]) : 23;
-
-    const allHoursData = [];
-    for (let hour = 0; hour < 24; hour++) {
-        const hourStr = hour.toString().padStart(2, '0') + ':00';
-        const existingData = forecast.hourlyForecast.find(h => h.time === hourStr);
-        if (existingData) {
-            // Include if within sunrise/sunset or has any generation (even tiny)
-            if ((hour >= sunriseHour && hour <= sunsetHour) || (existingData.estimatedGenerationWh / 1000) > 0.00001) {
-                allHoursData.push({
-                    time: hourStr,
-                    kWh: parseFloat((existingData.estimatedGenerationWh / 1000).toFixed(2))
-                });
-            }
-        } else if (hour >= sunriseHour && hour <= sunsetHour) {
-            // Add zero generation for daylight hours not in forecast data
-            allHoursData.push({
-                time: hourStr,
-                kWh: 0.00
-            });
-        }
-    }
-
-    if (allHoursData.length === 0 && forecast.hourlyForecast.length > 0) {
-        return forecast.hourlyForecast
-            .map(h => {
-                const hourVal = parseInt(h.time.split(':')[0]);
-                 if (hourVal >= sunriseHour && hourVal <= sunsetHour) {
-                    return {
-                        time: h.time.split(':')[0] + ':00',
-                        kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
-                    };
-                }
-                return null;
-            })
-            .filter(Boolean) as Array<{ time: string; kWh: number }>;
-    }
-    return allHoursData;
+    if (!forecast?.hourlyForecast) return [];
+    return forecast.hourlyForecast.map(h => ({
+        time: h.time.split(':')[0] + ':00', // "HH:00"
+        kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
+    }));
   }, []);
 
 
@@ -217,11 +180,11 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5;
+    if (!chartData || chartData.length === 0) return 0.5; // Default if no data or all zero
     const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
-    if (maxKWh < 0.01) return 0.1;
+    if (maxKWh < 0.01) return 0.1; // For very small non-zero values
     if (maxKWh < 0.5) return 0.5;
-    return Math.ceil(maxKWh * 1.1);
+    return Math.ceil(maxKWh * 1.1); // Add 10% padding, then ceil
   }, []);
 
 
@@ -238,13 +201,13 @@ export default function HomePage() {
     else if (maxYValueForChart <= 1) step = 0.2;
     else if (maxYValueForChart <= 2.5) step = 0.5;
     else if (maxYValueForChart <= 5) step = 1;
-    else step = Math.ceil(maxYValueForChart / 5 / 0.5) * 0.5;
+    else step = Math.ceil(maxYValueForChart / 5 / 0.5) * 0.5; // Ensure about 5-10 ticks
 
     const ticks = [];
-    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) {
+    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { // Iterate slightly beyond max to ensure it's included
         ticks.push(parseFloat(i.toFixed(2)));
     }
-    return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2))));
+    return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2)))); // Ensure unique and within bounds
   }, []);
 
 
@@ -255,13 +218,14 @@ export default function HomePage() {
     if (!chartData || chartData.length === 0) return undefined;
 
     const hoursWithGeneration = chartData
-      .filter(d => d.kWh > 0.00001)
-      .map(d => d.time);
+      .filter(d => d.kWh > 0.00001) // Consider generation if slightly above zero
+      .map(d => d.time); // "HH:00"
 
-    const uniqueHoursWithGeneration = Array.from(new Set(hoursWithGeneration));
-    uniqueHoursWithGeneration.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
-
-    return uniqueHoursWithGeneration.length > 0 ? uniqueHoursWithGeneration : undefined;
+    // Ensure unique hours and sort them
+    const uniqueHours = Array.from(new Set(hoursWithGeneration));
+    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
+    
+    return uniqueHours.length > 0 ? uniqueHours : undefined;
   }, []);
 
 
@@ -314,11 +278,13 @@ export default function HomePage() {
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
+    
+    const xAxisHeight = 50; // Define X-axis height
 
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
-        margin: { top: 5, right: 30, left: 15, bottom: 50 }, // Increased bottom margin
+        margin: { top: 5, right: 30, left: 15, bottom: xAxisHeight - 10 }, // Adjust bottom margin based on xAxisHeight
       };
       const commonYAxisProps = {
         fontSize: 10,
@@ -336,13 +302,14 @@ export default function HomePage() {
         tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        ticks: chartXTicksForChart,
-        tickFormatter: (value: string) => value, // Value is already "HH:00"
-        interval: 0,
+        ticks: chartXTicksForChart, 
+        tickFormatter: (value: string) => value, // Display "HH:00"
+        interval: 0, 
         angle: -90,
         textAnchor: 'end',
-        dx: -5, // Small horizontal shift for better alignment
-        height: 50, // Allocate space for vertical labels
+        dx: -5, 
+        dy: 0, // Adjusted for better vertical alignment
+        height: xAxisHeight, 
         fontSize: 10,
       };
 
@@ -424,13 +391,13 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
                 {forecastData && !forecastData.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
-                    <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[300px] w-full"> {/* Increased height for chart container */}
+                    <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                            {renderChart()}
                         </ResponsiveContainer>
                     </ChartContainer>
                 ) : (
-                    <div className="flex flex-col justify-center items-center h-[300px] text-center p-4"> {/* Increased height for placeholder */}
+                    <div className="flex flex-col justify-center items-center h-[300px] text-center p-4">
                         <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
                         <p className="text-muted-foreground text-sm">
                            {chartPlaceholderMessage}
@@ -441,12 +408,14 @@ export default function HomePage() {
         </Card>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings, selectedChartType, todayMaxY, tomorrowMaxY, todayYAxisTicks, tomorrowYAxisTicks, todayChartXTicks, tomorrowChartXTicks]);
+  }, [isMounted, settings, selectedChartType]); // Removed YAxis/XAxis specific dependencies as they are now calculated inside
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(dateStr)) return false;
+    // Additional check to ensure the date string can be parsed into a valid Date object
+    // Add 'T00:00:00' to ensure consistent parsing across timezones for date part only
     const date = new Date(dateStr + 'T00:00:00');
     return isValid(date) && !isNaN(date.getTime());
   }
@@ -619,3 +588,4 @@ export default function HomePage() {
     </div>
   );
 }
+
