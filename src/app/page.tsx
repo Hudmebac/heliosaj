@@ -208,8 +208,9 @@ export default function HomePage() {
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
     if (!chartData || chartData.length === 0) return 0.5; 
     const maxKWh = Math.max(...chartData.map(d => d.kWh));
-    if (maxKWh < 0.5) return 0.5;
-    return Math.ceil(maxKWh * 1.1); 
+    if (maxKWh <= 0.01) return 0.1; // If max is very small, set a small max like 0.1
+    if (maxKWh < 0.5) return 0.5; // If max is less than 0.5, set max to 0.5
+    return Math.ceil(maxKWh * 1.1); // Otherwise, add 10% padding
   }, []);
 
   const todayMaxY = useMemo(() => getMaxYValue(todayChartData), [todayChartData, getMaxYValue]);
@@ -217,12 +218,22 @@ export default function HomePage() {
 
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
     if (maxYValueForChart <= 0) return [0];
+    
+    const numTicks = 5; // Aim for about 5 ticks
+    let step: number;
+
+    if (maxYValueForChart <= 0.1) step = 0.02;
+    else if (maxYValueForChart <= 0.5) step = 0.1;
+    else if (maxYValueForChart <= 1) step = 0.25;
+    else if (maxYValueForChart <= 2.5) step = 0.5;
+    else if (maxYValueForChart <= 5) step = 1;
+    else step = Math.ceil(maxYValueForChart / numTicks);
+    
     const ticks = [];
-    const step = maxYValueForChart < 1 ? 0.1 : maxYValueForChart < 2 ? 0.25 : maxYValueForChart < 5 ? 0.5 : 1;
-    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { // Add step/2 to ensure last tick can be included
+    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { 
         ticks.push(parseFloat(i.toFixed(2)));
     }
-    return ticks;
+    return ticks.filter(tick => tick <= maxYValueForChart + (step/2)); // Ensure ticks don't greatly exceed maxY
   }, []);
 
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
@@ -276,7 +287,7 @@ export default function HomePage() {
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
-        margin: { top: 5, right: 30, left: 5, bottom: 5 },
+        margin: { top: 5, right: 30, left: 15, bottom: 5 }, // Increased left margin
       };
       const commonYAxisProps = {
         fontSize: 10,
@@ -285,8 +296,8 @@ export default function HomePage() {
         stroke: "hsl(var(--muted-foreground))",
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
-        tickFormatter: (value: number) => value.toFixed(2), // Format to 2 decimal places
-        width: 50, // Increased width for better label visibility
+        tickFormatter: (value: number) => value.toFixed(2),
+        width: 40, // Adjusted width
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -295,8 +306,8 @@ export default function HomePage() {
         tickLine: false,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        interval: chartDataToDisplay.length > 12 ? 'preserveEnd' : 0,
-        tickFormatter: (value: string) => chartDataToDisplay.length > 12 && parseInt(value.split(':')[0]) % 2 !== 0 ? '' : value,
+        interval: 0, 
+        tickFormatter: (value: string) => value,
       };
 
       const customTooltip = (props: any) => {
@@ -318,8 +329,8 @@ export default function HomePage() {
             <LineChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -10, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -10, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Line type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} yAxisId="left" />
             </LineChart>
@@ -329,8 +340,8 @@ export default function HomePage() {
             <AreaChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -10, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -10, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Area type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} yAxisId="left"/>
             </AreaChart>
@@ -341,8 +352,8 @@ export default function HomePage() {
             <BarChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -10, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -10, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={4} yAxisId="left" />
             </BarChart>
@@ -558,7 +569,7 @@ export default function HomePage() {
                     {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks)}
                     {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks)}
                 </div>
-                 {isMounted && !isMobile && (!settings.selectedWeatherSource || settings.selectedWeatherSource === 'manual') && ( 
+                 {isMounted && (!settings.selectedWeatherSource || settings.selectedWeatherSource === 'manual') && ( 
                   <div className="mt-8">
                       <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
                       <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is not available with manual input mode. Future updates may integrate API options for extended forecasts.</p>
@@ -569,3 +580,4 @@ export default function HomePage() {
     </div>
   );
 }
+
