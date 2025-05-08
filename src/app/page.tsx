@@ -5,7 +5,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} f
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle, AlertCircle } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltipContent} from "@/components/ui/chart";
 import { Button } from '@/components/ui/button';
@@ -80,7 +80,7 @@ export default function HomePage() {
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
         // This condition might occur if useManualForecast hasn't updated its state yet after a date change.
         // The calculation will re-run when manualForecast updates.
-        // Or user can click refresh button.
+        refreshForecastDates(); // Call refresh to ensure dates are up-to-date
         return;
     }
 
@@ -97,7 +97,7 @@ export default function HomePage() {
       });
       setCalculatedForecasts({ today: null, tomorrow: null });
     }
-  }, [isMounted, settings, manualForecast, toast]);
+  }, [isMounted, settings, manualForecast, toast, refreshForecastDates]);
 
   const handleModalSave = () => {
     // Basic validation for time format HH:MM
@@ -255,18 +255,13 @@ export default function HomePage() {
     );
   };
 
- const handleRefreshForecast = () => {
-    refreshForecastDates(); // This will update dates in localStorage and trigger re-calculations
-    toast({
-      title: "Forecast Dates Refreshed",
-      description: "Manual forecast dates have been updated to today and tomorrow. Recalculating generation...",
-    });
-  };
 
   const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
-    const date = new Date(dateStr);
-    // Check if date object is valid and the string parsing didn't result in 'Invalid Date'
+    // Attempt to create a date object. Ensure the format is 'yyyy-MM-dd' by splitting and reconstructing if necessary,
+    // or by ensuring that the input to new Date() is correctly formatted for unambiguous parsing.
+    // For 'yyyy-MM-dd', appending 'T00:00:00' makes it ISO 8601 and less ambiguous for `new Date()`.
+    const date = new Date(dateStr + 'T00:00:00');
     return isValid(date) && !isNaN(date.getTime());
   }
 
@@ -279,15 +274,6 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-2">
               <HowToInfo pageKey="dashboard" />
-              <Button
-                onClick={handleRefreshForecast}
-                disabled={!isMounted}
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh Forecast Dates
-              </Button>
               <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" disabled={!isMounted}>
@@ -323,22 +309,26 @@ export default function HomePage() {
                     </div>
 
                     {(['today', 'tomorrow'] as const).map((dayKey) => {
-                      const dayDateStr = editableForecast[dayKey].date;
+                      const dayData = editableForecast[dayKey];
+                      const dayDateStr = dayData?.date;
+
                       return (
                         <div key={dayKey} className="space-y-3 p-3 border rounded-md">
-                          <div className="space-y-1">
+                           <div className="space-y-1">
                               <h3 className="font-bold text-lg capitalize">{dayKey}</h3>
-                              {isValidDateString(dayDateStr) ? (
+                              {dayData && isValidDateString(dayDateStr) ? (
                                   <>
                                       <p className="text-muted-foreground">
-                                          {format(new Date(dayDateStr + 'T00:00:00'), 'EEEE')} 
+                                          {format(new Date(dayDateStr + 'T00:00:00'), 'EEEE')}
                                       </p>
                                       <p className="text-muted-foreground">
                                           {format(new Date(dayDateStr + 'T00:00:00'), 'dd/MM/yyyy')}
                                       </p>
                                   </>
                               ) : (
-                                  <p className="text-muted-foreground text-destructive">Invalid date for {dayKey}: {dayDateStr}</p>
+                                  <p className="text-muted-foreground text-destructive">
+                                    Date for {dayKey} is invalid or not loaded. Try refreshing. Current value: {dayDateStr}
+                                  </p>
                               )}
                            </div>
                           <div className="grid grid-cols-2 gap-3">
@@ -347,7 +337,7 @@ export default function HomePage() {
                               <Input
                                 id={`${dayKey}-sunrise`}
                                 type="time"
-                                value={editableForecast[dayKey].sunrise}
+                                value={dayData?.sunrise || ''}
                                 onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunrise: e.target.value}}))}
                               />
                             </div>
@@ -356,7 +346,7 @@ export default function HomePage() {
                               <Input
                                 id={`${dayKey}-sunset`}
                                 type="time"
-                                value={editableForecast[dayKey].sunset}
+                                value={dayData?.sunset || ''}
                                 onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunset: e.target.value}}))}
                               />
                             </div>
@@ -364,7 +354,7 @@ export default function HomePage() {
                           <div className="space-y-1">
                             <Label htmlFor={`${dayKey}-condition`}>Weather Condition</Label>
                             <Select
-                              value={editableForecast[dayKey].condition}
+                              value={dayData?.condition || 'sunny'}
                               onValueChange={(value) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], condition: value as ManualDayForecast['condition']}}))}
                             >
                               <SelectTrigger id={`${dayKey}-condition`}>

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, RefreshCw, Percent, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon } from 'lucide-react';
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon } from 'lucide-react';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast} from '@/lib/solar-calculations';
@@ -20,7 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
 import { addDays, format } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { refreshForecastDates } from '@/hooks/useManualForecast';
+import { HowToInfo } from '@/components/how-to-info';
+
 
 const HOURS_IN_DAY = 24;
 const DEFAULT_BATTERY_MAX = 100; 
@@ -28,7 +29,7 @@ const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
-    const [tariffPeriods, setTariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
+    const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
     const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
 
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
@@ -419,6 +420,91 @@ export default function AdvisoryPage() {
                 <p className="text-muted-foreground">Optimize battery &amp; EV charging based on your manual forecast, tariffs, and consumption.</p>
             </div>
             <div className="flex items-center gap-2">
+             <HowToInfo pageKey="advisory" />
+             <Dialog open={isForecastModalOpen} onOpenChange={setIsForecastModalOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline" disabled={!isMounted || !settings}>
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit Manual Forecast
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
+                    <DialogDescription>
+                      Input sunrise, sunset, and weather conditions for today and tomorrow.
+                      Or, select a city to pre-fill approximate sunrise/sunset times.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-6 py-4">
+                   <div className="space-y-2">
+                        <Label htmlFor="city-time-select-modal">Apply Approx. Times from City</Label>
+                        <Select value={selectedCityForTimesModal} onValueChange={handleCityTimeSelectModal}>
+                            <SelectTrigger id="city-time-select-modal">
+                                <SelectValue placeholder="Select city for sunrise/sunset..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {sunriseSunsetData.map(city => (
+                                    <SelectItem key={city.city} value={city.city}>
+                                        {city.city}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {(['today', 'tomorrow'] as const).map((dayKey) => (
+                        <div key={dayKey} className="space-y-3 p-3 border rounded-md">
+                          <h3 className="font-semibold text-lg capitalize">{dayKey} ({editableForecast[dayKey].date})</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor={`${dayKey}-sunrise-adv`}>Sunrise (HH:MM)</Label>
+                              <Input
+                                id={`${dayKey}-sunrise-adv`}
+                                type="time"
+                                value={editableForecast[dayKey].sunrise}
+                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunrise: e.target.value}}))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor={`${dayKey}-sunset-adv`}>Sunset (HH:MM)</Label>
+                              <Input
+                                id={`${dayKey}-sunset-adv`}
+                                type="time"
+                                value={editableForecast[dayKey].sunset}
+                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunset: e.target.value}}))}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor={`${dayKey}-condition-adv`}>Weather Condition</Label>
+                            <Select
+                              value={editableForecast[dayKey].condition}
+                              onValueChange={(value) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], condition: value as ManualDayForecast['condition']}}))}
+                            >
+                              <SelectTrigger id={`${dayKey}-condition-adv`}>
+                                <SelectValue placeholder="Select condition" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="sunny">Sunny</SelectItem>
+                                <SelectItem value="partly_cloudy">Partly Cloudy</SelectItem>
+                                <SelectItem value="cloudy">Cloudy</SelectItem>
+                                <SelectItem value="overcast">Overcast</SelectItem>
+                                <SelectItem value="rainy">Rainy</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="mt-4 border-t pt-4">
+                        <ForecastInfo />
+                      </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsForecastModalOpen(false)}>Cancel</Button>
+                    <Button onClick={handleForecastModalSave}>Save Forecast</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
        </div>
 
@@ -462,7 +548,7 @@ export default function AdvisoryPage() {
              />
               {isMounted && settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0 ? (
                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                   (<Percent className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh} kWh)
+                   (<HelpCircle className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh} kWh)
                  </p>
               ) : (
                   <p className="text-xs text-muted-foreground">{isMounted ? '(Set Battery Capacity in Settings to see %)' : ''}</p>
