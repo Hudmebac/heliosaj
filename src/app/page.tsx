@@ -1,3 +1,4 @@
+
 'use client';
 import React, {useState, useEffect, useMemo, Fragment } from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
@@ -162,7 +163,7 @@ export default function HomePage() {
       kWh: h.estimatedGenerationWh / 1000 // Pass full precision kWh
     }));
     // Filter out hours with no generation for the chart display
-    return allHoursData.filter(d => d.kWh > 0);
+    return allHoursData.filter(d => d.kWh > 0.0001); // Only show if generation is more than a tiny fraction
   };
 
   const renderForecastCard = (title: string, forecastData: CalculatedForecast | null, manualDayData: ManualDayForecast) => {
@@ -224,7 +225,7 @@ export default function HomePage() {
                 {forecastData && !forecastData.errorMessage && chartData.length > 0 ? (
                     <ChartContainer config={{kWh: { label: "kWh", color: "hsl(var(--primary))" }}} className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                            <BarChart data={chartData} margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                                 <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={false} stroke="hsl(var(--muted-foreground))" />
                                 <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" domain={[0, 'auto']} allowDecimals={true} tickFormatter={(value) => value.toFixed(3)} />
@@ -398,7 +399,7 @@ export default function HomePage() {
                     {manualForecast.today && renderForecastCard("Today", calculatedForecasts.today, manualForecast.today)}
                     {manualForecast.tomorrow && renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow)}
                 </div>
-                 {!isMobile && !settings.selectedWeatherSource && ( // Assuming selectedWeatherSource will be set if using an API
+                 {!isMobile && !(settings.selectedWeatherSource && settings.selectedWeatherSource !== 'manual') && ( 
                   <div className="mt-8">
                       <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
                       <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is not available with manual input mode. Future updates may integrate API options for extended forecasts.</p>
@@ -409,3 +410,4 @@ export default function HomePage() {
     </div>
   );
 }
+
