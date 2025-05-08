@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon } from 'lucide-react';
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon, Percent } from 'lucide-react';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast} from '@/lib/solar-calculations';
@@ -371,10 +371,10 @@ export default function AdvisoryPage() {
                {advice.reason}
                {advice.details && <span className="block mt-1 text-xs text-muted-foreground">{advice.details}</span>}
                 {advice.chargeNeededKWh !== undefined && advice.chargeNeededKWh > 0 && (
-                  <span className="block mt-1 text-xs text-primary">Est. grid energy for battery: {advice.chargeNeededKWh.toFixed(1)} kWh {advice.chargeWindow && `(${advice.chargeWindow})`}.</span>
+                  <span className="block mt-1 text-xs text-primary">Est. grid energy for battery: {advice.chargeNeededKWh.toFixed(2)} kWh {advice.chargeWindow && `(${advice.chargeWindow})`}.</span>
                 )}
                  {advice.potentialSavingsKWh !== undefined && advice.potentialSavingsKWh > 0 && (
-                   <span className="block mt-1 text-xs text-green-600 dark:text-green-400">Potential excess solar/savings: ~{advice.potentialSavingsKWh.toFixed(1)} kWh.</span>
+                   <span className="block mt-1 text-xs text-green-600 dark:text-green-400">Potential excess solar/savings: ~{advice.potentialSavingsKWh.toFixed(2)} kWh.</span>
                  )}
                   {advice.evRecommendation && (
                      <span className={cn(
@@ -538,17 +538,17 @@ export default function AdvisoryPage() {
              <Input
                id="batteryLevel"
                type="number"
-               step="0.1"
+               step="0.01"
                min="0"
                max={batteryMaxInput > 0 ? batteryMaxInput : undefined} 
                value={currentBatteryLevel}
                onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput > 0 ? batteryMaxInput : Infinity, parseFloat(e.target.value) || 0)))}
-               placeholder="e.g., 5.2"
+               placeholder="e.g., 5.20"
                className="max-w-xs"
              />
               {isMounted && settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0 ? (
                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                   (<HelpCircle className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh} kWh)
+                   (<Percent className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh.toFixed(2)} kWh)
                  </p>
               ) : (
                   <p className="text-xs text-muted-foreground">{isMounted ? '(Set Battery Capacity in Settings to see %)' : ''}</p>
@@ -592,11 +592,11 @@ export default function AdvisoryPage() {
                     <Input
                        id="dailyConsumption"
                        type="number"
-                       step="0.1"
+                       step="0.01"
                        min="0"
                        value={dailyConsumption}
                        onChange={(e) => setDailyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
-                       placeholder="e.g., 10.5"
+                       placeholder="e.g., 10.50"
                        className="max-w-xs"
                     />
                 </div>
@@ -616,7 +616,7 @@ export default function AdvisoryPage() {
                          min="0"
                          value={avgHourlyConsumption}
                          onChange={(e) => setAvgHourlyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
-                         placeholder="e.g., 0.4"
+                         placeholder="e.g., 0.40"
                          className="max-w-xs"
                      />
                  </div>
@@ -653,13 +653,13 @@ export default function AdvisoryPage() {
                              id={`hour-${index}`}
                              min={0}
                              max={sliderMax}
-                             step={0.1}
+                             step={0.01}
                              value={[usage]}
                              onValueChange={(value) => handleSliderChange(index, value)}
                              className="flex-grow"
                              aria-label={`Hourly consumption slider for hour ${index}`}
                            />
-                            <span className="text-xs font-mono w-8 text-right">{usage.toFixed(1)}</span>
+                            <span className="text-xs font-mono w-10 text-right">{usage.toFixed(2)}</span>
                           </div>
                         </div>
                       ))}
@@ -689,11 +689,11 @@ export default function AdvisoryPage() {
                      <Input
                          id="evChargeRequired"
                          type="number"
-                         step="1"
+                         step="0.1"
                          min="0"
-                         placeholder="e.g., 40"
+                         placeholder="e.g., 40.0"
                          value={evChargeRequiredKWh}
-                         onChange={(e) => setEvChargeRequiredKWh(Math.max(0, parseInt(e.target.value) || 0))}
+                         onChange={(e) => setEvChargeRequiredKWh(Math.max(0, parseFloat(e.target.value) || 0))}
                      />
                  </div>
                  <div className="space-y-1">
@@ -712,7 +712,7 @@ export default function AdvisoryPage() {
                          type="number"
                          step="0.1"
                          min="0.1"
-                         placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE}`}
+                         placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE.toFixed(1)}`}
                          value={evMaxChargeRateKWh}
                          onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE))}
                      />
@@ -738,14 +738,14 @@ export default function AdvisoryPage() {
                      <p><strong>Tomorrow's Est. Generation:</strong> {displayGeneration(tomorrowForecastCalc)}</p>
                  </div>
                   <div>
-                     <p><strong>Battery Capacity:</strong> {settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh} kWh` : 'Not Set'}</p>
-                     <p><strong>Current Battery Input:</strong> {currentBatteryLevel.toFixed(1)} kWh ({currentBatteryPercentage}%)</p>
-                     <p><strong>Est. Daily Consumption Input:</strong> {dailyConsumption.toFixed(1)} kWh</p>
+                     <p><strong>Battery Capacity:</strong> {settings?.batteryCapacityKWh ? `${settings.batteryCapacityKWh.toFixed(2)} kWh` : 'Not Set'}</p>
+                     <p><strong>Current Battery Input:</strong> {currentBatteryLevel.toFixed(2)} kWh ({currentBatteryPercentage}%)</p>
+                     <p><strong>Est. Daily Consumption Input:</strong> {dailyConsumption.toFixed(2)} kWh</p>
                   </div>
               </div>
               {evChargeRequiredKWh > 0 && (
                  <div className="text-sm text-muted-foreground border-t pt-2 mt-2">
-                     <p><strong>EV Charge Need:</strong> {evChargeRequiredKWh} kWh by {evChargeByTime || 'N/A'} (Max rate: {evMaxChargeRateKWh} kW)</p>
+                     <p><strong>EV Charge Need:</strong> {evChargeRequiredKWh.toFixed(2)} kWh by {evChargeByTime || 'N/A'} (Max rate: {evMaxChargeRateKWh.toFixed(1)} kW)</p>
                  </div>
               )}
              <div>

@@ -40,6 +40,8 @@ export interface ManualDayForecast {
   sunrise: string; // HH:MM
   sunset: string; // HH:MM
   condition: 'sunny' | 'partly_cloudy' | 'cloudy' | 'overcast' | 'rainy';
+  // Add a weather condition modifier to allow users to fine-tune forecasts
+  weatherConditionModifier?: number; // e.g., 1.0 for sunny, 0.5 for cloudy, etc.
 }
 
 export interface ManualForecastInput {
@@ -54,15 +56,16 @@ export interface PropertyDirectionInfo {
   notes?: string;
 }
 
+// Using mid-point of ranges for factors. Notes reflect the ranges.
 export const propertyDirectionOptions: PropertyDirectionInfo[] = [
-  { value: 'South', label: 'South (Factor: 1.00)', factor: 1.00, notes: "Optimal. Receives the most direct sunlight throughout the day, year-round." },
-  { value: 'South-West', label: 'South-West (Factor: ~0.95)', factor: 0.95, notes: "Excellent. Captures strong midday and afternoon sun." },
-  { value: 'South-East', label: 'South-East (Factor: ~0.95)', factor: 0.95, notes: "Excellent. Captures strong morning and midday sun." },
-  { value: 'West', label: 'West (Factor: ~0.82)', factor: 0.82, notes: "Good. Captures strong afternoon and evening sun." },
-  { value: 'East', label: 'East (Factor: ~0.82)', factor: 0.82, notes: "Good. Captures strong morning sun." },
-  { value: 'North-West', label: 'North-West (Factor: ~0.60)', factor: 0.60, notes: "Fair to Poor. Receives some direct sun late in the day during summer." },
-  { value: 'North-East', label: 'North-East (Factor: ~0.60)', factor: 0.60, notes: "Fair to Poor. Receives some direct sun early in the day during summer." },
-  { value: 'North', label: 'North (Factor: ~0.43)', factor: 0.43, notes: "Poor. Receives virtually no direct sunlight. Relies on diffuse light." },
+  { value: 'South', label: 'South (Factor: 1.00)', factor: 1.00, notes: "Optimal. (Factor Range: 1.00)" },
+  { value: 'South-West', label: 'South-West (Factor: ~0.95)', factor: 0.95, notes: "Excellent. Captures strong midday and afternoon sun. (Factor Range: 0.92 - 0.97)" },
+  { value: 'South-East', label: 'South-East (Factor: ~0.95)', factor: 0.95, notes: "Excellent. Captures strong morning and midday sun. (Factor Range: 0.92 - 0.97)" },
+  { value: 'West', label: 'West (Factor: ~0.82)', factor: 0.82, notes: "Good. Captures strong afternoon and evening sun. (Factor Range: 0.78 - 0.85)" },
+  { value: 'East', label: 'East (Factor: ~0.82)', factor: 0.82, notes: "Good. Captures strong morning sun. (Factor Range: 0.78 - 0.85)" },
+  { value: 'North-West', label: 'North-West (Factor: ~0.60)', factor: 0.60, notes: "Fair to Poor. Some direct sun late in summer. (Factor Range: 0.55 - 0.65)" },
+  { value: 'North-East', label: 'North-East (Factor: ~0.60)', factor: 0.60, notes: "Fair to Poor. Some direct sun early in summer. (Factor Range: 0.55 - 0.65)" },
+  { value: 'North', label: 'North (Factor: ~0.43)', factor: 0.43, notes: "Poor. Relies on diffuse light. (Factor Range: 0.35 - 0.50)" },
   { value: 'Flat Roof', label: 'Flat Roof (Angled South, Factor: ~0.90)', factor: 0.90, notes: "Assumes panels are optimally angled (e.g., towards South)." },
 ];
 
@@ -71,3 +74,4 @@ export const getFactorByDirectionValue = (value: string): number | undefined => 
   const option = propertyDirectionOptions.find(opt => opt.value === value);
   return option?.factor;
 };
+

@@ -193,6 +193,8 @@ const settingsSchema = z.object({
 });
 
 const HOURS_IN_DAY = 24;
+const SOUTH_DIRECTION_INFO = propertyDirectionOptions.find(opt => opt.value === 'South') || propertyDirectionOptions[0];
+
 
 export default function SettingsPage() {
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -204,7 +206,7 @@ export default function SettingsPage() {
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [selectedAddressValue, setSelectedAddressValue] = useState<string | undefined>(undefined);
   const [isMounted, setIsMounted] = useState(false);
-  const [selectedDirectionInfo, setSelectedDirectionInfo] = useState<PropertyDirectionInfo | null>(null);
+  const [selectedDirectionInfo, setSelectedDirectionInfo] = useState<PropertyDirectionInfo | null>(SOUTH_DIRECTION_INFO);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
 
 
@@ -212,8 +214,8 @@ export default function SettingsPage() {
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       location: '',
-      propertyDirection: propertyDirectionOptions[0].value, // Default to South
-      propertyDirectionFactor: propertyDirectionOptions[0].factor,
+      propertyDirection: SOUTH_DIRECTION_INFO.value, 
+      propertyDirectionFactor: SOUTH_DIRECTION_INFO.factor,
       inputMode: 'Panels',
       systemEfficiency: 0.85,
       selectedWeatherSource: 'manual', // Default to manual forecast
@@ -250,6 +252,8 @@ export default function SettingsPage() {
 
        form.reset({
          ...storedSettings,
+         propertyDirection: storedSettings.propertyDirection || SOUTH_DIRECTION_INFO.value,
+         propertyDirectionFactor: storedSettings.propertyDirectionFactor ?? SOUTH_DIRECTION_INFO.factor,
          monthlyGenerationFactors: factorsToSet,
          hourlyUsageProfile: hourlyProfileToSet,
          selectedWeatherSource: storedSettings.selectedWeatherSource || 'manual',
@@ -264,16 +268,16 @@ export default function SettingsPage() {
        } else {
           setSelectedAddressValue(undefined);
        }
-        const currentDirection = propertyDirectionOptions.find(opt => opt.value === storedSettings.propertyDirection);
-        setSelectedDirectionInfo(currentDirection || propertyDirectionOptions[0]);
+        const currentDirection = propertyDirectionOptions.find(opt => opt.value === (storedSettings.propertyDirection || SOUTH_DIRECTION_INFO.value));
+        setSelectedDirectionInfo(currentDirection || SOUTH_DIRECTION_INFO);
 
      } else if (isMounted) { 
         form.reset({
          location: '',
          latitude: undefined,
          longitude: undefined,
-         propertyDirection: propertyDirectionOptions[0].value,
-         propertyDirectionFactor: propertyDirectionOptions[0].factor,
+         propertyDirection: SOUTH_DIRECTION_INFO.value,
+         propertyDirectionFactor: SOUTH_DIRECTION_INFO.factor,
          inputMode: 'Panels',
          panelCount: undefined,
          panelWatts: undefined,
@@ -292,7 +296,7 @@ export default function SettingsPage() {
        });
        setCurrentInputMode('Panels');
        setSelectedAddressValue(undefined);
-       setSelectedDirectionInfo(propertyDirectionOptions[0]);
+       setSelectedDirectionInfo(SOUTH_DIRECTION_INFO);
      }
    }, [storedSettings, form, isMounted, addresses]);
 
@@ -349,6 +353,9 @@ export default function SettingsPage() {
 
     if (selectedDirectionInfo && data.propertyDirection === selectedDirectionInfo.value) {
         saveData.propertyDirectionFactor = selectedDirectionInfo.factor;
+    } else { // Ensure factor is set if direction changed but not through handler
+        const direction = propertyDirectionOptions.find(opt => opt.value === data.propertyDirection);
+        saveData.propertyDirectionFactor = direction ? direction.factor : SOUTH_DIRECTION_INFO.factor;
     }
     saveData.selectedWeatherSource = data.selectedWeatherSource || 'manual';
     saveData.preferredOvernightBatteryChargePercent = data.preferredOvernightBatteryChargePercent ?? 100;
@@ -611,7 +618,7 @@ export default function SettingsPage() {
                            field.onChange(value); 
                         }}
                         value={field.value} 
-                        defaultValue={propertyDirectionOptions[0].value}
+                        defaultValue={SOUTH_DIRECTION_INFO.value}
                     >
                     <FormControl>
                       <SelectTrigger>
@@ -707,7 +714,7 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Total System Power (kWp)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" placeholder="e.g., 7.2" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                      <Input type="number" step="0.01" placeholder="e.g., 7.20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
                     </FormControl>
                      <FormDescription>Kilowatt-peak rating of your entire solar array (e.g., from your installation documents).</FormDescription>
                     <FormMessage />
@@ -724,7 +731,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel className="flex items-center gap-1"><BatteryChargingIcon className="h-4 w-4"/>Battery Capacity (kWh)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" placeholder="e.g., 19" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                        <Input type="number" step="0.01" placeholder="e.g., 19.00" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
                       </FormControl>
                       <FormDescription>Total usable capacity of your battery system. Leave blank if no battery.</FormDescription>
                       <FormMessage />
@@ -758,7 +765,7 @@ export default function SettingsPage() {
                         <FormItem>
                           <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.1" placeholder="e.g., 10.5" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs" />
+                            <Input type="number" step="0.01" placeholder="e.g., 10.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -776,7 +783,7 @@ export default function SettingsPage() {
                         <FormItem>
                           <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.1" placeholder="e.g., 0.4" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs"/>
+                            <Input type="number" step="0.01" placeholder="e.g., 0.40" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs"/>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -815,13 +822,13 @@ export default function SettingsPage() {
                                   id={`hour-profile-${index}`}
                                   min={0}
                                   max={sliderMax}
-                                  step={0.1}
+                                  step={0.01}
                                   value={[usage]}
                                   onValueChange={(value) => handleHourlySliderChange(index, value)}
                                   className="flex-grow"
                                   aria-label={`Hourly consumption slider for hour ${index}`}
                                 />
-                                <span className="text-xs font-mono w-8 text-right">{usage.toFixed(1)}</span>
+                                <span className="text-xs font-mono w-10 text-right">{usage.toFixed(2)}</span>
                               </div>
                             </div>
                           ))}
@@ -892,7 +899,7 @@ export default function SettingsPage() {
                                 step="0.01"
                                 min="0"
                                 max="2"
-                                placeholder="e.g., 1.0"
+                                placeholder="e.g., 1.00"
                                 {...field}
                                 value={field.value ?? ''}
                                 onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
@@ -906,7 +913,7 @@ export default function SettingsPage() {
                   </div>
                   <FormDescription>
                     These factors adjust the baseline solar generation estimate for seasonality.
-                    A factor of 1.0 means average generation for that month, 0.5 means 50%, 1.2 means 120%.
+                    A factor of 1.00 means average generation for that month, 0.50 means 50%, 1.20 means 120%.
                   </FormDescription>
                   <Button type="submit" className="btn-silver w-full sm:w-auto">Save Monthly Factors</Button>
                 </form>

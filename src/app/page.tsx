@@ -5,7 +5,7 @@ import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} f
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle, AlertCircle } from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer, ChartTooltipContent} from "@/components/ui/chart";
 import { Button } from '@/components/ui/button';
@@ -160,10 +160,9 @@ export default function HomePage() {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
     const allHoursData = forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00',
-      kWh: h.estimatedGenerationWh / 1000 // Pass full precision kWh
+      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)) // Refined to two decimal places
     }));
-    // Filter out hours with no generation for the chart display
-    return allHoursData.filter(d => d.kWh > 0.0001); // Only show if generation is more than a tiny fraction
+    return allHoursData.filter(d => d.kWh > 0.001); // Only show if generation is more than a tiny fraction
   };
 
   const renderForecastCard = (title: string, forecastData: CalculatedForecast | null, manualDayData: ManualDayForecast) => {
@@ -196,6 +195,12 @@ export default function HomePage() {
         }
     }
 
+    const maxYValue = useMemo(() => {
+        if (!chartData || chartData.length === 0) return 'auto';
+        const maxKWh = Math.max(...chartData.map(d => d.kWh));
+        return Math.ceil(maxKWh * 1.1); // Add 10% padding to max value
+    }, [chartData]);
+
 
     return (
         <Card>
@@ -225,10 +230,20 @@ export default function HomePage() {
                 {forecastData && !forecastData.errorMessage && chartData.length > 0 ? (
                     <ChartContainer config={{kWh: { label: "kWh", color: "hsl(var(--primary))" }}} className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 5, right: 20, left: 30, bottom: 5 }}>
+                            <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                                 <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={false} stroke="hsl(var(--muted-foreground))" />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" domain={[0, 'auto']} allowDecimals={true} tickFormatter={(value) => value.toFixed(3)} />
+                                <YAxis 
+                                    fontSize={10} 
+                                    tickLine={false} 
+                                    axisLine={false} 
+                                    unit="kWh" 
+                                    stroke="hsl(var(--muted-foreground))" 
+                                    domain={[0, maxYValue]} 
+                                    allowDecimals={true} 
+                                    tickFormatter={(value) => value.toFixed(2)} 
+                                    width={50}
+                                />
                                 <ChartTooltipContent
                                     cursor={false}
                                     content={<ChartTooltipContent hideLabel indicator="dot" />}
@@ -250,7 +265,7 @@ export default function HomePage() {
     );
   };
 
-  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
+ const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
     const date = new Date(dateStr + 'T00:00:00'); // Ensure parsing as local date
     return isValid(date) && !isNaN(date.getTime());
