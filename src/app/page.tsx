@@ -33,7 +33,7 @@ const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) =
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast(); // Use the hook correctly
+  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast(); 
   
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
   const [isMounted, setIsMounted] = useState(false);
@@ -159,7 +159,7 @@ export default function HomePage() {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
     const allHoursData = forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00',
-      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(3)) 
+      kWh: h.estimatedGenerationWh / 1000 // Pass full precision kWh
     }));
     // Filter out hours with no generation for the chart display
     return allHoursData.filter(d => d.kWh > 0);
@@ -249,19 +249,9 @@ export default function HomePage() {
     );
   };
 
-
- const handleRefreshForecast = () => {
-    refreshForecastDates(); 
-    toast({
-      title: "Forecast Dates Refreshed",
-      description: "Manual forecast dates have been updated to today and tomorrow. Recalculating generation...",
-    });
-  };
-
-
   const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
-    const date = new Date(dateStr + 'T00:00:00');
+    const date = new Date(dateStr + 'T00:00:00'); // Ensure parsing as local date
     return isValid(date) && !isNaN(date.getTime());
   }
 
@@ -405,22 +395,17 @@ export default function HomePage() {
         {isMounted && settings && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today)}
-                    {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow)}
+                    {manualForecast.today && renderForecastCard("Today", calculatedForecasts.today, manualForecast.today)}
+                    {manualForecast.tomorrow && renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow)}
                 </div>
-                {/* Week Ahead Placeholder - Hidden as requested */}
-                {/* 
-                {!isMobile && (
+                 {!isMobile && !settings.selectedWeatherSource && ( // Assuming selectedWeatherSource will be set if using an API
                   <div className="mt-8">
                       <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-                      {renderWeeklyForecastPlaceholder()}
-                      <p className="text-sm text-muted-foreground mt-2">Note: Week ahead forecast is not available with manual input mode. Future updates may integrate more detailed input or API options.</p>
+                      <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is not available with manual input mode. Future updates may integrate API options for extended forecasts.</p>
                   </div>
                 )}
-                */}
             </>
         )}
     </div>
   );
 }
-
