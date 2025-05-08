@@ -1,4 +1,3 @@
-
 'use client';
 import React, {useState, useEffect, useMemo, Fragment } from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
@@ -63,8 +62,6 @@ export default function HomePage() {
   
 
   useEffect(() => {
-    // When manualForecast from the hook changes (e.g., due to refreshForecastDates or direct set),
-    // update the editableForecast for the modal.
     setEditableForecast(manualForecast);
   }, [manualForecast]);
 
@@ -73,14 +70,11 @@ export default function HomePage() {
       setCalculatedForecasts({ today: null, tomorrow: null });
       return;
     }
-    // Ensure manualForecast has valid dates before calculating
     const todayDateStr = format(new Date(), 'yyyy-MM-dd');
     const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        // This condition might occur if useManualForecast hasn't updated its state yet after a date change.
-        // The calculation will re-run when manualForecast updates.
-        refreshForecastDates(); // Call refresh to ensure dates are up-to-date
+        refreshForecastDates(); 
         return;
     }
 
@@ -100,7 +94,6 @@ export default function HomePage() {
   }, [isMounted, settings, manualForecast, toast, refreshForecastDates]);
 
   const handleModalSave = () => {
-    // Basic validation for time format HH:MM
     const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
     if (!timeRegex.test(editableForecast.today.sunrise) || !timeRegex.test(editableForecast.today.sunset) ||
         !timeRegex.test(editableForecast.tomorrow.sunrise) || !timeRegex.test(editableForecast.tomorrow.sunset)) {
@@ -112,7 +105,6 @@ export default function HomePage() {
       return;
     }
 
-    // Validate sunrise is before sunset
     if (editableForecast.today.sunrise >= editableForecast.today.sunset) {
       toast({
         title: "Invalid Times for Today",
@@ -130,7 +122,7 @@ export default function HomePage() {
       return;
     }
 
-    setManualForecast(editableForecast); // This will trigger the useEffect for calculation
+    setManualForecast(editableForecast); 
     setIsModalOpen(false);
     toast({
       title: "Forecast Updated",
@@ -165,15 +157,17 @@ export default function HomePage() {
 
   const formatChartData = (forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
-    return forecast.hourlyForecast.map(h => ({
+    const allHoursData = forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00',
-      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(3)) // Use toFixed(3) for better precision
+      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(3)) 
     }));
+    // Filter out hours with no generation for the chart display
+    return allHoursData.filter(d => d.kWh > 0);
   };
 
   const renderForecastCard = (title: string, forecastData: CalculatedForecast | null, manualDayData: ManualDayForecast) => {
     const chartData = formatChartData(forecastData);
-    const weatherIcon = getWeatherIcon(manualDayData?.condition); // Ensure manualDayData exists
+    const weatherIcon = getWeatherIcon(manualDayData?.condition); 
 
     const generationValue = forecastData?.dailyTotalGenerationKWh;
     const displayGeneration = (typeof generationValue === 'number' && !isNaN(generationValue))
@@ -196,8 +190,8 @@ export default function HomePage() {
             chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset in the forecast settings.";
         } else if (!forecastData.hourlyForecast || forecastData.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
-        } else if (chartData.length === 0 || !chartData.some(d => d.kWh > 0)) { // Check if any kWh > 0
-             chartPlaceholderMessage = "No significant solar generation is expected, or data is too small to display. Please check inputs and factors.";
+        } else if (chartData.length === 0) { 
+             chartPlaceholderMessage = "No significant solar generation is expected based on inputs, or data is too small to display. Please check inputs and factors.";
         }
     }
 
@@ -227,13 +221,13 @@ export default function HomePage() {
                 </div>
             </CardHeader>
             <CardContent>
-                {forecastData && !forecastData.errorMessage && chartData.length > 0 && chartData.some(d => d.kWh > 0) ? (
+                {forecastData && !forecastData.errorMessage && chartData.length > 0 ? (
                     <ChartContainer config={{kWh: { label: "kWh", color: "hsl(var(--primary))" }}} className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                                 <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={false} stroke="hsl(var(--muted-foreground))" />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" domain={[0, 'auto']} allowDecimals={true} tickFormatter={(value) => value.toFixed(2)} />
+                                <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" domain={[0, 'auto']} allowDecimals={true} tickFormatter={(value) => value.toFixed(3)} />
                                 <ChartTooltipContent
                                     cursor={false}
                                     content={<ChartTooltipContent hideLabel indicator="dot" />}
@@ -256,11 +250,17 @@ export default function HomePage() {
   };
 
 
+ const handleRefreshForecast = () => {
+    refreshForecastDates(); 
+    toast({
+      title: "Forecast Dates Refreshed",
+      description: "Manual forecast dates have been updated to today and tomorrow. Recalculating generation...",
+    });
+  };
+
+
   const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
-    // Attempt to create a date object. Ensure the format is 'yyyy-MM-dd' by splitting and reconstructing if necessary,
-    // or by ensuring that the input to new Date() is correctly formatted for unambiguous parsing.
-    // For 'yyyy-MM-dd', appending 'T00:00:00' makes it ISO 8601 and less ambiguous for `new Date()`.
     const date = new Date(dateStr + 'T00:00:00');
     return isValid(date) && !isNaN(date.getTime());
   }
@@ -327,7 +327,7 @@ export default function HomePage() {
                                   </>
                               ) : (
                                   <p className="text-muted-foreground text-destructive">
-                                    Date for {dayKey} is invalid or not loaded. Try refreshing. Current value: {dayDateStr}
+                                    Date for {dayKey} is invalid or not loaded. Ensure settings are saved &amp; refresh.
                                   </p>
                               )}
                            </div>
@@ -408,6 +408,16 @@ export default function HomePage() {
                     {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today)}
                     {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow)}
                 </div>
+                {/* Week Ahead Placeholder - Hidden as requested */}
+                {/* 
+                {!isMobile && (
+                  <div className="mt-8">
+                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+                      {renderWeeklyForecastPlaceholder()}
+                      <p className="text-sm text-muted-foreground mt-2">Note: Week ahead forecast is not available with manual input mode. Future updates may integrate more detailed input or API options.</p>
+                  </div>
+                )}
+                */}
             </>
         )}
     </div>
