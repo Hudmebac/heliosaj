@@ -255,27 +255,6 @@ export default function HomePage() {
     );
   };
 
- const renderWeeklyForecastPlaceholder = () => {
-    return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        {Array.from({ length: 7 }).map((_, index) => (
-            <Card key={`placeholder-${index}`} className="text-center flex flex-col bg-muted/50">
-              <CardHeader className="pb-2 pt-3 px-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Day {index + 1}</CardTitle>
-                 <CardDescription className="text-xs text-muted-foreground">N/A</CardDescription>
-                 <div className="pt-2 flex justify-center items-center h-8">
-                     <Sun className="w-6 h-6 text-muted-foreground/50" data-ai-hint="weather sun" />
-                 </div>
-               </CardHeader>
-               <CardContent className="p-2 mt-auto">
-                    <p className="text-base font-semibold text-muted-foreground/70">--</p>
-                    <p className="text-xs text-muted-foreground -mt-1">kWh</p>
-              </CardContent>
-            </Card>
-          ))}
-      </div>);
-   };
-
  const handleRefreshForecast = () => {
     refreshForecastDates(); // This will update dates in localStorage and trigger re-calculations
     toast({
@@ -285,7 +264,10 @@ export default function HomePage() {
   };
 
   const isValidDateString = (dateStr: string | undefined): dateStr is string => {
-    return dateStr ? isValid(new Date(dateStr)) : false;
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    // Check if date object is valid and the string parsing didn't result in 'Invalid Date'
+    return isValid(date) && !isNaN(date.getTime());
   }
 
   return (
@@ -349,14 +331,14 @@ export default function HomePage() {
                               {isValidDateString(dayDateStr) ? (
                                   <>
                                       <p className="text-muted-foreground">
-                                          {format(new Date(dayDateStr), 'EEEE')}
+                                          {format(new Date(dayDateStr + 'T00:00:00'), 'EEEE')} 
                                       </p>
                                       <p className="text-muted-foreground">
-                                          {format(new Date(dayDateStr), 'dd/MM/yyyy')}
+                                          {format(new Date(dayDateStr + 'T00:00:00'), 'dd/MM/yyyy')}
                                       </p>
                                   </>
                               ) : (
-                                  <p className="text-muted-foreground text-destructive">Invalid date for {dayKey}</p>
+                                  <p className="text-muted-foreground text-destructive">Invalid date for {dayKey}: {dayDateStr}</p>
                               )}
                            </div>
                           <div className="grid grid-cols-2 gap-3">
@@ -436,13 +418,6 @@ export default function HomePage() {
                     {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today)}
                     {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow)}
                 </div>
-                {!isMobile && (
-                  <div className="mt-8">
-                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-                      {renderWeeklyForecastPlaceholder()}
-                      <p className="text-sm text-muted-foreground mt-2">Note: Week ahead forecast is not available with manual input mode. Future updates may integrate more detailed input or API options.</p>
-                  </div>
-                )}
             </>
         )}
     </div>
