@@ -14,13 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info'; // Import the new component and data
-import { addDays, format, isValid } from 'date-fns'; // Import isValid
+import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info'; 
+import { addDays, format, isValid } from 'date-fns'; 
 import { HowToInfo } from '@/components/how-to-info';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
-  if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />; // Default to Sun or a generic icon
+  if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />; 
   switch (condition) {
     case 'sunny': return <Sun className="w-6 h-6 text-yellow-500" data-ai-hint="sun weather" />;
     case 'partly_cloudy': return <Cloud className="w-6 h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
@@ -76,12 +76,8 @@ export default function HomePage() {
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        // This indicates dates are stale, refreshForecastDates should update them.
-        // We call it, and it will trigger a re-render with updated manualForecast, leading to recalculation.
         refreshForecastDates(); 
-        // It's important that calculateAndSetForecasts is re-triggered after manualForecast updates.
-        // The dependency array of its useEffect caller should include manualForecast.
-        return; // Exit early, calculation will happen on next render with fresh dates
+        return; 
     }
 
     try {
@@ -170,23 +166,20 @@ export default function HomePage() {
   const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
     
-    // Ensure sunrise and sunset are valid HH:MM strings before parsing
     const sunriseHour = forecast.sunrise ? parseInt(forecast.sunrise.split(':')[0]) : 0;
     const sunsetHour = forecast.sunset ? parseInt(forecast.sunset.split(':')[0]) : 23;
 
     const allHoursData = forecast.hourlyForecast.map(h => {
       const hour = parseInt(h.time.split(':')[0]);
-      // Display data if within sunrise/sunset or if there's generation
       if ((hour >= sunriseHour && hour <= sunsetHour) || (h.estimatedGenerationWh / 1000) > 0.001) {
         return {
           time: h.time.split(':')[0] + ':00',
           kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)) 
         };
       }
-      return null; // Exclude hours outside daylight with no generation
-    }).filter(Boolean) as Array<{ time: string; kWh: number }>; // Filter out nulls and assert type
+      return null; 
+    }).filter(Boolean) as Array<{ time: string; kWh: number }>; 
 
-    // If after filtering, all data is zero (or very small), still show the range between sunrise and sunset
     if (allHoursData.every(d => d.kWh <= 0.001) && forecast.hourlyForecast.length > 0) {
         return forecast.hourlyForecast
             .map(h => {
@@ -220,37 +213,52 @@ export default function HomePage() {
     return max > 0 ? max : 0;
   }, [tomorrowChartData]);
 
-  const generateYAxisTicks = useCallback((maxDataKWh: number): number[] => {
-    const step = 0.25;
-    let upperTickLimit = Math.ceil((maxDataKWh + 0.001) / step) * step;
+  const generateYAxisTicks = useCallback((maxKWh: number): number[] => {
+    if (maxKWh <= 0) return [0, 1]; 
 
-    if (maxDataKWh === 0) {
-      upperTickLimit = step; 
-    } else if (upperTickLimit === 0 && maxDataKWh > 0) { 
-      upperTickLimit = step;
-    } else if (upperTickLimit < step && maxDataKWh > 0) { // Ensure small values still get a reasonable scale
-        upperTickLimit = Math.max(step, upperTickLimit);
-    }
+    const roundedMax = Math.ceil(maxKWh); 
+    let step = 1;
 
+    if (roundedMax > 20) step = 5;
+    else if (roundedMax > 10) step = 2;
+    else if (roundedMax === 0 && maxKWh > 0) step = 1; // handles very small maxKWh like 0.3
 
-    const ticksArray: number[] = [];
-    for (let i = 0; i <= upperTickLimit; i += step) {
-      ticksArray.push(parseFloat(i.toFixed(2)));
+    const ticks: number[] = [];
+    // Ensure ticks are generated up to or slightly beyond roundedMax
+    const upperLimit = Math.ceil(roundedMax / step) * step; 
+
+    for (let i = 0; i <= upperLimit; i += step) {
+      ticks.push(i);
     }
     
-    if (ticksArray.length === 0) {
-        return [0, 0.25];
+    // If roundedMax itself isn't a multiple of step, add it.
+    if (roundedMax % step !== 0 && !ticks.includes(roundedMax) && roundedMax > 0) {
+        // Only add if it's not already there AND it's positive
+        // And ensure it's added in sorted order if necessary, or rely on final sort
+        if (ticks[ticks.length -1] < roundedMax) {
+           ticks.push(roundedMax);
+        }
     }
-    if (ticksArray.length === 1 && ticksArray[0] === 0) {
-        return [0, 0.25];
+    
+    const finalTicks = [...new Set([0, ...ticks])].sort((a,b) => a-b);
+
+    if (finalTicks.length === 1 && finalTicks[0] === 0 && roundedMax > 0) {
+        return [0, roundedMax];
     }
-    //Ensure 0 is always present if not already
-    if(ticksArray[0] !== 0) {
-        ticksArray.unshift(0);
+    if (finalTicks.length === 0 && roundedMax > 0) { 
+        return [0, roundedMax];
     }
-    //Remove duplicates that might arise from unshift
-    return [...new Set(ticksArray)].sort((a,b) => a-b);
+    if (finalTicks.length === 0 && roundedMax === 0) {
+        return [0, 1]; 
+    }
+    if (finalTicks.length === 1 && finalTicks[0] === 0 && maxKWh > 0 && maxKWh < step) {
+        return [0, step];
+    }
+
+
+    return finalTicks;
   }, []);
+
 
   const todayYAxisTicks = useMemo(() => generateYAxisTicks(todayMaxKWh), [todayMaxKWh, generateYAxisTicks]);
   const tomorrowYAxisTicks = useMemo(() => generateYAxisTicks(tomorrowMaxKWh), [tomorrowMaxKWh, generateYAxisTicks]);
@@ -259,11 +267,11 @@ export default function HomePage() {
   const renderForecastCard = useCallback((
     title: string,
     forecastData: CalculatedForecast | null,
-    manualDayData: ManualDayForecast | null, // Can be null if manualForecast is not fully loaded
+    manualDayData: ManualDayForecast | null, 
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
     yAxisTicksForChart: number[]
   ) => {
-    if (!manualDayData) { // Guard against null manualDayData
+    if (!manualDayData) { 
       return (
         <Card>
           <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
@@ -351,10 +359,10 @@ export default function HomePage() {
                                     stroke="hsl(var(--muted-foreground))" 
                                     domain={[0, yDomainMax]} 
                                     ticks={yAxisTicksForChart}
-                                    allowDecimals={true} 
-                                    tickFormatter={(value) => `${value.toFixed(2)}`} 
-                                    width={40} 
-                                    label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -5, style: {fontSize: '10px', fill: 'hsl(var(--muted-foreground))'} }}
+                                    allowDecimals={false} 
+                                    tickFormatter={(value) => value.toString()} 
+                                    width={45} 
+                                    label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -10, style: {fontSize: '10px', fill: 'hsl(var(--muted-foreground))'} }}
                                 />
                                  <YAxis 
                                     yAxisId="right"
@@ -365,9 +373,9 @@ export default function HomePage() {
                                     stroke="hsl(var(--muted-foreground))" 
                                     domain={[0, yDomainMax]} 
                                     ticks={yAxisTicksForChart}
-                                    allowDecimals={true} 
-                                    tickFormatter={(value) => `${value.toFixed(2)}`} 
-                                    width={40}
+                                    allowDecimals={false} 
+                                    tickFormatter={(value) => value.toString()} 
+                                    width={45}
                                 />
                                 <ChartTooltip
                                     cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}
@@ -397,12 +405,11 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings]); // Dependencies updated
+  }, [isMounted, settings]); 
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
-    const date = new Date(dateStr + 'T00:00:00'); // Ensure parsing as local date
+    const date = new Date(dateStr + 'T00:00:00'); 
     return isValid(date) && !isNaN(date.getTime());
   }
 
@@ -560,4 +567,3 @@ export default function HomePage() {
     </div>
   );
 }
-
