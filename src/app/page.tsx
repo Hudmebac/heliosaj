@@ -1,4 +1,3 @@
-
 'use client';
 import React, {useState, useEffect, useMemo, Fragment, useCallback } from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
@@ -15,15 +14,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {BarChart, AreaChart, LineChart, Bar, Area, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info'; 
-import { addDays, format, isValid } from 'date-fns'; 
+import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
+import { addDays, format, isValid } from 'date-fns';
 import { HowToInfo } from '@/components/how-to-info';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 type ChartType = 'bar' | 'line' | 'area';
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
-  if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />; 
+  if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />;
   switch (condition) {
     case 'sunny': return <Sun className="w-6 h-6 text-yellow-500" data-ai-hint="sun weather" />;
     case 'partly_cloudy': return <Cloud className="w-6 h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
@@ -36,8 +35,8 @@ const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) =
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast(); 
-  
+  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
+
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
@@ -52,7 +51,7 @@ export default function HomePage() {
   const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(manualForecast);
   const [selectedCityForTimes, setSelectedCityForTimes] = useState<string>("");
   const [selectedChartType, setSelectedChartType] = useState<ChartType>('bar');
-  
+
   useEffect(() => {
     setIsMounted(true);
     if (settings?.latitude && settings?.longitude) {
@@ -63,7 +62,7 @@ export default function HomePage() {
         setLocationDisplay('Location Not Set');
     }
   }, [settings]);
-  
+
 
   useEffect(() => {
     setEditableForecast(manualForecast);
@@ -77,11 +76,15 @@ export default function HomePage() {
     const todayDateStr = format(new Date(), 'yyyy-MM-dd');
     const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
+    // Use a temporary variable for manualForecast to ensure the latest is used if refreshForecastDates was called
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        refreshForecastDates(); 
-        return; 
+        // Call refreshForecastDates which updates manualForecast via setManualForecast
+        // The updated manualForecast will be available in the next render cycle.
+        // We trigger a re-calculation in the useEffect that depends on manualForecast.
+        refreshForecastDates();
+        return; // Exit early, calculation will happen in next effect run
     }
 
     try {
@@ -134,7 +137,7 @@ export default function HomePage() {
       return;
     }
 
-    setManualForecast(editableForecast); 
+    setManualForecast(editableForecast);
     setIsModalOpen(false);
     toast({
       title: "Forecast Updated",
@@ -167,28 +170,33 @@ export default function HomePage() {
     }));
   };
 
-  const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
+ const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
-    
+
     const sunriseHour = forecast.sunrise ? parseInt(forecast.sunrise.split(':')[0]) : 0;
     const sunsetHour = forecast.sunset ? parseInt(forecast.sunset.split(':')[0]) : 23;
 
+    // Include all hours between sunrise and sunset, or hours with generation
     const allHoursData = forecast.hourlyForecast.map(h => {
       const hour = parseInt(h.time.split(':')[0]);
+      // Ensure we include hours if they have generation, even if slightly outside precise sunrise/sunset due to calculation nuances
       if ((hour >= sunriseHour && hour <= sunsetHour) || (h.estimatedGenerationWh / 1000) > 0.001) {
         return {
           time: h.time.split(':')[0] + ':00',
-          kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)) 
+          kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
         };
       }
-      return null; 
-    }).filter(Boolean) as Array<{ time: string; kWh: number }>; 
+      return null; // Explicitly return null for hours to be filtered out
+    }).filter(Boolean) as Array<{ time: string; kWh: number }>; // Filter out nulls and assert type
 
+    // If all kWh values are effectively zero, but we have hourly data (e.g., overcast day),
+    // still return the zero-value data for the sunrise-sunset period to show the timespan.
     if (allHoursData.every(d => d.kWh <= 0.001) && forecast.hourlyForecast.length > 0) {
         return forecast.hourlyForecast
             .map(h => {
                 const hour = parseInt(h.time.split(':')[0]);
-                if (hour >= sunriseHour && hour <= sunsetHour) { 
+                // This condition ensures we only plot hours that are relevant (within daylight or having generation)
+                if (hour >= sunriseHour && hour <= sunsetHour) { // Only consider hours within the defined daylight period
                     return {
                         time: h.time.split(':')[0] + ':00',
                         kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
@@ -198,43 +206,48 @@ export default function HomePage() {
             })
             .filter(Boolean) as Array<{ time: string; kWh: number }>;
     }
-    
+
     return allHoursData;
   }, []);
-  
+
+
   const todayChartData = useMemo(() => formatChartData(calculatedForecasts.today), [calculatedForecasts.today, formatChartData]);
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5; 
-    const maxKWh = Math.max(...chartData.map(d => d.kWh));
-    if (maxKWh <= 0.01) return 0.1; // If max is very small, set a small max like 0.1
-    if (maxKWh < 0.5) return 0.5; // If max is less than 0.5, set max to 0.5
-    return Math.ceil(maxKWh * 1.1); // Otherwise, add 10% padding
+    if (!chartData || chartData.length === 0) return 0.5; // Default if no data or all zero
+    const maxKWh = Math.max(...chartData.map(d => d.kWh), 0); // Ensure maxKWh is at least 0
+    if (maxKWh <= 0.01) return 0.1;
+    if (maxKWh < 0.5) return 0.5;
+    return Math.ceil(maxKWh * 1.1);
   }, []);
+
 
   const todayMaxY = useMemo(() => getMaxYValue(todayChartData), [todayChartData, getMaxYValue]);
   const tomorrowMaxY = useMemo(() => getMaxYValue(tomorrowChartData), [tomorrowChartData, getMaxYValue]);
 
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
-    if (maxYValueForChart <= 0) return [0];
-    
-    const numTicks = 5; // Aim for about 5 ticks
+    if (maxYValueForChart <= 0) return [0]; // Handle zero or negative max
+    const numTicks = 5;
     let step: number;
 
     if (maxYValueForChart <= 0.1) step = 0.02;
     else if (maxYValueForChart <= 0.5) step = 0.1;
-    else if (maxYValueForChart <= 1) step = 0.25;
+    else if (maxYValueForChart <= 1) step = 0.2; // Adjusted for better fit with 0.25 increments
     else if (maxYValueForChart <= 2.5) step = 0.5;
     else if (maxYValueForChart <= 5) step = 1;
-    else step = Math.ceil(maxYValueForChart / numTicks);
-    
+    else step = Math.ceil(maxYValueForChart / numTicks / 0.25) * 0.25; // Ensure step is multiple of 0.25 for larger scales
+
     const ticks = [];
-    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { 
+    // Ensure 0.00 is always the first tick
+    ticks.push(0.00);
+    for (let i = step; i <= maxYValueForChart + (step / 2) ; i += step) {
         ticks.push(parseFloat(i.toFixed(2)));
     }
-    return ticks.filter(tick => tick <= maxYValueForChart + (step/2)); // Ensure ticks don't greatly exceed maxY
+     // Ensure ticks don't greatly exceed maxY and are unique
+    return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2))));
   }, []);
+
 
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
   const tomorrowYAxisTicks = useMemo(() => getYAxisTicks(tomorrowMaxY), [tomorrowMaxY, getYAxisTicks]);
@@ -242,12 +255,12 @@ export default function HomePage() {
   const renderForecastCard = useCallback((
     title: string,
     forecastData: CalculatedForecast | null,
-    manualDayData: ManualDayForecast | null, 
+    manualDayData: ManualDayForecast | null,
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
     maxYValueForChart: number,
     yAxisTicksForChart: number[]
   ) => {
-    if (!manualDayData) { 
+    if (!manualDayData) {
       return (
         <Card>
           <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
@@ -256,15 +269,15 @@ export default function HomePage() {
       );
     }
 
-    const weatherIcon = getWeatherIcon(manualDayData?.condition); 
+    const weatherIcon = getWeatherIcon(manualDayData?.condition);
 
     const generationValue = forecastData?.dailyTotalGenerationKWh;
     const displayGeneration = (typeof generationValue === 'number' && !isNaN(generationValue))
       ? `${generationValue.toFixed(2)} kWh`
       : 'N/A';
-    
+
     const conditionText = manualDayData?.condition ? manualDayData.condition.replace(/_/g, ' ') : 'N/A';
-    
+
     let chartPlaceholderMessage = '';
     if (!isMounted) {
         chartPlaceholderMessage = 'Loading forecast data...';
@@ -274,20 +287,30 @@ export default function HomePage() {
         chartPlaceholderMessage = forecastData.errorMessage;
     } else if (!forecastData) {
         chartPlaceholderMessage = 'Calculating forecast... Ensure manual forecast inputs are saved.';
-    } else { 
+    } else {
         if (!manualDayData || !manualDayData.sunrise || !manualDayData.sunset || manualDayData.sunrise >= manualDayData.sunset) {
             chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset in the forecast settings.";
         } else if (!forecastData.hourlyForecast || forecastData.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
-        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d=>d.kWh > 0.001)) { 
+        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d=>d.kWh > 0.001)) {
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
-    
+
+    const chartXTicks = useMemo(() => {
+        if (!chartDataToDisplay || chartDataToDisplay.length === 0) return undefined;
+        const evenHourTimes = chartDataToDisplay
+            .map(d => d.time)
+            .filter(time => parseInt(time.split(':')[0]) % 2 === 0);
+        const uniqueEvenHourTimes = Array.from(new Set(evenHourTimes));
+        return uniqueEvenHourTimes.length > 0 ? uniqueEvenHourTimes : undefined;
+    }, [chartDataToDisplay]);
+
+
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
-        margin: { top: 5, right: 30, left: 15, bottom: 5 }, // Increased left margin
+        margin: { top: 5, right: 30, left: 15, bottom: 5 },
       };
       const commonYAxisProps = {
         fontSize: 10,
@@ -296,18 +319,19 @@ export default function HomePage() {
         stroke: "hsl(var(--muted-foreground))",
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
-        tickFormatter: (value: number) => value.toFixed(2),
-        width: 40, // Adjusted width
+        tickFormatter: (value: number) => value.toFixed(2), // Display Y-axis ticks with 2 decimal places
+        width: 50, // Increased width for Y-axis labels
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
         dataKey: "time",
         fontSize: 10,
-        tickLine: false,
+        tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        interval: 0, 
-        tickFormatter: (value: string) => value,
+        ticks: chartXTicks, // Use calculated 2-hour interval ticks
+        tickFormatter: (value: string) => value, // Ticks are already formatted as HH:00
+        interval: 0, // Ensure all specified `ticks` are attempted to be rendered
       };
 
       const customTooltip = (props: any) => {
@@ -404,11 +428,11 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  }, [isMounted, settings, selectedChartType]); 
+  }, [isMounted, settings, selectedChartType]);
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
-    const date = new Date(dateStr + 'T00:00:00'); 
+    const date = new Date(dateStr + 'T00:00:00'); // Ensure consistent parsing, assuming date string is local date
     return isValid(date) && !isNaN(date.getTime());
   }
 
@@ -466,10 +490,10 @@ export default function HomePage() {
                               {dayData && isValidDateString(dayDateStr) ? (
                                   <>
                                       <p className="text-muted-foreground">
-                                          {format(new Date(dayDateStr + 'T00:00:00Z'), 'EEEE')} {/* Added T00:00:00Z to ensure date is UTC */}
+                                          {format(new Date(dayDateStr + 'T00:00:00'), 'EEEE')}
                                       </p>
                                       <p className="text-muted-foreground">
-                                          {format(new Date(dayDateStr + 'T00:00:00Z'), 'dd/MM/yyyy')} {/* Added T00:00:00Z to ensure date is UTC */}
+                                          {format(new Date(dayDateStr + 'T00:00:00'), 'dd/MM/yyyy')}
                                       </p>
                                   </>
                               ) : (
@@ -569,10 +593,10 @@ export default function HomePage() {
                     {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks)}
                     {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks)}
                 </div>
-                 {isMounted && (!settings.selectedWeatherSource || settings.selectedWeatherSource === 'manual') && ( 
+                 {isMounted && (!settings.selectedWeatherSource || settings.selectedWeatherSource === 'manual') && !isMobile && (
                   <div className="mt-8">
                       <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-                      <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is not available with manual input mode. Future updates may integrate API options for extended forecasts.</p>
+                       <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is not available with manual input mode. Future updates may integrate API options for extended forecasts.</p>
                   </div>
                 )}
             </>
@@ -580,4 +604,3 @@ export default function HomePage() {
     </div>
   );
 }
-
