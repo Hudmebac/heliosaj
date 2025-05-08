@@ -160,9 +160,11 @@ export default function HomePage() {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
     const allHoursData = forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00',
-      kWh: parseFloat(h.estimatedGenerationWh.toFixed(2)) // Ensure kWh is to 2 decimal places for calculations
+      kWh: parseFloat(h.estimatedGenerationWh.toFixed(2)) 
     }));
+    // Filter out hours with zero or negligible generation for a cleaner chart if desired
     const significantData = allHoursData.filter(d => d.kWh > 0.001);
+    // If no significant data, show all hours to indicate low generation rather than no data
     return significantData.length > 0 ? significantData : allHoursData;
   };
 
@@ -170,10 +172,10 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow]);
 
   const todayMaxYValue = useMemo(() => {
-    if (!todayChartData || todayChartData.length === 0) return 1; // Default to 1 kWh for scale
+    if (!todayChartData || todayChartData.length === 0) return 1;
     const maxKWh = Math.max(...todayChartData.map(d => d.kWh));
-    if (maxKWh === -Infinity || maxKWh <= 0) return 1; // Handle empty or all zero/negative data
-    return Math.max(1, Math.ceil(maxKWh * 1.1)); // Ensure minimum upper bound of 1, add 10% padding and ceil
+    if (maxKWh === -Infinity || maxKWh <= 0) return 1;
+    return Math.max(1, Math.ceil(maxKWh * 1.1));
   }, [todayChartData]);
 
   const tomorrowMaxYValue = useMemo(() => {
@@ -183,13 +185,31 @@ export default function HomePage() {
     return Math.max(1, Math.ceil(maxKWh * 1.1));
   }, [tomorrowChartData]);
 
+  const generateYAxisTicks = (maxYValue: number): number[] => {
+    const ticksArray: number[] = [];
+    const step = 0.25;
+    for (let i = 0; i <= maxYValue; i += step) {
+      ticksArray.push(parseFloat(i.toFixed(2)));
+    }
+    // Ensure the maxYValue itself is a tick if not perfectly divisible by step
+    if (maxYValue > 0 && maxYValue % step !== 0 && !ticksArray.includes(parseFloat(maxYValue.toFixed(2)))) {
+        const lastTick = ticksArray[ticksArray.length -1];
+        if(maxYValue > lastTick) ticksArray.push(parseFloat((lastTick + step).toFixed(2))); // Add one more step if maxY is above last
+    }
+    return ticksArray.length > 0 ? ticksArray : [0, 0.25, 0.50, 0.75, 1.00]; // Default ticks
+  };
+
+  const todayYAxisTicks = useMemo(() => generateYAxisTicks(todayMaxYValue), [todayMaxYValue]);
+  const tomorrowYAxisTicks = useMemo(() => generateYAxisTicks(tomorrowMaxYValue), [tomorrowMaxYValue]);
+
 
   const renderForecastCard = (
     title: string,
     forecastData: CalculatedForecast | null,
     manualDayData: ManualDayForecast,
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
-    maxYValueForChart: number
+    maxYValueForChart: number,
+    yAxisTicksForChart: number[]
   ) => {
     const weatherIcon = getWeatherIcon(manualDayData?.condition); 
 
@@ -214,20 +234,10 @@ export default function HomePage() {
             chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset in the forecast settings.";
         } else if (!forecastData.hourlyForecast || forecastData.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
-        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d => d.kWh > 0)) { 
+        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d => d.kWh > 0.001)) { 
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
-
-    const yAxisTicks = useMemo(() => {
-      const upperTickLimit = maxYValueForChart;
-      const ticksArray: number[] = [];
-      for (let i = 0; i <= upperTickLimit; i += 0.25) {
-        ticksArray.push(parseFloat(i.toFixed(2)));
-      }
-      return ticksArray.length > 0 ? ticksArray : [0, 0.25, 0.50, 0.75, 1.00]; // Default ticks if array is empty
-    }, [maxYValueForChart]);
-
 
     return (
         <Card>
@@ -254,7 +264,7 @@ export default function HomePage() {
                 </div>
             </CardHeader>
             <CardContent>
-                {forecastData && !forecastData.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0) ? (
+                {forecastData && !forecastData.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.001) ? (
                     <ChartContainer config={{kWh: { label: "kWh", color: "hsl(var(--primary))" }}} className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartDataToDisplay} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
@@ -272,17 +282,16 @@ export default function HomePage() {
                                     fontSize={10} 
                                     tickLine={false} 
                                     axisLine={false} 
-                                    unit="kWh" 
                                     stroke="hsl(var(--muted-foreground))" 
-                                    domain={[0, 'auto']} 
-                                    ticks={yAxisTicks}
+                                    domain={[0, maxYValueForChart]} 
+                                    ticks={yAxisTicksForChart}
                                     allowDecimals={true} 
-                                    tickFormatter={(value) => value.toFixed(2)} 
+                                    tickFormatter={(value) => value.toFixed(2) + 'kWh'} 
                                     width={60} 
                                 />
                                 <ChartTooltipContent
                                     cursor={false}
-                                    content={<ChartTooltipContent hideLabel indicator="dot" />}
+                                    formatter={(value, name, props) => [`${(props.payload.kWh as number).toFixed(2)} kWh`, 'Generation']}
                                 />
                                 <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={4} />
                             </BarChart>
@@ -447,8 +456,8 @@ export default function HomePage() {
         {isMounted && settings && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {manualForecast.today && renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxYValue)}
-                    {manualForecast.tomorrow && renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxYValue)}
+                    {manualForecast.today && renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxYValue, todayYAxisTicks)}
+                    {manualForecast.tomorrow && renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxYValue, tomorrowYAxisTicks)}
                 </div>
                  {!isMobile && !(settings.selectedWeatherSource && settings.selectedWeatherSource !== 'manual') && ( 
                   <div className="mt-8">
