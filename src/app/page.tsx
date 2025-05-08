@@ -160,9 +160,8 @@ export default function HomePage() {
     if (!forecast?.hourlyForecast || forecast.hourlyForecast.length === 0) return [];
     const allHoursData = forecast.hourlyForecast.map(h => ({
       time: h.time.split(':')[0] + ':00',
-      kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2)) 
+      kWh: parseFloat(h.estimatedGenerationWh.toFixed(2)) // Ensure kWh is to 2 decimal places for calculations
     }));
-    // Only show hours where generation is more than a tiny fraction, or if all are zero, show them all (for placeholder chart)
     const significantData = allHoursData.filter(d => d.kWh > 0.001);
     return significantData.length > 0 ? significantData : allHoursData;
   };
@@ -171,25 +170,26 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow]);
 
   const todayMaxYValue = useMemo(() => {
-    if (!todayChartData || todayChartData.length === 0) return 'auto';
+    if (!todayChartData || todayChartData.length === 0) return 1; // Default to 1 kWh for scale
     const maxKWh = Math.max(...todayChartData.map(d => d.kWh));
-    if (maxKWh === -Infinity || maxKWh === 0) return 1; // Handle empty or all zero data with a min height
-    return Math.ceil(maxKWh * 1.1); 
+    if (maxKWh === -Infinity || maxKWh <= 0) return 1; // Handle empty or all zero/negative data
+    return Math.max(1, Math.ceil(maxKWh * 1.1)); // Ensure minimum upper bound of 1, add 10% padding and ceil
   }, [todayChartData]);
 
   const tomorrowMaxYValue = useMemo(() => {
-    if (!tomorrowChartData || tomorrowChartData.length === 0) return 'auto';
+    if (!tomorrowChartData || tomorrowChartData.length === 0) return 1;
     const maxKWh = Math.max(...tomorrowChartData.map(d => d.kWh));
-    if (maxKWh === -Infinity || maxKWh === 0) return 1;
-    return Math.ceil(maxKWh * 1.1);
+    if (maxKWh === -Infinity || maxKWh <= 0) return 1;
+    return Math.max(1, Math.ceil(maxKWh * 1.1));
   }, [tomorrowChartData]);
+
 
   const renderForecastCard = (
     title: string,
     forecastData: CalculatedForecast | null,
     manualDayData: ManualDayForecast,
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
-    maxYValueForChart: number | 'auto'
+    maxYValueForChart: number
   ) => {
     const weatherIcon = getWeatherIcon(manualDayData?.condition); 
 
@@ -218,6 +218,16 @@ export default function HomePage() {
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
+
+    const yAxisTicks = useMemo(() => {
+      const upperTickLimit = maxYValueForChart;
+      const ticksArray: number[] = [];
+      for (let i = 0; i <= upperTickLimit; i += 0.25) {
+        ticksArray.push(parseFloat(i.toFixed(2)));
+      }
+      return ticksArray.length > 0 ? ticksArray : [0, 0.25, 0.50, 0.75, 1.00]; // Default ticks if array is empty
+    }, [maxYValueForChart]);
+
 
     return (
         <Card>
@@ -255,8 +265,8 @@ export default function HomePage() {
                                     tickLine={false} 
                                     axisLine={false} 
                                     stroke="hsl(var(--muted-foreground))" 
-                                    interval={chartDataToDisplay.length > 12 ? 'preserveEnd' : 0} // Adjust interval based on data length
-                                    tickFormatter={(value) => chartDataToDisplay.length > 12 && parseInt(value.split(':')[0]) % 2 !== 0 ? '' : value} // Show every other hour if many ticks
+                                    interval={chartDataToDisplay.length > 12 ? 'preserveEnd' : 0} 
+                                    tickFormatter={(value) => chartDataToDisplay.length > 12 && parseInt(value.split(':')[0]) % 2 !== 0 ? '' : value} 
                                 />
                                 <YAxis 
                                     fontSize={10} 
@@ -264,10 +274,11 @@ export default function HomePage() {
                                     axisLine={false} 
                                     unit="kWh" 
                                     stroke="hsl(var(--muted-foreground))" 
-                                    domain={[0, maxYValueForChart]} 
+                                    domain={[0, 'auto']} 
+                                    ticks={yAxisTicks}
                                     allowDecimals={true} 
                                     tickFormatter={(value) => value.toFixed(2)} 
-                                    width={60} // Increased width for better label visibility
+                                    width={60} 
                                 />
                                 <ChartTooltipContent
                                     cursor={false}
