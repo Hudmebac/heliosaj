@@ -79,8 +79,8 @@ export default function HomePage() {
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        refreshForecastDates(); 
-        return; 
+        refreshForecastDates();
+        return;
     }
 
     try {
@@ -97,7 +97,7 @@ export default function HomePage() {
       setCalculatedForecasts({ today: null, tomorrow: null });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings, manualForecast, toast, refreshForecastDates]); 
+  }, [isMounted, settings, manualForecast, toast, refreshForecastDates]);
 
 
   useEffect(() => {
@@ -112,6 +112,7 @@ export default function HomePage() {
       toast({
         title: "Invalid Time Format",
         description: "Please use HH:MM for sunrise and sunset times.",
+        variant: "destructive",
         variant: "destructive",
       });
       return;
@@ -172,7 +173,7 @@ export default function HomePage() {
 
     const sunriseHour = forecast.sunrise ? parseInt(forecast.sunrise.split(':')[0]) : 0;
     const sunsetHour = forecast.sunset ? parseInt(forecast.sunset.split(':')[0]) : 23;
-    
+
     const allHoursData = [];
     for (let hour = 0; hour < 24; hour++) {
         const hourStr = hour.toString().padStart(2, '0') + ':00';
@@ -193,7 +194,7 @@ export default function HomePage() {
             });
         }
     }
-    
+
     if (allHoursData.length === 0 && forecast.hourlyForecast.length > 0) {
         return forecast.hourlyForecast
             .map(h => {
@@ -216,11 +217,11 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5; 
-    const maxKWh = Math.max(...chartData.map(d => d.kWh), 0); 
-    if (maxKWh < 0.01) return 0.1; 
+    if (!chartData || chartData.length === 0) return 0.5;
+    const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
+    if (maxKWh < 0.01) return 0.1;
     if (maxKWh < 0.5) return 0.5;
-    return Math.ceil(maxKWh * 1.1); 
+    return Math.ceil(maxKWh * 1.1);
   }, []);
 
 
@@ -229,18 +230,18 @@ export default function HomePage() {
 
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
     if (maxYValueForChart <= 0) return [0];
-    
+
     let step: number;
     if (maxYValueForChart <= 0.1) step = 0.02;
     else if (maxYValueForChart <= 0.25) step = 0.05;
     else if (maxYValueForChart <= 0.5) step = 0.1;
-    else if (maxYValueForChart <= 1) step = 0.2; // Changed from 0.25
+    else if (maxYValueForChart <= 1) step = 0.2;
     else if (maxYValueForChart <= 2.5) step = 0.5;
     else if (maxYValueForChart <= 5) step = 1;
-    else step = Math.ceil(maxYValueForChart / 5 / 0.5) * 0.5; 
+    else step = Math.ceil(maxYValueForChart / 5 / 0.5) * 0.5;
 
     const ticks = [];
-    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { 
+    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) {
         ticks.push(parseFloat(i.toFixed(2)));
     }
     return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2))));
@@ -254,13 +255,12 @@ export default function HomePage() {
     if (!chartData || chartData.length === 0) return undefined;
 
     const hoursWithGeneration = chartData
-      .filter(d => d.kWh > 0.00001) // Filter for hours with any generation
+      .filter(d => d.kWh > 0.00001)
       .map(d => d.time);
 
     const uniqueHoursWithGeneration = Array.from(new Set(hoursWithGeneration));
-    // Sort them chronologically
     uniqueHoursWithGeneration.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
-    
+
     return uniqueHoursWithGeneration.length > 0 ? uniqueHoursWithGeneration : undefined;
   }, []);
 
@@ -318,7 +318,7 @@ export default function HomePage() {
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
-        margin: { top: 5, right: 30, left: 15, bottom: 5 },
+        margin: { top: 5, right: 30, left: 15, bottom: 50 }, // Increased bottom margin
       };
       const commonYAxisProps = {
         fontSize: 10,
@@ -328,27 +328,22 @@ export default function HomePage() {
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
         tickFormatter: (value: number) => value.toFixed(2),
-        width: 50, 
+        width: 50,
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
         dataKey: "time",
-        fontSize: 10,
         tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        ticks: chartXTicksForChart, 
-        tickFormatter: (value: string) => {
-            if (!value) return '';
-            try {
-                const date = parse(value, 'HH:mm', new Date());
-                return format(date, 'ha').toLowerCase();
-            } catch (e) {
-                console.error("Error formatting X-axis tick:", value, e);
-                return value; 
-            }
-        },
-        interval: 0, 
+        ticks: chartXTicksForChart,
+        tickFormatter: (value: string) => value, // Value is already "HH:00"
+        interval: 0,
+        angle: -90,
+        textAnchor: 'end',
+        dx: -5, // Small horizontal shift for better alignment
+        height: 50, // Allocate space for vertical labels
+        fontSize: 10,
       };
 
       const customTooltip = (props: any) => {
@@ -429,13 +424,13 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
                 {forecastData && !forecastData.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
-                    <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[250px] w-full">
+                    <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[300px] w-full"> {/* Increased height for chart container */}
                         <ResponsiveContainer width="100%" height="100%">
                            {renderChart()}
                         </ResponsiveContainer>
                     </ChartContainer>
                 ) : (
-                    <div className="flex flex-col justify-center items-center h-[250px] text-center p-4">
+                    <div className="flex flex-col justify-center items-center h-[300px] text-center p-4"> {/* Increased height for placeholder */}
                         <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
                         <p className="text-muted-foreground text-sm">
                            {chartPlaceholderMessage}
@@ -445,13 +440,14 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  }, [isMounted, settings, selectedChartType]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted, settings, selectedChartType, todayMaxY, tomorrowMaxY, todayYAxisTicks, tomorrowYAxisTicks, todayChartXTicks, tomorrowChartXTicks]);
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(dateStr)) return false;
-    const date = new Date(dateStr + 'T00:00:00'); 
+    const date = new Date(dateStr + 'T00:00:00');
     return isValid(date) && !isNaN(date.getTime());
   }
 
