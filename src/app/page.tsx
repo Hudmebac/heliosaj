@@ -3,7 +3,7 @@
 import React, {useState, useEffect, useMemo, Fragment } from 'react';
 import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
-import type {UserSettings, ManualDayForecast, ManualForecastInput} from '@/types/settings';
+import type {UserSettings, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
 import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
@@ -16,8 +16,9 @@ import {BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from '
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info'; // Import the new component and data
-import { addDays, format } from 'date-fns';
+import { addDays, format, isValid } from 'date-fns'; // Import isValid
 import { HowToInfo } from '@/components/how-to-info';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
   if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />; // Default to Sun or a generic icon
@@ -33,10 +34,12 @@ const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) =
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
+  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast(); // Use the hook correctly
+  
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [calculatedForecasts, setCalculatedForecasts] = useState<{
     today: CalculatedForecast | null;
@@ -46,8 +49,7 @@ export default function HomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(manualForecast);
   const [selectedCityForTimes, setSelectedCityForTimes] = useState<string>("");
-
-
+  
   useEffect(() => {
     setIsMounted(true);
     if (settings?.latitude && settings?.longitude) {
@@ -58,8 +60,11 @@ export default function HomePage() {
         setLocationDisplay('Location Not Set');
     }
   }, [settings]);
+  
 
   useEffect(() => {
+    // When manualForecast from the hook changes (e.g., due to refreshForecastDates or direct set),
+    // update the editableForecast for the modal.
     setEditableForecast(manualForecast);
   }, [manualForecast]);
 
@@ -78,7 +83,6 @@ export default function HomePage() {
         // Or user can click refresh button.
         return;
     }
-
 
     try {
       const todayCalc = calculateSolarGeneration(manualForecast.today, settings);
@@ -229,7 +233,7 @@ export default function HomePage() {
                             <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                                 <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={false} stroke="hsl(var(--muted-foreground))" />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" domain={[0, 'auto']} />
+                                <YAxis fontSize={12} tickLine={false} axisLine={false} unit="kWh" stroke="hsl(var(--muted-foreground))" domain={[0, 'auto']} allowDecimals={true} tickFormatter={(value) => value.toFixed(2)} />
                                 <ChartTooltipContent
                                     cursor={false}
                                     content={<ChartTooltipContent hideLabel indicator="dot" />}
@@ -280,6 +284,9 @@ export default function HomePage() {
     });
   };
 
+  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
+    return dateStr ? isValid(new Date(dateStr)) : false;
+  }
 
   return (
     <div className="space-y-6">
@@ -334,9 +341,24 @@ export default function HomePage() {
                     </div>
 
                     {(['today', 'tomorrow'] as const).map((dayKey) => {
+                      const dayDateStr = editableForecast[dayKey].date;
                       return (
                         <div key={dayKey} className="space-y-3 p-3 border rounded-md">
-                          <h3 className="font-semibold text-lg capitalize">{dayKey} ({editableForecast[dayKey].date})</h3>
+                          <div className="space-y-1">
+                              <h3 className="font-bold text-lg capitalize">{dayKey}</h3>
+                              {isValidDateString(dayDateStr) ? (
+                                  <>
+                                      <p className="text-muted-foreground">
+                                          {format(new Date(dayDateStr), 'EEEE')}
+                                      </p>
+                                      <p className="text-muted-foreground">
+                                          {format(new Date(dayDateStr), 'dd/MM/yyyy')}
+                                      </p>
+                                  </>
+                              ) : (
+                                  <p className="text-muted-foreground text-destructive">Invalid date for {dayKey}</p>
+                              )}
+                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <Label htmlFor={`${dayKey}-sunrise`}>Sunrise (HH:MM)</Label>
@@ -414,11 +436,13 @@ export default function HomePage() {
                     {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today)}
                     {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow)}
                 </div>
-                <div className="mt-8">
-                    <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-                    {renderWeeklyForecastPlaceholder()}
-                    <p className="text-sm text-muted-foreground mt-2">Note: Week ahead forecast is not available with manual input mode. Future updates may integrate more detailed input or API options.</p>
-                </div>
+                {!isMobile && (
+                  <div className="mt-8">
+                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+                      {renderWeeklyForecastPlaceholder()}
+                      <p className="text-sm text-muted-foreground mt-2">Note: Week ahead forecast is not available with manual input mode. Future updates may integrate more detailed input or API options.</p>
+                  </div>
+                )}
             </>
         )}
     </div>
