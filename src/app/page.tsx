@@ -79,8 +79,7 @@ export default function HomePage() {
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        refreshForecastDates(); // This will update dates and trigger re-calculation if necessary
-        // The effect will run again once manualForecast is updated by refreshForecastDates
+        refreshForecastDates(); 
         return; 
     }
 
@@ -98,7 +97,7 @@ export default function HomePage() {
       setCalculatedForecasts({ today: null, tomorrow: null });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings, manualForecast, toast, refreshForecastDates]); // Added refreshForecastDates
+  }, [isMounted, settings, manualForecast, toast, refreshForecastDates]); 
 
 
   useEffect(() => {
@@ -173,15 +172,14 @@ export default function HomePage() {
 
     const sunriseHour = forecast.sunrise ? parseInt(forecast.sunrise.split(':')[0]) : 0;
     const sunsetHour = forecast.sunset ? parseInt(forecast.sunset.split(':')[0]) : 23;
-
-    // Generate data for all hours from sunrise to sunset, even if generation is zero
-    // to ensure X-axis represents the full daylight period.
+    
     const allHoursData = [];
     for (let hour = 0; hour < 24; hour++) {
         const hourStr = hour.toString().padStart(2, '0') + ':00';
         const existingData = forecast.hourlyForecast.find(h => h.time === hourStr);
         if (existingData) {
-             if ((hour >= sunriseHour && hour <= sunsetHour) || (existingData.estimatedGenerationWh / 1000) > 0.0001) {
+            // Include if within sunrise/sunset or has any generation (even tiny)
+            if ((hour >= sunriseHour && hour <= sunsetHour) || (existingData.estimatedGenerationWh / 1000) > 0.00001) {
                 allHoursData.push({
                     time: hourStr,
                     kWh: parseFloat((existingData.estimatedGenerationWh / 1000).toFixed(2))
@@ -189,7 +187,6 @@ export default function HomePage() {
             }
         } else if (hour >= sunriseHour && hour <= sunsetHour) {
             // Add zero generation for daylight hours not in forecast data
-            // This happens if calculation only returns hours with >0 generation
             allHoursData.push({
                 time: hourStr,
                 kWh: 0.00
@@ -197,9 +194,6 @@ export default function HomePage() {
         }
     }
     
-    // If the forecast only provided data for >0 generation, and all of that was tiny,
-    // we might still end up with an empty `allHoursData` if it didn't include the zero points.
-    // Fallback to ensure we show daylight hours even if generation is effectively zero.
     if (allHoursData.length === 0 && forecast.hourlyForecast.length > 0) {
         return forecast.hourlyForecast
             .map(h => {
@@ -214,8 +208,6 @@ export default function HomePage() {
             })
             .filter(Boolean) as Array<{ time: string; kWh: number }>;
     }
-
-
     return allHoursData;
   }, []);
 
@@ -224,11 +216,11 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5; // Default if no data
-    const maxKWh = Math.max(...chartData.map(d => d.kWh), 0); // Ensure non-negative max
-    if (maxKWh < 0.01) return 0.1; // Min scale for very low values
+    if (!chartData || chartData.length === 0) return 0.5; 
+    const maxKWh = Math.max(...chartData.map(d => d.kWh), 0); 
+    if (maxKWh < 0.01) return 0.1; 
     if (maxKWh < 0.5) return 0.5;
-    return Math.ceil(maxKWh * 1.1); // Add 10% padding, round up
+    return Math.ceil(maxKWh * 1.1); 
   }, []);
 
 
@@ -238,41 +230,40 @@ export default function HomePage() {
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
     if (maxYValueForChart <= 0) return [0];
     
-    const numTicksDesired = 5; // Aim for roughly this many ticks
     let step: number;
-
     if (maxYValueForChart <= 0.1) step = 0.02;
     else if (maxYValueForChart <= 0.25) step = 0.05;
     else if (maxYValueForChart <= 0.5) step = 0.1;
-    else if (maxYValueForChart <= 1) step = 0.25;
+    else if (maxYValueForChart <= 1) step = 0.2; // Changed from 0.25
     else if (maxYValueForChart <= 2.5) step = 0.5;
     else if (maxYValueForChart <= 5) step = 1;
-    else step = Math.ceil(maxYValueForChart / numTicksDesired / 0.5) * 0.5; // For larger values, step by 0.5 or more
+    else step = Math.ceil(maxYValueForChart / 5 / 0.5) * 0.5; 
 
     const ticks = [];
-    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { // Add a bit to ensure the max value is included
+    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { 
         ticks.push(parseFloat(i.toFixed(2)));
     }
-    // Ensure the domain max is included if not perfectly aligned with steps
-    if (!ticks.includes(parseFloat(maxYValueForChart.toFixed(2)))) {
-        // Add it and sort, or adjust the loop to ensure it
-    }
-
-    return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2)))); // Remove duplicates and filter
+    return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2))));
   }, []);
 
 
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
   const tomorrowYAxisTicks = useMemo(() => getYAxisTicks(tomorrowMaxY), [tomorrowMaxY, getYAxisTicks]);
 
-  const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return undefined; // No data, no ticks
-    const evenHourTimes = chartData
-        .map(d => d.time)
-        .filter(time => parseInt(time.split(':')[0]) % 2 === 0); // Filter for even hours
-    const uniqueEvenHourTimes = Array.from(new Set(evenHourTimes));
-    return uniqueEvenHourTimes.length > 0 ? uniqueEvenHourTimes : undefined;
+ const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
+    if (!chartData || chartData.length === 0) return undefined;
+
+    const hoursWithGeneration = chartData
+      .filter(d => d.kWh > 0.00001) // Filter for hours with any generation
+      .map(d => d.time);
+
+    const uniqueHoursWithGeneration = Array.from(new Set(hoursWithGeneration));
+    // Sort them chronologically
+    uniqueHoursWithGeneration.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
+    
+    return uniqueHoursWithGeneration.length > 0 ? uniqueHoursWithGeneration : undefined;
   }, []);
+
 
   const todayChartXTicks = useMemo(() => calculateChartXTicks(todayChartData), [todayChartData, calculateChartXTicks]);
   const tomorrowChartXTicks = useMemo(() => calculateChartXTicks(tomorrowChartData), [tomorrowChartData, calculateChartXTicks]);
@@ -319,7 +310,7 @@ export default function HomePage() {
             chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset in the forecast settings.";
         } else if (!forecastData.hourlyForecast || forecastData.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
-        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d=>d.kWh > 0.0001)) { // Check if any kWh is greater than a very small threshold
+        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d=>d.kWh > 0.00001)) {
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
@@ -337,7 +328,7 @@ export default function HomePage() {
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
         tickFormatter: (value: number) => value.toFixed(2),
-        width: 50, // Increased width for better tick label visibility
+        width: 50, 
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -346,19 +337,18 @@ export default function HomePage() {
         tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        ticks: chartXTicksForChart, // Use pre-calculated even hour ticks
+        ticks: chartXTicksForChart, 
         tickFormatter: (value: string) => {
             if (!value) return '';
             try {
-                // Parse time string "HH:MM" and format to "ha" (e.g., "5am", "12pm")
                 const date = parse(value, 'HH:mm', new Date());
                 return format(date, 'ha').toLowerCase();
             } catch (e) {
                 console.error("Error formatting X-axis tick:", value, e);
-                return value; // Fallback to original value
+                return value; 
             }
         },
-        interval: 0, // Show all specified ticks
+        interval: 0, 
       };
 
       const customTooltip = (props: any) => {
@@ -438,7 +428,7 @@ export default function HomePage() {
                 </div>
             </CardHeader>
             <CardContent>
-                {forecastData && !forecastData.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.0001) ? (
+                {forecastData && !forecastData.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
                     <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                            {renderChart()}
@@ -455,15 +445,13 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings, selectedChartType]); // Removed chart data related dependencies as they are passed as arguments
+  }, [isMounted, settings, selectedChartType]);
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
-    // Ensure the date string is in YYYY-MM-DD format before parsing with time
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(dateStr)) return false;
-    const date = new Date(dateStr + 'T00:00:00'); // Add time component for robust parsing
+    const date = new Date(dateStr + 'T00:00:00'); 
     return isValid(date) && !isNaN(date.getTime());
   }
 
@@ -521,7 +509,6 @@ export default function HomePage() {
                               {dayData && isValidDateString(dayDateStr) ? (
                                   <>
                                       <p className="text-muted-foreground">
-                                          {/* Add T00:00:00 to ensure date-fns parses it as local date, not UTC */}
                                           {format(new Date(dayDateStr + 'T00:00:00'), 'EEEE')}
                                       </p>
                                       <p className="text-muted-foreground">
