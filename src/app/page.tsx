@@ -76,15 +76,11 @@ export default function HomePage() {
     const todayDateStr = format(new Date(), 'yyyy-MM-dd');
     const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
-    // Use a temporary variable for manualForecast to ensure the latest is used if refreshForecastDates was called
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        // Call refreshForecastDates which updates manualForecast via setManualForecast
-        // The updated manualForecast will be available in the next render cycle.
-        // We trigger a re-calculation in the useEffect that depends on manualForecast.
         refreshForecastDates();
-        return; // Exit early, calculation will happen in next effect run
+        return; 
     }
 
     try {
@@ -176,27 +172,22 @@ export default function HomePage() {
     const sunriseHour = forecast.sunrise ? parseInt(forecast.sunrise.split(':')[0]) : 0;
     const sunsetHour = forecast.sunset ? parseInt(forecast.sunset.split(':')[0]) : 23;
 
-    // Include all hours between sunrise and sunset, or hours with generation
     const allHoursData = forecast.hourlyForecast.map(h => {
       const hour = parseInt(h.time.split(':')[0]);
-      // Ensure we include hours if they have generation, even if slightly outside precise sunrise/sunset due to calculation nuances
       if ((hour >= sunriseHour && hour <= sunsetHour) || (h.estimatedGenerationWh / 1000) > 0.001) {
         return {
           time: h.time.split(':')[0] + ':00',
           kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
         };
       }
-      return null; // Explicitly return null for hours to be filtered out
-    }).filter(Boolean) as Array<{ time: string; kWh: number }>; // Filter out nulls and assert type
+      return null;
+    }).filter(Boolean) as Array<{ time: string; kWh: number }>;
 
-    // If all kWh values are effectively zero, but we have hourly data (e.g., overcast day),
-    // still return the zero-value data for the sunrise-sunset period to show the timespan.
     if (allHoursData.every(d => d.kWh <= 0.001) && forecast.hourlyForecast.length > 0) {
         return forecast.hourlyForecast
             .map(h => {
                 const hour = parseInt(h.time.split(':')[0]);
-                // This condition ensures we only plot hours that are relevant (within daylight or having generation)
-                if (hour >= sunriseHour && hour <= sunsetHour) { // Only consider hours within the defined daylight period
+                if (hour >= sunriseHour && hour <= sunsetHour) {
                     return {
                         time: h.time.split(':')[0] + ':00',
                         kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
@@ -215,8 +206,8 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5; // Default if no data or all zero
-    const maxKWh = Math.max(...chartData.map(d => d.kWh), 0); // Ensure maxKWh is at least 0
+    if (!chartData || chartData.length === 0) return 0.5;
+    const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
     if (maxKWh <= 0.01) return 0.1;
     if (maxKWh < 0.5) return 0.5;
     return Math.ceil(maxKWh * 1.1);
@@ -227,24 +218,22 @@ export default function HomePage() {
   const tomorrowMaxY = useMemo(() => getMaxYValue(tomorrowChartData), [tomorrowChartData, getMaxYValue]);
 
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
-    if (maxYValueForChart <= 0) return [0]; // Handle zero or negative max
+    if (maxYValueForChart <= 0) return [0];
     const numTicks = 5;
     let step: number;
 
     if (maxYValueForChart <= 0.1) step = 0.02;
     else if (maxYValueForChart <= 0.5) step = 0.1;
-    else if (maxYValueForChart <= 1) step = 0.2; // Adjusted for better fit with 0.25 increments
+    else if (maxYValueForChart <= 1) step = 0.2;
     else if (maxYValueForChart <= 2.5) step = 0.5;
     else if (maxYValueForChart <= 5) step = 1;
-    else step = Math.ceil(maxYValueForChart / numTicks / 0.25) * 0.25; // Ensure step is multiple of 0.25 for larger scales
+    else step = Math.ceil(maxYValueForChart / numTicks / 0.25) * 0.25;
 
     const ticks = [];
-    // Ensure 0.00 is always the first tick
     ticks.push(0.00);
     for (let i = step; i <= maxYValueForChart + (step / 2) ; i += step) {
         ticks.push(parseFloat(i.toFixed(2)));
     }
-     // Ensure ticks don't greatly exceed maxY and are unique
     return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2))));
   }, []);
 
@@ -252,13 +241,27 @@ export default function HomePage() {
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
   const tomorrowYAxisTicks = useMemo(() => getYAxisTicks(tomorrowMaxY), [tomorrowMaxY, getYAxisTicks]);
 
+  const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
+    if (!chartData || chartData.length === 0) return undefined;
+    const evenHourTimes = chartData
+        .map(d => d.time)
+        .filter(time => parseInt(time.split(':')[0]) % 2 === 0);
+    const uniqueEvenHourTimes = Array.from(new Set(evenHourTimes));
+    return uniqueEvenHourTimes.length > 0 ? uniqueEvenHourTimes : undefined;
+  }, []);
+
+  const todayChartXTicks = useMemo(() => calculateChartXTicks(todayChartData), [todayChartData, calculateChartXTicks]);
+  const tomorrowChartXTicks = useMemo(() => calculateChartXTicks(tomorrowChartData), [tomorrowChartData, calculateChartXTicks]);
+
+
   const renderForecastCard = useCallback((
     title: string,
     forecastData: CalculatedForecast | null,
     manualDayData: ManualDayForecast | null,
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
     maxYValueForChart: number,
-    yAxisTicksForChart: number[]
+    yAxisTicksForChart: number[],
+    chartXTicksForChart: string[] | undefined
   ) => {
     if (!manualDayData) {
       return (
@@ -297,16 +300,6 @@ export default function HomePage() {
         }
     }
 
-    const chartXTicks = useMemo(() => {
-        if (!chartDataToDisplay || chartDataToDisplay.length === 0) return undefined;
-        const evenHourTimes = chartDataToDisplay
-            .map(d => d.time)
-            .filter(time => parseInt(time.split(':')[0]) % 2 === 0);
-        const uniqueEvenHourTimes = Array.from(new Set(evenHourTimes));
-        return uniqueEvenHourTimes.length > 0 ? uniqueEvenHourTimes : undefined;
-    }, [chartDataToDisplay]);
-
-
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
@@ -319,8 +312,8 @@ export default function HomePage() {
         stroke: "hsl(var(--muted-foreground))",
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
-        tickFormatter: (value: number) => value.toFixed(2), // Display Y-axis ticks with 2 decimal places
-        width: 50, // Increased width for Y-axis labels
+        tickFormatter: (value: number) => value.toFixed(2),
+        width: 50,
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -329,9 +322,9 @@ export default function HomePage() {
         tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        ticks: chartXTicks, // Use calculated 2-hour interval ticks
-        tickFormatter: (value: string) => value, // Ticks are already formatted as HH:00
-        interval: 0, // Ensure all specified `ticks` are attempted to be rendered
+        ticks: chartXTicksForChart,
+        tickFormatter: (value: string) => value,
+        interval: 0,
       };
 
       const customTooltip = (props: any) => {
@@ -432,7 +425,7 @@ export default function HomePage() {
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
-    const date = new Date(dateStr + 'T00:00:00'); // Ensure consistent parsing, assuming date string is local date
+    const date = new Date(dateStr + 'T00:00:00');
     return isValid(date) && !isNaN(date.getTime());
   }
 
@@ -590,10 +583,10 @@ export default function HomePage() {
         {isMounted && settings && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks)}
-                    {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks)}
+                    {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks)}
+                    {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks)}
                 </div>
-                 {isMounted && (!settings.selectedWeatherSource || settings.selectedWeatherSource === 'manual') && !isMobile && (
+                 {isMounted && (!settings.selectedWeatherSource || settings.selectedWeatherSource === 'manual') && (
                   <div className="mt-8">
                       <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
                        <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is not available with manual input mode. Future updates may integrate API options for extended forecasts.</p>
