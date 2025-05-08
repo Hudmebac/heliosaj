@@ -79,8 +79,8 @@ export default function HomePage() {
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        refreshForecastDates(); // This will update dates and trigger re-calculation via useEffect on manualForecast
-        return; // Exit early, calculation will re-run when manualForecast updates
+        refreshForecastDates(); 
+        return; 
     }
 
     try {
@@ -96,7 +96,6 @@ export default function HomePage() {
       });
       setCalculatedForecasts({ today: null, tomorrow: null });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted, settings, manualForecast, toast, refreshForecastDates]);
 
 
@@ -170,7 +169,7 @@ export default function HomePage() {
  const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast) return [];
     return forecast.hourlyForecast.map(h => ({
-        time: h.time.split(':')[0] + ':00', // "HH:00"
+        time: h.time.split(':')[0] + ':00', 
         kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
     }));
   }, []);
@@ -180,11 +179,10 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5; // Default if no data or all zero
+    if (!chartData || chartData.length === 0) return 0.5;
     const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
-    if (maxKWh < 0.01) return 0.1; // For very small non-zero values
-    if (maxKWh < 0.5) return 0.5;
-    return Math.ceil(maxKWh * 1.1); // Add 10% padding, then ceil
+    if (maxKWh === 0) return 0.5; // If all values are 0
+    return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25; // Ensure max tick is above highest value and is multiple of 0.25
   }, []);
 
 
@@ -193,39 +191,28 @@ export default function HomePage() {
 
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
     if (maxYValueForChart <= 0) return [0];
-
-    let step: number;
-    if (maxYValueForChart <= 0.1) step = 0.02;
-    else if (maxYValueForChart <= 0.25) step = 0.05;
-    else if (maxYValueForChart <= 0.5) step = 0.1;
-    else if (maxYValueForChart <= 1) step = 0.2;
-    else if (maxYValueForChart <= 2.5) step = 0.5;
-    else if (maxYValueForChart <= 5) step = 1;
-    else step = Math.ceil(maxYValueForChart / 5 / 0.5) * 0.5; // Ensure about 5-10 ticks
-
-    const ticks = [];
-    for (let i = 0; i <= maxYValueForChart + (step / 2) ; i += step) { // Iterate slightly beyond max to ensure it's included
+    const ticks: number[] = [];
+    for (let i = 0; i <= maxYValueForChart; i += 0.25) {
         ticks.push(parseFloat(i.toFixed(2)));
     }
-    return Array.from(new Set(ticks.filter(tick => tick <= maxYValueForChart + (step/2)))); // Ensure unique and within bounds
+    // Ensure the maxYValueForChart itself is a tick if not perfectly divisible
+    if (ticks[ticks.length -1] < maxYValueForChart && maxYValueForChart % 0.25 !== 0) {
+        ticks.push(parseFloat((Math.ceil(maxYValueForChart / 0.25) * 0.25).toFixed(2)));
+    }
+    return Array.from(new Set(ticks)); 
   }, []);
 
 
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
   const tomorrowYAxisTicks = useMemo(() => getYAxisTicks(tomorrowMaxY), [tomorrowMaxY, getYAxisTicks]);
+  
+  const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
+    if (!chartData || chartData.length === 0) return undefined; 
 
- const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return undefined;
-
-    const hoursWithGeneration = chartData
-      .filter(d => d.kWh > 0.00001) // Consider generation if slightly above zero
-      .map(d => d.time); // "HH:00"
-
-    // Ensure unique hours and sort them
-    const uniqueHours = Array.from(new Set(hoursWithGeneration));
-    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
+    const allHoursInData = Array.from(new Set(chartData.map(d => d.time)));
+    allHoursInData.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
     
-    return uniqueHours.length > 0 ? uniqueHours : undefined;
+    return allHoursInData.length > 0 ? allHoursInData : undefined;
   }, []);
 
 
@@ -279,12 +266,12 @@ export default function HomePage() {
         }
     }
     
-    const xAxisHeight = 50; // Define X-axis height
+    const xAxisHeight = 50; 
 
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
-        margin: { top: 5, right: 30, left: 15, bottom: xAxisHeight - 10 }, // Adjust bottom margin based on xAxisHeight
+        margin: { top: 5, right: 20, left: 0, bottom: xAxisHeight - 20 }, // Adjusted margins
       };
       const commonYAxisProps = {
         fontSize: 10,
@@ -294,7 +281,7 @@ export default function HomePage() {
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
         tickFormatter: (value: number) => value.toFixed(2),
-        width: 50,
+        width: 40, // Adjusted width for Y-axis labels
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -303,12 +290,12 @@ export default function HomePage() {
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
         ticks: chartXTicksForChart, 
-        tickFormatter: (value: string) => value, // Display "HH:00"
-        interval: 0, 
-        angle: -90,
-        textAnchor: 'end',
+        tickFormatter: (value: string) => value ? `${parseInt(value.split(':')[0]) % 12 || 12}${parseInt(value.split(':')[0]) >= 12 ? 'pm' : 'am'}`: '',
+        interval: 'preserveStartEnd', 
+        angle: -45, // Slightly less steep angle for better readability
+        textAnchor: 'end' as const,
         dx: -5, 
-        dy: 0, // Adjusted for better vertical alignment
+        dy: 5, 
         height: xAxisHeight, 
         fontSize: 10,
       };
@@ -318,7 +305,7 @@ export default function HomePage() {
         if (active && payload && payload.length) {
           return (
             <div className="p-2 bg-background border border-border rounded-md shadow-lg">
-              <p className="label text-sm font-semibold">{`${label}`}</p>
+              <p className="label text-sm font-semibold">{`${parseInt(label.split(':')[0]) % 12 || 12}${parseInt(label.split(':')[0]) >= 12 ? 'pm' : 'am'}`}</p>
               <p className="intro text-xs text-primary">{`Generation: ${payload[0].value.toFixed(2)} kWh`}</p>
             </div>
           );
@@ -332,8 +319,8 @@ export default function HomePage() {
             <LineChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Line type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} yAxisId="left" />
             </LineChart>
@@ -343,8 +330,8 @@ export default function HomePage() {
             <AreaChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Area type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} yAxisId="left"/>
             </AreaChart>
@@ -355,8 +342,8 @@ export default function HomePage() {
             <BarChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} label={{ value: 'kWh', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} label={{ value: 'kWh', angle: 90, position: 'insideRight', offset: -5, style: { fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={4} yAxisId="left" />
             </BarChart>
@@ -407,17 +394,14 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings, selectedChartType]); // Removed YAxis/XAxis specific dependencies as they are now calculated inside
+  }, [isMounted, settings, selectedChartType]); 
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(dateStr)) return false;
-    // Additional check to ensure the date string can be parsed into a valid Date object
-    // Add 'T00:00:00' to ensure consistent parsing across timezones for date part only
-    const date = new Date(dateStr + 'T00:00:00');
-    return isValid(date) && !isNaN(date.getTime());
+    const date = parse(dateStr, 'yyyy-MM-dd', new Date());
+    return isValid(date);
   }
 
   return (
@@ -474,15 +458,15 @@ export default function HomePage() {
                               {dayData && isValidDateString(dayDateStr) ? (
                                   <>
                                       <p className="text-muted-foreground">
-                                          {format(new Date(dayDateStr + 'T00:00:00'), 'EEEE')}
+                                          {format(parse(dayDateStr, 'yyyy-MM-dd', new Date()), 'EEEE')}
                                       </p>
                                       <p className="text-muted-foreground">
-                                          {format(new Date(dayDateStr + 'T00:00:00'), 'dd/MM/yyyy')}
+                                          {format(parse(dayDateStr, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')}
                                       </p>
                                   </>
                               ) : (
                                   <p className="text-muted-foreground text-destructive">
-                                    Date for {dayKey} is invalid or not loaded. Ensure settings are saved &amp; refresh.
+                                    Date for {dayKey} is invalid or not loaded.
                                   </p>
                               )}
                            </div>
@@ -588,4 +572,3 @@ export default function HomePage() {
     </div>
   );
 }
-
