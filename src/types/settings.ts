@@ -2,32 +2,34 @@
 import * as z from 'zod';
 
 export const settingsSchema = z.object({
-  location: z.string().min(3, { message: "Location must be at least 3 characters." }),
+  location: z.string().min(1, { message: "Location is required." }).optional(),
   latitude: z.coerce.number().optional(),
   longitude: z.coerce.number().optional(),
   propertyDirection: z.string().min(1, { message: "Please select a property direction." }),
   propertyDirectionFactor: z.coerce.number().optional(),
   panelCount: z.coerce.number().int().positive().optional(),
   panelWatts: z.coerce.number().int().positive().optional(),
-  totalKWp: z.coerce.number().positive({ message: "Total System Power (kWp) must be positive if provided." }).optional(),
+  totalKWp: z.coerce.number().positive({ message: "Total System Power (kWp) must be positive." }).optional(),
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
   batteryMaxChargeRateKWh: z.coerce.number().positive().optional(),
   preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
   systemEfficiency: z.coerce.number().min(0.1).max(1, "Efficiency must be between 0.1 (10%) and 1.0 (100%)").optional(),
-  dailyConsumptionKWh: z.coerce.number().positive().optional(),
-  avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
+  dailyConsumptionKWh: z.coerce.number().nonnegative().optional(),
+  avgHourlyConsumptionKWh: z.coerce.number().nonnegative().optional(),
   hourlyUsageProfile: z.array(z.coerce.number().nonnegative()).length(24).optional(),
   selectedWeatherSource: z.string().optional(),
   evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
   evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
   evMaxChargeRateKWh: z.coerce.number().positive().optional(),
   monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
+  // inputMode is handled internally by component state, not part of persisted settings schema directly
+  // lastKnownBatteryLevelKWh is also handled by component state / useEffect in advisory
 });
 
 
 export interface UserSettings extends z.infer<typeof settingsSchema> {
-  // If there are any fields in UserSettings not covered by settingsSchema, add them here.
-  // For now, assuming settingsSchema covers all fields needed for UserSettings persistence.
+  inputMode?: 'Panels' | 'TotalPower'; // This is managed by component state but might be useful if ever persisted
+  lastKnownBatteryLevelKWh?: number; // This is managed by component state but might be useful if ever persisted
 }
 
 
@@ -77,6 +79,13 @@ export const propertyDirectionOptions: PropertyDirectionInfo[] = [
   { value: 'North', label: 'North (Factor: ~0.43)', factor: 0.43, notes: "Poor. Relies on diffuse light. (Factor Range: 0.35 - 0.50)" },
   { value: 'Flat Roof', label: 'Flat Roof (Angled South, Factor: ~0.90)', factor: 0.90, notes: "Assumes panels are optimally angled (e.g., towards South)." },
 ];
+
+export const SOUTH_DIRECTION_INFO: PropertyDirectionInfo = propertyDirectionOptions.find(opt => opt.value === 'South')!;
+
+export const defaultMonthlyFactors: number[] = [
+    0.4, 0.5, 0.7, 0.9, 1.0, 1.1, 1.0, 0.9, 0.7, 0.5, 0.4, 0.3,
+];
+
 
 export const getFactorByDirectionValue = (value: string): number | undefined => {
   const option = propertyDirectionOptions.find(opt => opt.value === value);
