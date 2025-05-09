@@ -176,27 +176,27 @@ const settingsSchema = z.object({
   monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
 }).refine(data => {
     if (data.inputMode === 'Panels') {
-      return !!data.panelCount;
+      return !!data.panelCount && data.panelCount > 0;
     }
     return true;
   }, {
-    message: "Panel Count is required when 'By Panel' mode is selected.",
+    message: "Panel Count is required and must be positive when 'By Panel' mode is selected.",
     path: ["panelCount"],
   }).refine(data => {
     if (data.inputMode === 'Panels') {
-      return !!data.panelWatts;
+      return !!data.panelWatts && data.panelWatts > 0;
     }
     return true;
   }, {
-    message: "Panel Watts is required when 'By Panel' mode is selected.",
+    message: "Panel Watts is required and must be positive when 'By Panel' mode is selected.",
     path: ["panelWatts"],
 }).refine(data => {
     if (data.inputMode === 'TotalPower') {
-      return !!data.totalKWp;
+      return !!data.totalKWp && data.totalKWp > 0;
     }
     return true;
   }, {
-    message: "Total System Power (kWp) is required when 'By Total Power' mode is selected.",
+    message: "Total System Power (kWp) is required and must be positive when 'By Total Power' mode is selected.",
     path: ["totalKWp"],
 });
 
@@ -242,6 +242,20 @@ export default function SettingsPage() {
     },
     mode: 'onChange',
   });
+
+  const watchedPanelCount = form.watch('panelCount');
+  const watchedPanelWatts = form.watch('panelWatts');
+
+  useEffect(() => {
+    if (currentInputMode === 'Panels' && watchedPanelCount && watchedPanelWatts) {
+      if (watchedPanelCount > 0 && watchedPanelWatts > 0) {
+        const calculatedKWp = parseFloat(((watchedPanelCount * watchedPanelWatts) / 1000).toFixed(2));
+        form.setValue('totalKWp', calculatedKWp, { shouldValidate: true, shouldDirty: true });
+      } else {
+        form.setValue('totalKWp', undefined, { shouldValidate: true, shouldDirty: true });
+      }
+    }
+  }, [watchedPanelCount, watchedPanelWatts, currentInputMode, form]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -322,15 +336,19 @@ export default function SettingsPage() {
 
 
   const onSubmit = (data: UserSettings) => {
-    if (data.inputMode === 'Panels' && data.panelCount && data.panelWatts) {
-      data.totalKWp = parseFloat(((data.panelCount * data.panelWatts) / 1000).toFixed(2));
-    }
-
     const saveData: UserSettings = { ...data };
-    if (saveData.inputMode === 'TotalPower') {
+
+    if (saveData.inputMode === 'Panels') {
+      if (saveData.panelCount && saveData.panelWatts && saveData.panelCount > 0 && saveData.panelWatts > 0) {
+        saveData.totalKWp = parseFloat(((saveData.panelCount * saveData.panelWatts) / 1000).toFixed(2));
+      } else {
+        saveData.totalKWp = undefined;
+      }
+    } else if (saveData.inputMode === 'TotalPower') {
       saveData.panelCount = undefined;
       saveData.panelWatts = undefined;
     }
+
 
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
@@ -718,23 +736,36 @@ export default function SettingsPage() {
                 />
               </div>
             )}
+            
+            <FormField
+              control={form.control}
+              name="totalKWp"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Total System Power (kWp)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g., 7.20"
+                      {...field}
+                      value={field.value ?? ''}
+                      onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}
+                      readOnly={currentInputMode === 'Panels'}
+                      className={currentInputMode === 'Panels' ? 'bg-muted/50 cursor-not-allowed' : ''}
+                    />
+                  </FormControl>
+                   <FormDescription>
+                     {currentInputMode === 'Panels'
+                       ? "Calculated from panel details. Switch to 'By Total Power' to edit manually."
+                       : "Kilowatt-peak rating of your entire solar array (e.g., from your installation documents)."
+                     }
+                   </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-            {currentInputMode === 'TotalPower' && (
-              <FormField
-                control={form.control}
-                name="totalKWp"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total System Power (kWp)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="e.g., 7.20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
-                    </FormControl>
-                     <FormDescription>Kilowatt-peak rating of your entire solar array (e.g., from your installation documents).</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
@@ -901,7 +932,7 @@ export default function SettingsPage() {
               </CardTitle>
               <CardDescription className="text-left mt-1">
                 Adjust the relative generation factor for each month. Default values are estimates.
-                Current month: {format(new Date(), "MMMM")}.
+                Current month: {isMounted ? format(new Date(), "MMMM") : ""}.
               </CardDescription>
             </div>
           </AccordionTrigger>
@@ -917,7 +948,7 @@ export default function SettingsPage() {
                         name={`monthlyGenerationFactors.${index}` as `monthlyGenerationFactors.${number}`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className={index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
+                            <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
                               {monthName} Factor
                             </FormLabel>
                             <FormControl>
@@ -954,3 +985,4 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
+
