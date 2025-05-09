@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -13,7 +14,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
@@ -288,9 +289,6 @@ export default function SettingsPage() {
   const onSubmit = (data: UserSettings) => {
     const saveData: UserSettings = { ...data };
     
-    // totalKWp is directly from the form field. Panel details are informational.
-    // panelCount and panelWatts are saved if entered.
-
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
         'batteryCapacityKWh', 'batteryMaxChargeRateKWh', 'systemEfficiency', 'dailyConsumptionKWh',
@@ -422,6 +420,16 @@ export default function SettingsPage() {
     }
     form.setValue('hourlyUsageProfile', Array(HOURS_IN_DAY).fill(avgHourlyConsumption), { shouldValidate: true, shouldDirty: true });
     form.setValue('dailyConsumptionKWh', parseFloat((avgHourlyConsumption * HOURS_IN_DAY).toFixed(2)), { shouldValidate: true, shouldDirty: true });
+  };
+
+  const applyCalculatedKWp = () => {
+    if (calculatedKWpFromPanels !== undefined) {
+      form.setValue('totalKWp', calculatedKWpFromPanels, { shouldValidate: true, shouldDirty: true });
+      toast({
+        title: "Applied Calculated Power",
+        description: `${calculatedKWpFromPanels.toFixed(2)} kWp has been set as Total System Power.`,
+      });
+    }
   };
 
   const watchedHourlyProfile = form.watch('hourlyUsageProfile') || Array(HOURS_IN_DAY).fill(0);
@@ -643,14 +651,28 @@ export default function SettingsPage() {
                     />
                 </div>
                 {calculatedKWpFromPanels !== undefined && (
-                    <div className="mt-2 p-2 border border-dashed border-primary/50 rounded-md bg-primary/5">
-                        <p className="text-sm text-primary font-medium flex items-center gap-1">
-                            <InfoIcon className="h-4 w-4" />
-                            Calculated from panel details: {calculatedKWpFromPanels.toFixed(2)} kWp
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                            You can use this value for the "Total System Power (kWp)" field below, or enter your system's official rating.
-                        </p>
+                    <div className="mt-2 p-3 border border-dashed border-primary/50 rounded-md bg-primary/5 space-y-2">
+                        <div className="flex items-center gap-2">
+                            <InfoIcon className="h-5 w-5 text-primary flex-shrink-0" />
+                            <div>
+                                <p className="text-sm text-primary font-medium">
+                                    Calculated from panel details: {calculatedKWpFromPanels.toFixed(2)} kWp
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    This is an estimate. Your system's official rating might differ.
+                                </p>
+                            </div>
+                        </div>
+                        <Button 
+                            type="button" 
+                            onClick={applyCalculatedKWp} 
+                            variant="outline" 
+                            size="sm"
+                            className="w-full sm:w-auto"
+                        >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Apply to Total System Power
+                        </Button>
                     </div>
                 )}
             </div>
@@ -905,3 +927,4 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
+
