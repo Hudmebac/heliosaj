@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react'; // Added useRef
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,11 +14,11 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle, Trash2, PlusCircle } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle, Trash2, PlusCircle, Upload, Download } from 'lucide-react'; // Added Upload, Download
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
-import { Switch } from '@/components/ui/switch'; // Added for Tariff isCheap toggle
+import { Switch } from '@/components/ui/switch'; 
 import {
   Tooltip,
   TooltipContent,
@@ -145,7 +145,7 @@ const settingsSchema = z.object({
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
   batteryMaxChargeRateKWh: z.coerce.number().positive().optional(),
   preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
-  systemEfficiency: z.coerce.number().min(0).max(1).optional(),
+  systemEfficiency: z.coerce.number().min(0.1).max(1, "Efficiency must be between 0.1 (10%) and 1.0 (100%)").optional(),
   dailyConsumptionKWh: z.coerce.number().positive().optional(),
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
   hourlyUsageProfile: z.array(z.coerce.number().nonnegative()).length(24).optional(),
@@ -173,13 +173,14 @@ export default function SettingsPage() {
   const [currentHour, setCurrentHour] = useState<number | null>(null);
   const [calculatedKWpFromPanels, setCalculatedKWpFromPanels] = useState<number | undefined>(undefined);
 
-  // Tariff state and handlers
   const [tariffPeriods, setTariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
   const [newPeriodName, setNewPeriodName] = useState('');
   const [newStartTime, setNewStartTime] = useState('');
   const [newEndTime, setNewEndTime] = useState('');
   const [newIsCheap, setNewIsCheap] = useState(false);
   const [newRate, setNewRate] = useState<number | undefined>(undefined);
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
@@ -441,12 +442,11 @@ export default function SettingsPage() {
     }
   };
 
-  const watchedHourlyProfile = form.watch('hourlyUsageProfile') || Array(HOURS_IN_DAY).fill(0);
+  const watchedHourlyProfile = form.getValues('hourlyUsageProfile') || Array(HOURS_IN_DAY).fill(0);
   const watchedAvgHourlyConsumption = form.watch('avgHourlyConsumptionKWh') || 0.4;
   const sliderMax = Math.max(1, watchedAvgHourlyConsumption * 3, 0.5);
 
 
-  // Tariff Management Functions
   const isValidTime = (time: string) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
 
   const handleAddPeriod = () => {
@@ -468,7 +468,6 @@ export default function SettingsPage() {
       return;
     }
 
-    // Basic overlap check
     const overlap = tariffPeriods.some(p => {
       const pStart = parseInt(p.startTime.split(':')[0]) * 60 + parseInt(p.startTime.split(':')[1]);
       const pEnd = parseInt(p.endTime.split(':')[0]) * 60 + parseInt(p.endTime.split(':')[1]);
@@ -516,6 +515,92 @@ export default function SettingsPage() {
     });
   };
 
+  const handleExportSettings = () => {
+    if (!storedSettings) {
+      toast({
+        title: "No Settings to Export",
+        description: "Please save your settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const jsonString = JSON.stringify(storedSettings, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = "helioheggie_settings.json";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(href);
+      toast({
+        title: "Settings Exported",
+        description: "Your settings have been downloaded as a JSON file.",
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not export settings.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+  
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+  
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result;
+        if (typeof text !== 'string') {
+          throw new Error("Failed to read file content.");
+        }
+        const importedData = JSON.parse(text);
+        
+        const validationResult = settingsSchema.safeParse(importedData);
+        if (!validationResult.success) {
+          console.error("Import validation errors:", validationResult.error.flatten());
+          let errorMessages = "Imported file has invalid settings structure. Errors: ";
+          validationResult.error.errors.forEach(err => {
+            errorMessages += `${err.path.join('.')}: ${err.message}. `;
+          });
+          throw new Error(errorMessages);
+        }
+  
+        const validatedSettings = validationResult.data as UserSettings;
+  
+        form.reset(validatedSettings); 
+        setStoredSettings(validatedSettings); 
+  
+        toast({
+          title: "Settings Imported",
+          description: "Your settings have been successfully imported and applied.",
+        });
+      } catch (error: any) {
+        console.error("Import error:", error);
+        toast({
+          title: "Import Failed",
+          description: error.message || "Could not import settings from the file.",
+          variant: "destructive",
+        });
+      } finally {
+        if (event.target) {
+          event.target.value = "";
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
 
   if (!isMounted) {
     return (
@@ -530,14 +615,14 @@ export default function SettingsPage() {
     <TooltipProvider>
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-         <h1 className="text-3xl font-bold">System Configuration</h1>
+         <h1 className="text-2xl sm:text-3xl font-bold">System Configuration</h1>
          <HowToInfo pageKey="settings" />
       </div>
 
     <Card>
       <CardHeader>
-        <CardTitle>General Settings</CardTitle>
-        <CardDescription>Configure your solar panel system and location details. This information is used for forecast calculations.</CardDescription>
+        <CardTitle className="text-xl sm:text-2xl">General Settings</CardTitle>
+        <CardDescription className="text-sm sm:text-base">Configure your solar panel system and location details. This information is used for forecast calculations.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -881,8 +966,8 @@ export default function SettingsPage() {
                     <AccordionContent>
                       <div className="pt-2 space-y-3">
                         <p className="text-xs text-muted-foreground">Fine-tune expected usage per hour. Total daily consumption updates automatically when sliders are used.</p>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
-                          {watchedHourlyProfile.map((usage, index) => (
+                        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
+                          {(form.getValues('hourlyUsageProfile') || Array(HOURS_IN_DAY).fill(0)).map((usage, index) => (
                             <div key={index} className="space-y-1">
                               <Label
                                 htmlFor={`hour-profile-${index}`}
@@ -925,17 +1010,44 @@ export default function SettingsPage() {
               name="systemEfficiency"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>System Efficiency Factor (Optional)</FormLabel>
+                    <div className="flex items-center gap-2">
+                        <FormLabel>System Efficiency Factor (Optional)</FormLabel>
+                        <Tooltip>
+                        <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}>
+                            <HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs">
+                            <p className="text-sm">
+                            Overall efficiency including inverter, wiring, panel degradation etc. (0.1 to 1.0). Affects generation estimates. Default is 0.85 if left blank. If you consistently have less generation than advised, try reducing this factor (e.g., to 0.80 or 0.75).
+                            </p>
+                        </TooltipContent>
+                        </Tooltip>
+                    </div>
                   <FormControl>
                      <Input type="number" step="0.01" min="0.1" max="1" placeholder="e.g., 0.85 for 85%" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
                   </FormControl>
-                  <FormDescription>Overall efficiency including inverter, wiring, panel degradation etc. (0.1 to 1.0). Affects generation estimates. Default is 0.85 if left blank.</FormDescription>
+                  <FormDescription>Adjust if observed generation differs from estimates. Default: 0.85.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <Button type="submit" className="btn-silver w-full sm:w-auto">Save General Settings</Button>
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                <Button type="submit" className="btn-silver w-full sm:w-auto">Save General Settings</Button>
+                <Button type="button" variant="outline" onClick={handleExportSettings} className="w-full sm:w-auto">
+                    <Download className="mr-2 h-4 w-4" /> Export Settings
+                </Button>
+                <Button type="button" variant="outline" onClick={handleImportClick} className="w-full sm:w-auto">
+                    <Upload className="mr-2 h-4 w-4" /> Import Settings
+                </Button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".json"
+                    className="hidden"
+                    aria-hidden="true"
+                />
+            </div>
           </form>
         </Form>
       </CardContent>
@@ -946,10 +1058,10 @@ export default function SettingsPage() {
         <AccordionItem value="monthly-efficiency">
           <AccordionTrigger className="px-6 py-3 hover:no-underline">
             <div className="flex-1">
-              <CardTitle className="flex items-center gap-2 text-lg">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
               </CardTitle>
-              <CardDescription className="text-left mt-1">
+              <CardDescription className="text-left mt-1 text-xs sm:text-sm">
                 Adjust the relative generation factor for each month if using 'Manual Input' source.
                 Current month: {isMounted ? format(new Date(), "MMMM") : ""}.
               </CardDescription>
@@ -960,7 +1072,7 @@ export default function SettingsPage() {
              {watchedSource === 'manual' ? (
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                       {monthNames.map((monthName, index) => (
                         <FormField
                           key={monthName}
@@ -1011,8 +1123,8 @@ export default function SettingsPage() {
     <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Manage Tariff Periods</CardTitle>
-            <CardDescription>Define your electricity supplier's tariff periods (e.g., peak, off-peak). This helps with smart charging advice.</CardDescription>
+            <CardTitle className="text-lg sm:text-xl">Manage Tariff Periods</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Define your electricity supplier's tariff periods (e.g., peak, off-peak). This helps with smart charging advice.</CardDescription>
           </div>
           <HowToInfo pageKey="tariffs" />
         </CardHeader>
@@ -1030,7 +1142,7 @@ export default function SettingsPage() {
                 <li key={period.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border rounded-md bg-muted/50">
                   <div className="flex-grow mb-2 sm:mb-0">
                     <p className="font-semibold">{period.name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {period.startTime} - {period.endTime}
                       {period.rate !== undefined && ` (${period.rate} p/kWh)`}
                       {period.isCheap && <span className="ml-2 text-green-600 dark:text-green-400">(Cheap Rate)</span>}
@@ -1070,7 +1182,7 @@ export default function SettingsPage() {
                 <Switch id="isCheap" checked={newIsCheap} onCheckedChange={setNewIsCheap} />
                 <Label htmlFor="isCheap">This is a cheap/off-peak rate period</Label>
               </div>
-             <Button onClick={handleAddPeriod} className="btn-silver mt-4">
+             <Button onClick={handleAddPeriod} className="btn-silver mt-4 w-full sm:w-auto">
                 <PlusCircle className="h-4 w-4 mr-2"/> Add Period
              </Button>
         </CardContent>
