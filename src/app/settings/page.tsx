@@ -622,6 +622,9 @@ export default function SettingsPage() {
 
             <div className="space-y-4 p-4 border rounded-md bg-muted/50">
                 <h3 className="text-lg font-medium">Solar Panel System Details</h3>
+                <p className="text-sm text-muted-foreground">
+                    Input panel details to estimate total system power, or enter your official system rating directly in the "Total System Power (kWp)" field below.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                     control={form.control}

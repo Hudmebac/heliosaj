@@ -5,8 +5,8 @@ export interface UserSettings {
   longitude?: number; // Optional: Derived from location or direct input
   propertyDirection: string; // Stores the selected orientation key/value e.g. "South", "North-East"
   propertyDirectionFactor?: number; // Stores the numeric factor for the selected direction
-  panelCount?: number; // Optional, purely informational if user wants to note it
-  panelWatts?: number; // Optional, purely informational if user wants to note it
+  panelCount?: number; // Optional, informational or for helper calculation
+  panelWatts?: number; // Optional, informational or for helper calculation
   totalKWp?: number; // Kilowatt-peak rating of the solar array - THIS IS THE PRIMARY VALUE FOR CALCS
   batteryCapacityKWh?: number; // Made optional as not everyone has a battery
   batteryMaxChargeRateKWh?: number; // Optional: Max power battery can charge at (kW)
@@ -56,7 +56,6 @@ export interface PropertyDirectionInfo {
   notes?: string;
 }
 
-// Using mid-point of ranges for factors. Notes reflect the ranges.
 export const propertyDirectionOptions: PropertyDirectionInfo[] = [
   { value: 'South', label: 'South (Factor: 1.00)', factor: 1.00, notes: "Optimal. (Factor Range: 1.00)" },
   { value: 'South-West', label: 'South-West (Factor: ~0.95)', factor: 0.95, notes: "Excellent. Captures strong midday and afternoon sun. (Factor Range: 0.92 - 0.97)" },
@@ -69,7 +68,6 @@ export const propertyDirectionOptions: PropertyDirectionInfo[] = [
   { value: 'Flat Roof', label: 'Flat Roof (Angled South, Factor: ~0.90)', factor: 0.90, notes: "Assumes panels are optimally angled (e.g., towards South)." },
 ];
 
-// Helper function to get factor by direction value
 export const getFactorByDirectionValue = (value: string): number | undefined => {
   const option = propertyDirectionOptions.find(opt => opt.value === value);
   return option?.factor;
