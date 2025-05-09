@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react'; // Added useRef
+import React, { useEffect, useState, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,12 +13,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
+import { settingsSchema, tariffPeriodsSchema } from '@/types/settings'; // Import tariffPeriodsSchema
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle, Trash2, PlusCircle, Upload, Download } from 'lucide-react'; // Added Upload, Download
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle, Trash2, PlusCircle, Upload, Download } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
-import { Switch } from '@/components/ui/switch'; 
+import { Switch } from '@/components/ui/switch';
 import {
   Tooltip,
   TooltipContent,
@@ -52,14 +53,14 @@ interface NominatimResult {
     postcode?: string;
     country?: string;
     country_code?: string;
-    [key: string]: string | undefined; 
+    [key: string]: string | undefined;
   };
   boundingbox: string[];
 }
 
 interface AddressLookupResult {
   place_id: number;
-  address: string; 
+  address: string;
   lat?: number;
   lng?: number;
 }
@@ -69,14 +70,14 @@ async function lookupAddressesByPostcode(postcode: string): Promise<AddressLooku
   const params = new URLSearchParams({
     q: postcode,
     format: 'json',
-    addressdetails: '1', 
-    countrycodes: 'gb', 
-    limit: '10', 
+    addressdetails: '1',
+    countrycodes: 'gb',
+    limit: '10',
   });
 
   try {
     const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
-      headers: { 'Accept': 'application/json' } 
+      headers: { 'Accept': 'application/json' }
     });
 
     if (!response.ok) {
@@ -133,29 +134,6 @@ const defaultMonthlyFactors = [
   0.3, 0.4, 0.6, 0.8, 1.0, 1.1, 1.0, 0.9, 0.7, 0.5, 0.35, 0.25
 ];
 
-const settingsSchema = z.object({
-  location: z.string().min(3, { message: "Location must be at least 3 characters." }),
-  latitude: z.coerce.number().optional(),
-  longitude: z.coerce.number().optional(),
-  propertyDirection: z.string().min(1, { message: "Please select a property direction." }),
-  propertyDirectionFactor: z.coerce.number().optional(),
-  panelCount: z.coerce.number().int().positive().optional(),
-  panelWatts: z.coerce.number().int().positive().optional(),
-  totalKWp: z.coerce.number().positive({ message: "Total System Power (kWp) must be positive if provided." }).optional(),
-  batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
-  batteryMaxChargeRateKWh: z.coerce.number().positive().optional(),
-  preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
-  systemEfficiency: z.coerce.number().min(0.1).max(1, "Efficiency must be between 0.1 (10%) and 1.0 (100%)").optional(),
-  dailyConsumptionKWh: z.coerce.number().positive().optional(),
-  avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
-  hourlyUsageProfile: z.array(z.coerce.number().nonnegative()).length(24).optional(),
-  selectedWeatherSource: z.string().optional(),
-  evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
-  evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
-  evMaxChargeRateKWh: z.coerce.number().positive().optional(),
-  monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
-});
-
 const HOURS_IN_DAY = 24;
 const SOUTH_DIRECTION_INFO = propertyDirectionOptions.find(opt => opt.value === 'South') || propertyDirectionOptions[0];
 
@@ -180,7 +158,9 @@ export default function SettingsPage() {
   const [newIsCheap, setNewIsCheap] = useState(false);
   const [newRate, setNewRate] = useState<number | undefined>(undefined);
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const settingsFileInputRef = React.useRef<HTMLInputElement>(null);
+  const tariffsFileInputRef = React.useRef<HTMLInputElement>(null);
+
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
@@ -249,7 +229,7 @@ export default function SettingsPage() {
          preferredOvernightBatteryChargePercent: storedSettings.preferredOvernightBatteryChargePercent ?? 100,
          batteryMaxChargeRateKWh: storedSettings.batteryMaxChargeRateKWh ?? 5,
        });
-       
+
        if (storedSettings.location && storedSettings.latitude && storedSettings.longitude) {
           const matchingAddress = addresses.find(addr => addr.lat === storedSettings.latitude && addr.lng === storedSettings.longitude);
           setSelectedAddressValue(matchingAddress ? matchingAddress.place_id.toString() : storedSettings.location);
@@ -298,7 +278,7 @@ export default function SettingsPage() {
 
   const onSubmit = (data: UserSettings) => {
     const saveData: UserSettings = { ...data };
-    
+
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
         'batteryCapacityKWh', 'batteryMaxChargeRateKWh', 'systemEfficiency', 'dailyConsumptionKWh',
@@ -442,7 +422,6 @@ export default function SettingsPage() {
     }
   };
 
-  const watchedHourlyProfile = form.getValues('hourlyUsageProfile') || Array(HOURS_IN_DAY).fill(0);
   const watchedAvgHourlyConsumption = form.watch('avgHourlyConsumptionKWh') || 0.4;
   const sliderMax = Math.max(1, watchedAvgHourlyConsumption * 3, 0.5);
 
@@ -548,15 +527,15 @@ export default function SettingsPage() {
       });
     }
   };
-  
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
+
+  const handleImportSettingsClick = () => {
+    settingsFileInputRef.current?.click();
   };
-  
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleSettingsFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-  
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -565,7 +544,7 @@ export default function SettingsPage() {
           throw new Error("Failed to read file content.");
         }
         const importedData = JSON.parse(text);
-        
+
         const validationResult = settingsSchema.safeParse(importedData);
         if (!validationResult.success) {
           console.error("Import validation errors:", validationResult.error.flatten());
@@ -575,12 +554,12 @@ export default function SettingsPage() {
           });
           throw new Error(errorMessages);
         }
-  
+
         const validatedSettings = validationResult.data as UserSettings;
-  
-        form.reset(validatedSettings); 
-        setStoredSettings(validatedSettings); 
-  
+
+        form.reset(validatedSettings);
+        setStoredSettings(validatedSettings);
+
         toast({
           title: "Settings Imported",
           description: "Your settings have been successfully imported and applied.",
@@ -594,7 +573,88 @@ export default function SettingsPage() {
         });
       } finally {
         if (event.target) {
-          event.target.value = "";
+          event.target.value = ""; // Reset file input
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExportTariffs = () => {
+    if (tariffPeriods.length === 0) {
+      toast({
+        title: "No Tariffs to Export",
+        description: "Please add tariff periods first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const jsonString = JSON.stringify(tariffPeriods, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = "helioheggie_tariffs.json";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(href);
+      toast({
+        title: "Tariffs Exported",
+        description: "Your tariff periods have been downloaded as a JSON file.",
+      });
+    } catch (error) {
+      console.error("Export tariffs error:", error);
+      toast({
+        title: "Export Failed",
+        description: "Could not export tariff periods.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImportTariffsClick = () => {
+    tariffsFileInputRef.current?.click();
+  };
+
+  const handleTariffsFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result;
+        if (typeof text !== 'string') {
+          throw new Error("Failed to read file content for tariffs.");
+        }
+        const importedData = JSON.parse(text);
+
+        const validationResult = tariffPeriodsSchema.safeParse(importedData);
+        if (!validationResult.success) {
+          console.error("Tariff import validation errors:", validationResult.error.flatten());
+          let errorMessages = "Imported tariff file has invalid structure. Errors: ";
+          validationResult.error.errors.forEach(err => {
+            errorMessages += `${err.path.join('.')}: ${err.message}. `;
+          });
+          throw new Error(errorMessages);
+        }
+        setTariffPeriods(validationResult.data as TariffPeriod[]);
+        toast({
+          title: "Tariffs Imported",
+          description: "Tariff periods have been successfully imported.",
+        });
+      } catch (error: any) {
+        console.error("Import tariffs error:", error);
+        toast({
+          title: "Tariff Import Failed",
+          description: error.message || "Could not import tariff periods from the file.",
+          variant: "destructive",
+        });
+      } finally {
+        if (event.target) {
+          event.target.value = ""; // Reset file input
         }
       }
     };
@@ -832,10 +892,10 @@ export default function SettingsPage() {
                                 </p>
                             </div>
                         </div>
-                        <Button 
-                            type="button" 
-                            onClick={applyCalculatedKWp} 
-                            variant="outline" 
+                        <Button
+                            type="button"
+                            onClick={applyCalculatedKWp}
+                            variant="outline"
                             size="sm"
                             className="w-full sm:w-auto"
                         >
@@ -853,13 +913,13 @@ export default function SettingsPage() {
                 <FormItem>
                   <FormLabel>Total System Power (kWp)</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="number" 
-                      step="0.01" 
-                      placeholder="e.g., 7.20" 
-                      {...field} 
-                      value={field.value ?? ''} 
-                      onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} 
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g., 7.20"
+                      {...field}
+                      value={field.value ?? ''}
+                      onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}
                     />
                   </FormControl>
                    <FormDescription>
@@ -1036,13 +1096,13 @@ export default function SettingsPage() {
                 <Button type="button" variant="outline" onClick={handleExportSettings} className="w-full sm:w-auto">
                     <Download className="mr-2 h-4 w-4" /> Export Settings
                 </Button>
-                <Button type="button" variant="outline" onClick={handleImportClick} className="w-full sm:w-auto">
+                <Button type="button" variant="outline" onClick={handleImportSettingsClick} className="w-full sm:w-auto">
                     <Upload className="mr-2 h-4 w-4" /> Import Settings
                 </Button>
                 <input
                     type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
+                    ref={settingsFileInputRef}
+                    onChange={handleSettingsFileChange}
                     accept=".json"
                     className="hidden"
                     aria-hidden="true"
@@ -1126,7 +1186,9 @@ export default function SettingsPage() {
             <CardTitle className="text-lg sm:text-xl">Manage Tariff Periods</CardTitle>
             <CardDescription className="text-xs sm:text-sm">Define your electricity supplier's tariff periods (e.g., peak, off-peak). This helps with smart charging advice.</CardDescription>
           </div>
-          <HowToInfo pageKey="tariffs" />
+          <div className="flex items-center gap-2">
+             <HowToInfo pageKey="tariffs" />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
            {!isMounted ? (
@@ -1182,9 +1244,25 @@ export default function SettingsPage() {
                 <Switch id="isCheap" checked={newIsCheap} onCheckedChange={setNewIsCheap} />
                 <Label htmlFor="isCheap">This is a cheap/off-peak rate period</Label>
               </div>
-             <Button onClick={handleAddPeriod} className="btn-silver mt-4 w-full sm:w-auto">
-                <PlusCircle className="h-4 w-4 mr-2"/> Add Period
-             </Button>
+             <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                <Button onClick={handleAddPeriod} className="btn-silver w-full sm:w-auto">
+                    <PlusCircle className="h-4 w-4 mr-2"/> Add Period
+                </Button>
+                <Button type="button" variant="outline" onClick={handleExportTariffs} className="w-full sm:w-auto">
+                    <Download className="mr-2 h-4 w-4" /> Export Tariffs
+                </Button>
+                <Button type="button" variant="outline" onClick={handleImportTariffsClick} className="w-full sm:w-auto">
+                    <Upload className="mr-2 h-4 w-4" /> Import Tariffs
+                </Button>
+                <input
+                    type="file"
+                    ref={tariffsFileInputRef}
+                    onChange={handleTariffsFileChange}
+                    accept=".json"
+                    className="hidden"
+                    aria-hidden="true"
+                />
+            </div>
         </CardContent>
       </Card>
 
@@ -1192,4 +1270,3 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
-

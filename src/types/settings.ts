@@ -1,39 +1,49 @@
 
-export interface UserSettings {
-  location: string; // User-friendly location string (e.g., "Lochgelly, UK")
-  latitude?: number; // Optional: Derived from location or direct input
-  longitude?: number; // Optional: Derived from location or direct input
-  propertyDirection: string; // Stores the selected orientation key/value e.g. "South", "North-East"
-  propertyDirectionFactor?: number; // Stores the numeric factor for the selected direction
-  panelCount?: number; // Optional, informational or for helper calculation
-  panelWatts?: number; // Optional, informational or for helper calculation
-  totalKWp?: number; // Kilowatt-peak rating of the solar array - THIS IS THE PRIMARY VALUE FOR CALCS
-  batteryCapacityKWh?: number; // Made optional as not everyone has a battery
-  batteryMaxChargeRateKWh?: number; // Optional: Max power battery can charge at (kW)
-  systemEfficiency?: number; // Optional: 0 to 1 (e.g., 0.85 for 85%) - defaults can be used if not set
-  dailyConsumptionKWh?: number; // Optional: Average daily household energy consumption
-  avgHourlyConsumptionKWh?: number; // Optional: Average hourly household energy consumption
-  hourlyUsageProfile?: number[]; // Optional: Array of 24 numbers for hourly consumption
+import * as z from 'zod';
 
-  // EV Charging Preferences
-  evChargeRequiredKWh?: number; // How much energy the car needs
-  evChargeByTime?: string; // HH:MM format, when the car needs to be charged by
-  evMaxChargeRateKWh?: number; // Max power the charger can deliver per hour (default 7.5)
-  lastKnownBatteryLevelKWh?: number; // Added to store last known battery level from advisory
+export const settingsSchema = z.object({
+  location: z.string().min(3, { message: "Location must be at least 3 characters." }),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
+  propertyDirection: z.string().min(1, { message: "Please select a property direction." }),
+  propertyDirectionFactor: z.coerce.number().optional(),
+  panelCount: z.coerce.number().int().positive().optional(),
+  panelWatts: z.coerce.number().int().positive().optional(),
+  totalKWp: z.coerce.number().positive({ message: "Total System Power (kWp) must be positive if provided." }).optional(),
+  batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
+  batteryMaxChargeRateKWh: z.coerce.number().positive().optional(),
+  preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
+  systemEfficiency: z.coerce.number().min(0.1).max(1, "Efficiency must be between 0.1 (10%) and 1.0 (100%)").optional(),
+  dailyConsumptionKWh: z.coerce.number().positive().optional(),
+  avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
+  hourlyUsageProfile: z.array(z.coerce.number().nonnegative()).length(24).optional(),
+  selectedWeatherSource: z.string().optional(),
+  evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
+  evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
+  evMaxChargeRateKWh: z.coerce.number().positive().optional(),
+  monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
+});
 
-  monthlyGenerationFactors?: number[]; // Array of 12 numbers, one for each month (0=Jan, 11=Dec)
-  selectedWeatherSource?: string; // ID of the selected weather source ('open-meteo', 'manual', etc.)
-  preferredOvernightBatteryChargePercent?: number; // Percentage (0-100) for target overnight charge
+
+export interface UserSettings extends z.infer<typeof settingsSchema> {
+  // If there are any fields in UserSettings not covered by settingsSchema, add them here.
+  // For now, assuming settingsSchema covers all fields needed for UserSettings persistence.
 }
 
-export interface TariffPeriod {
-  id: string; // unique identifier, e.g., uuid or timestamp based
-  name: string; // e.g., "Night Saver", "Standard Rate"
-  startTime: string; // HH:MM format (e.g., "00:00")
-  endTime: string; // HH:MM format (e.g., "05:00")
-  isCheap: boolean; // True if this is considered an off-peak/cheap period
-  rate?: number; // Optional: Cost per kWh during this period
-}
+
+export const tariffPeriodSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1, { message: "Tariff name is required." }),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid start time format (HH:MM)." }),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid end time format (HH:MM)." }),
+  isCheap: z.boolean(),
+  rate: z.coerce.number().nonnegative().optional(),
+});
+
+export const tariffPeriodsSchema = z.array(tariffPeriodSchema);
+
+export interface TariffPeriod extends z.infer<typeof tariffPeriodSchema> {}
+
 
 export type ManualForecastCondition = 'sunny' | 'partly_cloudy' | 'cloudy' | 'overcast' | 'rainy';
 
