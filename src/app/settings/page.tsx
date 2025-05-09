@@ -1,20 +1,19 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
@@ -29,7 +28,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 
-// Define Nominatim API result structure (simplified for address selection)
 interface NominatimResult {
   place_id: number;
   licence: string;
@@ -52,32 +50,31 @@ interface NominatimResult {
     postcode?: string;
     country?: string;
     country_code?: string;
-    [key: string]: string | undefined; // For other address components
+    [key: string]: string | undefined; 
   };
   boundingbox: string[];
 }
 
 interface AddressLookupResult {
   place_id: number;
-  address: string; // display_name from Nominatim
+  address: string; 
   lat?: number;
   lng?: number;
 }
 
-// Function to lookup addresses by postcode using Nominatim
 async function lookupAddressesByPostcode(postcode: string): Promise<AddressLookupResult[]> {
   const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
   const params = new URLSearchParams({
     q: postcode,
     format: 'json',
-    addressdetails: '1', // Include address breakdown
-    countrycodes: 'gb', // Focus on UK addresses, adjust if needed
-    limit: '10', // Limit results
+    addressdetails: '1', 
+    countrycodes: 'gb', 
+    limit: '10', 
   });
 
   try {
     const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
-      headers: { 'Accept': 'application/json' } // Nominatim prefers JSON
+      headers: { 'Accept': 'application/json' } 
     });
 
     if (!response.ok) {
@@ -85,16 +82,14 @@ async function lookupAddressesByPostcode(postcode: string): Promise<AddressLooku
       try {
         const errorData = await response.json();
         errorMsg += ` Details: ${errorData?.error?.message || response.statusText}`;
-      } catch (e) {/* ignore if error data parsing fails */}
+      } catch (e) {/* ignore */}
       throw new Error(errorMsg);
     }
 
     const data: NominatimResult[] = await response.json();
     if (!Array.isArray(data)) {
-        // Nominatim might return a single object if only one result, or error
         console.warn("Received non-array data from address lookup:", data);
         if (typeof data === 'object' && data !== null && (data as NominatimResult).place_id) {
-             // Handle single result case by wrapping in an array
             return [{
                 place_id: (data as NominatimResult).place_id,
                 address: (data as NominatimResult).display_name,
@@ -104,12 +99,7 @@ async function lookupAddressesByPostcode(postcode: string): Promise<AddressLooku
         }
         throw new Error("Received invalid data format from address lookup service.");
     }
-
-    // Filter results to ensure they are relevant to the searched postcode
-    // This helps if Nominatim returns broader results for a partial postcode
     const postcodeResults = data.filter(result => result.address?.postcode && result.address.postcode.replace(/\s+/g, '') === postcode.replace(/\s+/g, ''));
-
-    // If strict postcode filtering yields no results, but original query did, return original (broader) results
     if (postcodeResults.length === 0 && data.length > 0) {
         console.warn(`No exact postcode matches for ${postcode}, returning broader results.`);
         return data.map(item => ({
@@ -138,18 +128,7 @@ async function lookupAddressesByPostcode(postcode: string): Promise<AddressLooku
 }
 
 const defaultMonthlyFactors = [
-  0.3, // Jan
-  0.4, // Feb
-  0.6, // Mar
-  0.8, // Apr
-  1.0, // May
-  1.1, // Jun
-  1.0, // Jul
-  0.9, // Aug
-  0.7, // Sep
-  0.5, // Oct
-  0.35, // Nov
-  0.25  // Dec
+  0.3, 0.4, 0.6, 0.8, 1.0, 1.1, 1.0, 0.9, 0.7, 0.5, 0.35, 0.25
 ];
 
 const settingsSchema = z.object({
@@ -158,10 +137,9 @@ const settingsSchema = z.object({
   longitude: z.coerce.number().optional(),
   propertyDirection: z.string().min(1, { message: "Please select a property direction." }),
   propertyDirectionFactor: z.coerce.number().optional(),
-  inputMode: z.enum(['Panels', 'TotalPower']),
   panelCount: z.coerce.number().int().positive().optional(),
   panelWatts: z.coerce.number().int().positive().optional(),
-  totalKWp: z.coerce.number().positive().optional(),
+  totalKWp: z.coerce.number().positive({ message: "Total System Power (kWp) must be positive if provided." }).optional(),
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
   batteryMaxChargeRateKWh: z.coerce.number().positive().optional(),
   preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
@@ -174,30 +152,6 @@ const settingsSchema = z.object({
   evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
   evMaxChargeRateKWh: z.coerce.number().positive().optional(),
   monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
-}).refine(data => {
-    if (data.inputMode === 'Panels') {
-      return !!data.panelCount && data.panelCount > 0;
-    }
-    return true;
-  }, {
-    message: "Panel Count is required and must be positive when 'By Panel' mode is selected.",
-    path: ["panelCount"],
-  }).refine(data => {
-    if (data.inputMode === 'Panels') {
-      return !!data.panelWatts && data.panelWatts > 0;
-    }
-    return true;
-  }, {
-    message: "Panel Watts is required and must be positive when 'By Panel' mode is selected.",
-    path: ["panelWatts"],
-}).refine(data => {
-    if (data.inputMode === 'TotalPower') {
-      return !!data.totalKWp && data.totalKWp > 0;
-    }
-    return true;
-  }, {
-    message: "Total System Power (kWp) is required and must be positive when 'By Total Power' mode is selected.",
-    path: ["totalKWp"],
 });
 
 const HOURS_IN_DAY = 24;
@@ -207,7 +161,6 @@ const SOUTH_DIRECTION_INFO = propertyDirectionOptions.find(opt => opt.value === 
 export default function SettingsPage() {
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const { toast } = useToast();
-  const [currentInputMode, setCurrentInputMode] = useState<'Panels' | 'TotalPower'>('Panels');
   const [postcode, setPostcode] = useState<string>('');
   const [addresses, setAddresses] = useState<AddressLookupResult[]>([]);
   const [lookupLoading, setLookupLoading] = useState<boolean>(false);
@@ -216,7 +169,7 @@ export default function SettingsPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [selectedDirectionInfo, setSelectedDirectionInfo] = useState<PropertyDirectionInfo | null>(SOUTH_DIRECTION_INFO);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
-
+  const [calculatedKWpFromPanels, setCalculatedKWpFromPanels] = useState<number | undefined>(undefined);
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
@@ -224,7 +177,6 @@ export default function SettingsPage() {
       location: '',
       propertyDirection: SOUTH_DIRECTION_INFO.value,
       propertyDirectionFactor: SOUTH_DIRECTION_INFO.factor,
-      inputMode: 'Panels',
       systemEfficiency: 0.85,
       selectedWeatherSource: 'open-meteo',
       dailyConsumptionKWh: 10,
@@ -239,6 +191,7 @@ export default function SettingsPage() {
       panelWatts: undefined,
       totalKWp: undefined,
       batteryCapacityKWh: undefined,
+      batteryMaxChargeRateKWh: 5,
     },
     mode: 'onChange',
   });
@@ -248,15 +201,13 @@ export default function SettingsPage() {
   const watchedSource = form.watch('selectedWeatherSource');
 
   useEffect(() => {
-    if (currentInputMode === 'Panels' && watchedPanelCount && watchedPanelWatts) {
-      if (watchedPanelCount > 0 && watchedPanelWatts > 0) {
-        const calculatedKWp = parseFloat(((watchedPanelCount * watchedPanelWatts) / 1000).toFixed(2));
-        form.setValue('totalKWp', calculatedKWp, { shouldValidate: true, shouldDirty: true });
-      } else {
-        form.setValue('totalKWp', undefined, { shouldValidate: true, shouldDirty: true });
-      }
+    if (watchedPanelCount && watchedPanelWatts && watchedPanelCount > 0 && watchedPanelWatts > 0) {
+      const calculatedKWp = parseFloat(((watchedPanelCount * watchedPanelWatts) / 1000).toFixed(2));
+      setCalculatedKWpFromPanels(calculatedKWp);
+    } else {
+      setCalculatedKWpFromPanels(undefined);
     }
-  }, [watchedPanelCount, watchedPanelWatts, currentInputMode, form]);
+  }, [watchedPanelCount, watchedPanelWatts]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -287,7 +238,7 @@ export default function SettingsPage() {
          preferredOvernightBatteryChargePercent: storedSettings.preferredOvernightBatteryChargePercent ?? 100,
          batteryMaxChargeRateKWh: storedSettings.batteryMaxChargeRateKWh ?? 5,
        });
-       setCurrentInputMode(storedSettings.inputMode || 'Panels');
+       
        if (storedSettings.location && storedSettings.latitude && storedSettings.longitude) {
           const matchingAddress = addresses.find(addr => addr.lat === storedSettings.latitude && addr.lng === storedSettings.longitude);
           setSelectedAddressValue(matchingAddress ? matchingAddress.place_id.toString() : storedSettings.location);
@@ -306,7 +257,6 @@ export default function SettingsPage() {
          longitude: undefined,
          propertyDirection: SOUTH_DIRECTION_INFO.value,
          propertyDirectionFactor: SOUTH_DIRECTION_INFO.factor,
-         inputMode: 'Panels',
          panelCount: undefined,
          panelWatts: undefined,
          totalKWp: undefined,
@@ -323,7 +273,6 @@ export default function SettingsPage() {
          monthlyGenerationFactors: [...defaultMonthlyFactors],
          preferredOvernightBatteryChargePercent: 100,
        });
-       setCurrentInputMode('Panels');
        setSelectedAddressValue(undefined);
        setSelectedDirectionInfo(SOUTH_DIRECTION_INFO);
      }
@@ -338,18 +287,9 @@ export default function SettingsPage() {
 
   const onSubmit = (data: UserSettings) => {
     const saveData: UserSettings = { ...data };
-
-    if (saveData.inputMode === 'Panels') {
-      if (saveData.panelCount && saveData.panelWatts && saveData.panelCount > 0 && saveData.panelWatts > 0) {
-        saveData.totalKWp = parseFloat(((saveData.panelCount * saveData.panelWatts) / 1000).toFixed(2));
-      } else {
-        saveData.totalKWp = undefined;
-      }
-    } else if (saveData.inputMode === 'TotalPower') {
-      saveData.panelCount = undefined;
-      saveData.panelWatts = undefined;
-    }
-
+    
+    // totalKWp is directly from the form field. Panel details are informational.
+    // panelCount and panelWatts are saved if entered.
 
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
@@ -672,72 +612,49 @@ export default function SettingsPage() {
               )}
             />
 
-
-            <FormField
-                control={form.control}
-                name="inputMode"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormLabel>Solar Panel Power Input Mode</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={value => {
-                          field.onChange(value);
-                          setCurrentInputMode(value as 'Panels' | 'TotalPower');
-                        }}
-                        value={field.value}
-                        className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="Panels" />
-                          </FormControl>
-                          <FormLabel className="font-normal">By Panel Details</FormLabel>
+            <div className="space-y-4 p-4 border rounded-md bg-muted/50">
+                <h3 className="text-lg font-medium">Solar Panel System Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                    control={form.control}
+                    name="panelCount"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Number of Panels</FormLabel>
+                        <FormControl>
+                            <Input type="number" placeholder="e.g., 18" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                        </FormControl>
+                        <FormMessage />
                         </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="TotalPower" />
-                          </FormControl>
-                          <FormLabel className="font-normal">By Total System Power</FormLabel>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="panelWatts"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Max Power per Panel (Watts)</FormLabel>
+                        <FormControl>
+                            <Input type="number" placeholder="e.g., 405" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                        </FormControl>
+                        <FormMessage />
                         </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                     <FormMessage />
-                  </FormItem>
+                    )}
+                    />
+                </div>
+                {calculatedKWpFromPanels !== undefined && (
+                    <div className="mt-2 p-2 border border-dashed border-primary/50 rounded-md bg-primary/5">
+                        <p className="text-sm text-primary font-medium flex items-center gap-1">
+                            <InfoIcon className="h-4 w-4" />
+                            Calculated from panel details: {calculatedKWpFromPanels.toFixed(2)} kWp
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            You can use this value for the "Total System Power (kWp)" field below, or enter your system's official rating.
+                        </p>
+                    </div>
                 )}
-              />
+            </div>
 
-            {currentInputMode === 'Panels' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="panelCount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Number of Panels</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g., 18" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="panelWatts"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Max Power per Panel (Watts)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g., 405" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
-            
             <FormField
               control={form.control}
               name="totalKWp"
@@ -745,22 +662,17 @@ export default function SettingsPage() {
                 <FormItem>
                   <FormLabel>Total System Power (kWp)</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g., 7.20"
-                      {...field}
-                      value={field.value ?? ''}
-                      onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}
-                      readOnly={currentInputMode === 'Panels'}
-                      className={currentInputMode === 'Panels' ? 'bg-muted/50 cursor-not-allowed' : ''}
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="e.g., 7.20" 
+                      {...field} 
+                      value={field.value ?? ''} 
+                      onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} 
                     />
                   </FormControl>
                    <FormDescription>
-                     {currentInputMode === 'Panels'
-                       ? "Calculated from panel details. Switch to 'By Total Power' to edit manually."
-                       : "Kilowatt-peak rating of your entire solar array (e.g., from your installation documents)."
-                     }
+                     Enter the Kilowatt-peak (kWp) rating of your entire solar array (e.g., from your installation documents). This is the primary value used for forecasts.
                    </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -924,22 +836,22 @@ export default function SettingsPage() {
     </Card>
 
     <Card>
-      {watchedSource === 'manual' ? (
-        <Accordion type="single" collapsible className="w-full">
-          <AccordionItem value="monthly-efficiency">
-            <AccordionTrigger className="px-6 py-3 hover:no-underline">
-              <div className="flex-1">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                    <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
-                </CardTitle>
-                <CardDescription className="text-left mt-1">
-                  Adjust the relative generation factor for each month for 'Manual Input' source.
-                  Current month: {isMounted ? format(new Date(), "MMMM") : ""}.
-                </CardDescription>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <CardContent className="pt-2">
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="monthly-efficiency">
+          <AccordionTrigger className="px-6 py-3 hover:no-underline">
+            <div className="flex-1">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                  <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
+              </CardTitle>
+              <CardDescription className="text-left mt-1">
+                Adjust the relative generation factor for each month if using 'Manual Input' source.
+                Current month: {isMounted ? format(new Date(), "MMMM") : ""}.
+              </CardDescription>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <CardContent className="pt-2">
+             {watchedSource === 'manual' ? (
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -978,22 +890,16 @@ export default function SettingsPage() {
                     <Button type="submit" className="btn-silver w-full sm:w-auto">Save Monthly Factors</Button>
                   </form>
                 </Form>
-              </CardContent>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      ) : (
-         <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-                <CalendarDays className="h-5 w-5 text-muted-foreground"/>
-                <h3 className="text-lg font-semibold">Time of Year Efficiency</h3>
-            </div>
-            <p className="text-sm text-muted-foreground">
-                Monthly generation factors are only applicable when the weather source is set to 'Manual Input'.
-                For API-based sources like Open-Meteo, seasonal variations are inherently part of the detailed forecast data provided by the API (e.g., sunshine duration, solar radiation).
-            </p>
-         </CardContent>
-      )}
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                    Monthly generation factors are only applicable when the weather source is set to 'Manual Input'.
+                    For API-based sources like Open-Meteo, seasonal variations are inherently part of the detailed forecast data provided by the API.
+                </p>
+              )}
+            </CardContent>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </Card>
     </div>
     </TooltipProvider>

@@ -1,13 +1,13 @@
+
 export interface UserSettings {
   location: string; // User-friendly location string (e.g., "Lochgelly, UK")
   latitude?: number; // Optional: Derived from location or direct input
   longitude?: number; // Optional: Derived from location or direct input
   propertyDirection: string; // Stores the selected orientation key/value e.g. "South", "North-East"
   propertyDirectionFactor?: number; // Stores the numeric factor for the selected direction
-  inputMode: 'Panels' | 'TotalPower';
-  panelCount?: number; // Optional, used if inputMode is 'Panels'
-  panelWatts?: number; // Optional, used if inputMode is 'Panels'
-  totalKWp?: number; // Optional, used if inputMode is 'TotalPower'
+  panelCount?: number; // Optional, purely informational if user wants to note it
+  panelWatts?: number; // Optional, purely informational if user wants to note it
+  totalKWp?: number; // Kilowatt-peak rating of the solar array - THIS IS THE PRIMARY VALUE FOR CALCS
   batteryCapacityKWh?: number; // Made optional as not everyone has a battery
   batteryMaxChargeRateKWh?: number; // Optional: Max power battery can charge at (kW)
   systemEfficiency?: number; // Optional: 0 to 1 (e.g., 0.85 for 85%) - defaults can be used if not set
@@ -35,12 +35,13 @@ export interface TariffPeriod {
   rate?: number; // Optional: Cost per kWh during this period
 }
 
+export type ManualForecastCondition = 'sunny' | 'partly_cloudy' | 'cloudy' | 'overcast' | 'rainy';
+
 export interface ManualDayForecast {
   date: string; // YYYY-MM-DD, not editable by user, set programmatically
   sunrise: string; // HH:MM
   sunset: string; // HH:MM
-  condition: 'sunny' | 'partly_cloudy' | 'cloudy' | 'overcast' | 'rainy';
-  // No need for weatherConditionModifier if using Open-Meteo which provides sunshine_duration
+  condition: ManualForecastCondition;
 }
 
 export interface ManualForecastInput {
