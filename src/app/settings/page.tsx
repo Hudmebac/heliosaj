@@ -12,12 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useLocalStorage } from '@/hooks/use-local-storage';
-import type { UserSettings } from '@/types/settings';
+import type { UserSettings, TariffPeriod } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle, Trash2, PlusCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
+import { Switch } from '@/components/ui/switch'; // Added for Tariff isCheap toggle
 import {
   Tooltip,
   TooltipContent,
@@ -171,6 +172,14 @@ export default function SettingsPage() {
   const [selectedDirectionInfo, setSelectedDirectionInfo] = useState<PropertyDirectionInfo | null>(SOUTH_DIRECTION_INFO);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
   const [calculatedKWpFromPanels, setCalculatedKWpFromPanels] = useState<number | undefined>(undefined);
+
+  // Tariff state and handlers
+  const [tariffPeriods, setTariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
+  const [newPeriodName, setNewPeriodName] = useState('');
+  const [newStartTime, setNewStartTime] = useState('');
+  const [newEndTime, setNewEndTime] = useState('');
+  const [newIsCheap, setNewIsCheap] = useState(false);
+  const [newRate, setNewRate] = useState<number | undefined>(undefined);
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
@@ -436,6 +445,78 @@ export default function SettingsPage() {
   const watchedAvgHourlyConsumption = form.watch('avgHourlyConsumptionKWh') || 0.4;
   const sliderMax = Math.max(1, watchedAvgHourlyConsumption * 3, 0.5);
 
+
+  // Tariff Management Functions
+  const isValidTime = (time: string) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
+
+  const handleAddPeriod = () => {
+    if (!newPeriodName || !newStartTime || !newEndTime) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a name, start time, and end time for the tariff period.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isValidTime(newStartTime) || !isValidTime(newEndTime)) {
+      toast({
+        title: "Invalid Time Format",
+        description: "Please use HH:MM format for tariff times (e.g., 00:00, 14:30).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Basic overlap check
+    const overlap = tariffPeriods.some(p => {
+      const pStart = parseInt(p.startTime.split(':')[0]) * 60 + parseInt(p.startTime.split(':')[1]);
+      const pEnd = parseInt(p.endTime.split(':')[0]) * 60 + parseInt(p.endTime.split(':')[1]);
+      const newStart = parseInt(newStartTime.split(':')[0]) * 60 + parseInt(newStartTime.split(':')[1]);
+      const pDuration = pEnd > pStart ? pEnd - pStart : (24 * 60 - pStart) + pEnd;
+      return newStart >= pStart && newStart < (pStart + pDuration);
+    });
+
+    if (overlap) {
+      toast({
+        title: "Potential Overlap",
+        description: "The new tariff period might overlap with an existing one. Please review.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newPeriod: TariffPeriod = {
+      id: Date.now().toString(),
+      name: newPeriodName,
+      startTime: newStartTime,
+      endTime: newEndTime,
+      isCheap: newIsCheap,
+      rate: newRate,
+    };
+
+    setTariffPeriods([...tariffPeriods, newPeriod]);
+    setNewPeriodName('');
+    setNewStartTime('');
+    setNewEndTime('');
+    setNewIsCheap(false);
+    setNewRate(undefined);
+
+    toast({
+      title: "Tariff Period Added",
+      description: `"${newPeriod.name}" has been saved.`,
+    });
+  };
+
+  const handleRemovePeriod = (id: string) => {
+    setTariffPeriods(tariffPeriods.filter(p => p.id !== id));
+    toast({
+      title: "Tariff Period Removed",
+      description: "The selected period has been deleted.",
+    });
+  };
+
+
   if (!isMounted) {
     return (
       <div className="flex justify-center items-center py-10">
@@ -623,7 +704,7 @@ export default function SettingsPage() {
             <div className="space-y-4 p-4 border rounded-md bg-muted/50">
                 <h3 className="text-lg font-medium">Solar Panel System Details</h3>
                 <p className="text-sm text-muted-foreground">
-                    Input panel details to estimate total system power, or enter your official system rating directly in the "Total System Power (kWp)" field below.
+                    Input panel details to estimate total system power. This estimate can then be applied to the "Total System Power (kWp)" field below, or you can enter your system's official rating directly.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
@@ -926,6 +1007,75 @@ export default function SettingsPage() {
         </AccordionItem>
       </Accordion>
     </Card>
+
+    <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Manage Tariff Periods</CardTitle>
+            <CardDescription>Define your electricity supplier's tariff periods (e.g., peak, off-peak). This helps with smart charging advice.</CardDescription>
+          </div>
+          <HowToInfo pageKey="tariffs" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+           {!isMounted ? (
+              <div className="flex items-center justify-center p-4">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                <span>Loading tariff periods...</span>
+              </div>
+           ) : tariffPeriods.length === 0 ? (
+             <p className="text-muted-foreground">No tariff periods defined yet. Add your first period below.</p>
+          ) : (
+             <ul className="space-y-3">
+              {tariffPeriods.map((period) => (
+                <li key={period.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border rounded-md bg-muted/50">
+                  <div className="flex-grow mb-2 sm:mb-0">
+                    <p className="font-semibold">{period.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {period.startTime} - {period.endTime}
+                      {period.rate !== undefined && ` (${period.rate} p/kWh)`}
+                      {period.isCheap && <span className="ml-2 text-green-600 dark:text-green-400">(Cheap Rate)</span>}
+                    </p>
+                  </div>
+                   <Button variant="ghost" size="sm" onClick={() => handleRemovePeriod(period.id)} className="text-destructive hover:text-destructive/80">
+                      <Trash2 className="h-4 w-4 mr-1"/> Remove
+                   </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+         <CardContent className="space-y-4 border-t pt-6">
+            <h3 className="text-lg font-medium">Add New Tariff Period</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="periodName">Period Name</Label>
+                <Input id="periodName" placeholder="e.g., Night Saver, Peak" value={newPeriodName} onChange={(e) => setNewPeriodName(e.target.value)} />
+              </div>
+               <div className="space-y-1">
+                 <Label htmlFor="rate">Rate (pence/kWh, Optional)</Label>
+                 <Input id="rate" type="number" step="0.01" placeholder="e.g., 7.5" value={newRate ?? ''} onChange={(e) => setNewRate(e.target.value ? parseFloat(e.target.value) : undefined)} />
+               </div>
+            </div>
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+               <div className="space-y-1">
+                 <Label htmlFor="startTime">Start Time (HH:MM)</Label>
+                 <Input id="startTime" type="time" value={newStartTime} onChange={(e) => setNewStartTime(e.target.value)} />
+               </div>
+               <div className="space-y-1">
+                 <Label htmlFor="endTime">End Time (HH:MM)</Label>
+                 <Input id="endTime" type="time" value={newEndTime} onChange={(e) => setNewEndTime(e.target.value)} />
+               </div>
+             </div>
+              <div className="flex items-center space-x-2 pt-2">
+                <Switch id="isCheap" checked={newIsCheap} onCheckedChange={setNewIsCheap} />
+                <Label htmlFor="isCheap">This is a cheap/off-peak rate period</Label>
+              </div>
+             <Button onClick={handleAddPeriod} className="btn-silver mt-4">
+                <PlusCircle className="h-4 w-4 mr-2"/> Add Period
+             </Button>
+        </CardContent>
+      </Card>
+
     </div>
     </TooltipProvider>
   );

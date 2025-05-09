@@ -4,10 +4,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Sun, Home, Settings, Info, BarChart2, Zap, CloudSun, Edit3, Cog } from 'lucide-react';
+import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3 } from 'lucide-react'; // Removed BarChart2
 import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
-import type { UserSettings, ManualForecastInput } from '@/types/settings';
+import type { UserSettings } from '@/types/settings';
 import { useState, useEffect } from 'react';
 import {
   DropdownMenu,
@@ -24,7 +24,6 @@ export default function Header() {
   const pathname = usePathname();
   const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const [isMounted, setIsMounted] = useState(false);
-  // Default UI state for selectedWeatherSourceId, will be updated from localStorage or to default 'open-meteo'
   const [selectedWeatherSourceId, setSelectedWeatherSourceId] = useState<string>('open-meteo'); 
   const [isManualForecastModalOpen, setIsManualForecastModalOpen] = useState(false);
   const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
@@ -36,32 +35,29 @@ export default function Header() {
      const defaultSource = 'open-meteo';
 
      if (settings === null) {
-       // Case 1: No settings in localStorage (e.g., first visit)
        setSelectedWeatherSourceId(defaultSource);
-       // Initialize settings with the default source
-       setSettings({ selectedWeatherSource: defaultSource } as UserSettings);
+       if (typeof window !== 'undefined') { // Ensure this runs only on client
+            setSettings({ selectedWeatherSource: defaultSource } as UserSettings);
+       }
      } else if (storedSource && weatherSources.some(s => s.id === storedSource && s.isFunctional)) {
-       // Case 2: Valid functional source found in settings
        setSelectedWeatherSourceId(storedSource);
      } else {
-       // Case 3: Settings exist, but source is invalid, not functional (and not manual), or missing.
-       // Default to 'open-meteo' for UI and update localStorage.
        setSelectedWeatherSourceId(defaultSource);
        if (settings.selectedWeatherSource !== defaultSource) {
          setSettings(prev => ({
-           ...(prev!), // prev is UserSettings here
+           ...(prev!), 
            selectedWeatherSource: defaultSource,
          }));
        }
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [settings, setSettings]); // React to settings object changes
+   }, [settings?.selectedWeatherSource]); 
+
 
   const navItems = [
     { href: '/', label: 'Dashboard', icon: Home },
     { href: '/advisory', label: 'Advisory', icon: Zap },
     { href: '/settings', label: 'Settings', icon: Settings },
-    { href: '/tariffs', label: 'Tariffs', icon: BarChart2 },
     { href: '/info', label: 'Info', icon: Info },
   ];
 
@@ -83,14 +79,13 @@ export default function Header() {
   ];
 
   const handleSourceSelect = (sourceId: string) => {
-    setSelectedWeatherSourceId(sourceId); // Update local UI state immediately
-    // Update settings in localStorage
+    setSelectedWeatherSourceId(sourceId); 
     setSettings(prev => ({
-      ...(prev || {} as UserSettings), // Ensure settings object exists
+      ...(prev || {} as UserSettings), 
       selectedWeatherSource: sourceId,
     }));
     if (sourceId === 'manual') {
-      refreshForecastDates(); // Ensure dates are current for manual forecast
+      refreshForecastDates(); 
       setIsManualForecastModalOpen(true);
     }
   };
@@ -146,7 +141,7 @@ export default function Header() {
                    <DropdownMenuItem
                      key={source.id}
                      onClick={() => handleSourceSelect(source.id)}
-                     disabled={!source.isFunctional} // Only disable if not functional. Manual is functional.
+                     disabled={!source.isFunctional} 
                      className={cn(selectedWeatherSourceId === source.id && "bg-accent/50")}
                    >
                      {source.name} {!source.isFunctional && "(Info Only)"}
@@ -156,7 +151,7 @@ export default function Header() {
                     <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => {
-                          refreshForecastDates(); // Ensure dates are correct before opening
+                          refreshForecastDates(); 
                           setIsManualForecastModalOpen(true);
                         }}>
                             <Edit3 className="h-4 w-4 mr-2" />
@@ -174,7 +169,7 @@ export default function Header() {
         </div>
       </div>
     </header>
-    {isMounted && ( // Only render modal on client
+    {isMounted && ( 
         <ManualForecastModal
           isOpen={isManualForecastModalOpen}
           onClose={() => setIsManualForecastModalOpen(false)}
@@ -188,3 +183,4 @@ export default function Header() {
     </>
   );
 }
+

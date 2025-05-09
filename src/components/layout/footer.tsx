@@ -12,9 +12,7 @@ export default function Footer() {
         { href: '/', label: 'Dashboard' },
         { href: '/advisory', label: 'Advisory' },
         { href: '/settings', label: 'Settings' },
-        { href: '/tariffs', label: 'Tariffs' },
         { href: '/info', label: 'Info' },
-        // { href: '/forecast-settings', label: 'Forecast Settings' }, // Removed as per previous manual forecast changes
     ];
 
     return (
