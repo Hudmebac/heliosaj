@@ -1,4 +1,6 @@
 import type { UserSettings, ManualDayForecast, propertyDirectionOptions } from '@/types/settings';
+import type { DailyWeather, ManualForecastCondition } from '@/types/weather'; // Import DailyWeather & ManualForecastCondition
+import { mapWmoCodeToManualForecastCondition } from '@/types/weather'; // Ensure this is imported
 
 export interface HourlyForecast {
   time: string; // HH:MM format
@@ -7,16 +9,21 @@ export interface HourlyForecast {
 
 export interface CalculatedForecast {
   date: string;
-  weatherCondition: string; // Now always a string, derived from ManualDayForecast['condition']
+  weatherCondition: string; // User-friendly weather condition string
   dailyTotalGenerationKWh: number;
   hourlyForecast: HourlyForecast[];
   errorMessage: string | null;
+  // Add fields from Open-Meteo that might be useful for display
+  tempMax?: number;
+  tempMin?: number;
+  precipitationSum?: number;
+  sunshineDurationHours?: number; // Actual sunshine duration used, if available
 }
 
-const BASE_PEAK_SUN_HOURS = 4; // Assume a baseline of 4 peak sun hours for a "standard" good day before other factors.
+const BASE_PEAK_SUN_HOURS_PER_DAY_IDEAL_SUMMER = 5; // Baseline for a perfect, long summer day before other factors
 
 export function calculateSolarGeneration(
-  manualDayForecast: ManualDayForecast,
+  dayForecastInput: ManualDayForecast | DailyWeather,
   settings: UserSettings
 ): CalculatedForecast {
   const hourlyForecast: HourlyForecast[] = [];
@@ -24,31 +31,34 @@ export function calculateSolarGeneration(
   try {
     if (!settings || typeof settings.totalKWp !== 'number' || settings.totalKWp <= 0) {
       return {
-        date: manualDayForecast.date,
-        weatherCondition: manualDayForecast.condition,
+        date: dayForecastInput.date,
+        weatherCondition: ('condition' in dayForecastInput ? dayForecastInput.condition : (dayForecastInput as DailyWeather).weatherConditionString) || 'unknown',
         dailyTotalGenerationKWh: 0,
         hourlyForecast: [],
         errorMessage: "Total system power (kWp) not configured or invalid in settings.",
       };
     }
+    
+    const sunriseString = ('sunrise' in dayForecastInput && typeof dayForecastInput.sunrise === 'string') ? dayForecastInput.sunrise : undefined;
+    const sunsetString = ('sunset' in dayForecastInput && typeof dayForecastInput.sunset === 'string') ? dayForecastInput.sunset : undefined;
 
-    if (!manualDayForecast.sunrise || !manualDayForecast.sunset) {
+    if (!sunriseString || !sunsetString) {
         return {
-            date: manualDayForecast.date,
-            weatherCondition: manualDayForecast.condition,
+            date: dayForecastInput.date,
+            weatherCondition: ('condition' in dayForecastInput ? dayForecastInput.condition : (dayForecastInput as DailyWeather).weatherConditionString) || 'unknown',
             dailyTotalGenerationKWh: 0,
             hourlyForecast: [],
-            errorMessage: "Sunrise or sunset time not set in manual forecast.",
+            errorMessage: "Sunrise or sunset time not set in forecast.",
         };
     }
 
-    const [sunriseHour, sunriseMinute] = manualDayForecast.sunrise.split(':').map(Number);
-    const [sunsetHour, sunsetMinute] = manualDayForecast.sunset.split(':').map(Number);
+    const [sunriseHour, sunriseMinute] = sunriseString.split(':').map(Number);
+    const [sunsetHour, sunsetMinute] = sunsetString.split(':').map(Number);
 
     if (isNaN(sunriseHour) || isNaN(sunriseMinute) || isNaN(sunsetHour) || isNaN(sunsetMinute)) {
         return {
-            date: manualDayForecast.date,
-            weatherCondition: manualDayForecast.condition,
+            date: dayForecastInput.date,
+            weatherCondition: ('condition' in dayForecastInput ? dayForecastInput.condition : (dayForecastInput as DailyWeather).weatherConditionString) || 'unknown',
             dailyTotalGenerationKWh: 0,
             hourlyForecast: [],
             errorMessage: "Invalid sunrise or sunset time format.",
@@ -60,24 +70,16 @@ export function calculateSolarGeneration(
 
     if (sunsetTotalMinutes <= sunriseTotalMinutes) {
       return {
-        date: manualDayForecast.date,
-        weatherCondition: manualDayForecast.condition,
+        date: dayForecastInput.date,
+        weatherCondition: ('condition' in dayForecastInput ? dayForecastInput.condition : (dayForecastInput as DailyWeather).weatherConditionString) || 'unknown',
         dailyTotalGenerationKWh: 0,
         hourlyForecast: [],
         errorMessage: "Sunset time must be after sunrise time.",
       };
     }
 
-    const daylightHours = (sunsetTotalMinutes - sunriseTotalMinutes) / 60;
-    if (daylightHours <= 0) {
-      return {
-        date: manualDayForecast.date,
-        weatherCondition: manualDayForecast.condition,
-        dailyTotalGenerationKWh: 0,
-        hourlyForecast: [],
-        errorMessage: "No daylight hours based on sunrise/sunset times.",
-      };
-    }
+    let daylightHours = (sunsetTotalMinutes - sunriseTotalMinutes) / 60;
+    if (daylightHours <= 0) daylightHours = 0;
 
     const totalSystemKWp = settings.totalKWp;
     const systemEfficiency = settings.systemEfficiency ?? 0.85;
@@ -86,46 +88,70 @@ export function calculateSolarGeneration(
       (propertyDirectionOptions.find(opt => opt.value === settings.propertyDirection)?.factor) ?? 
       1.0;
 
-    const currentDate = new Date(manualDayForecast.date + "T00:00:00"); // Ensure date is parsed correctly
-    const currentMonth = currentDate.getMonth(); // 0 for January, 11 for December
+    const currentDate = new Date(dayForecastInput.date + "T12:00:00Z"); 
+    const currentMonth = currentDate.getUTCMonth(); 
 
-    const monthlyFactors = settings.monthlyGenerationFactors && settings.monthlyGenerationFactors.length === 12 
-      ? settings.monthlyGenerationFactors 
-      : [0.3, 0.4, 0.6, 0.8, 1.0, 1.1, 1.0, 0.9, 0.7, 0.5, 0.35, 0.25]; // Default factors
-    const monthlyFactor = monthlyFactors[currentMonth] ?? 1.0;
+    let monthlyFactor: number;
+    if (settings.selectedWeatherSource === 'manual') {
+        const userMonthlyFactors = settings.monthlyGenerationFactors && settings.monthlyGenerationFactors.length === 12 
+            ? settings.monthlyGenerationFactors 
+            : Array(12).fill(1.0); // Default to 1.0 if manual but not set
+        monthlyFactor = userMonthlyFactors[currentMonth] ?? 1.0;
+    } else {
+        // For API sources like Open-Meteo, seasonal variations are part of the data (e.g. sunshine_duration)
+        // So, the monthlyFactor here should be neutral (1.0) as not to double-count seasonality.
+        monthlyFactor = 1.0;
+    }
 
-    const weatherConditionFactors: Record<ManualDayForecast['condition'], number> = {
-      sunny: 1.0,
-      partly_cloudy: 0.7,
-      cloudy: 0.4,
-      overcast: 0.2,
-      rainy: 0.1,
-    };
-    const weatherConditionFactor = weatherConditionFactors[manualDayForecast.condition] ?? 0.5;
-
-    // Calculate daily total generation
-    const effectivePeakSunHours = BASE_PEAK_SUN_HOURS * monthlyFactor;
-    const dailyTotalGenerationKWh = totalSystemKWp * effectivePeakSunHours * directionFactor * systemEfficiency * weatherConditionFactor;
-
-    // Distribute daily generation into hourly forecast (simple triangular distribution)
-    const peakHourOffset = daylightHours / 2;
-    const averageHourlyGenerationWh = (dailyTotalGenerationKWh * 1000) / daylightHours;
+    let weatherAdjustmentFactor: number;
+    let actualSunshineDurationHours: number | undefined = undefined;
+    const outputWeatherConditionString = ('condition' in dayForecastInput)
+        ? dayForecastInput.condition.replace(/_/g, ' ')
+        : (dayForecastInput as DailyWeather).weatherConditionString || 'unknown';
 
 
+    if (settings.selectedWeatherSource === 'open-meteo' && 'sunshine_duration' in dayForecastInput && typeof (dayForecastInput as DailyWeather).sunshine_duration === 'number') {
+      actualSunshineDurationHours = (dayForecastInput as DailyWeather).sunshine_duration! / 3600; // API gives seconds
+      weatherAdjustmentFactor = daylightHours > 0 ? Math.min(1, actualSunshineDurationHours / daylightHours) : 0;
+      
+      const apiCondition = mapWmoCodeToManualForecastCondition((dayForecastInput as DailyWeather).weather_code);
+      if (apiCondition === 'rainy') weatherAdjustmentFactor *= 0.4; // Further reduce for rain
+      else if (apiCondition === 'overcast') weatherAdjustmentFactor *= 0.6; // Further reduce for overcast
+      else if (apiCondition === 'cloudy') weatherAdjustmentFactor *= 0.8; // Slightly reduce for general cloudy
+
+    } else {
+      const conditionFactors: Record<ManualForecastCondition, number> = {
+        sunny: 1.0,
+        partly_cloudy: 0.75,
+        cloudy: 0.5,
+        overcast: 0.25,
+        rainy: 0.15,
+      };
+      let conditionKey: ManualForecastCondition;
+      if ('condition' in dayForecastInput) { // ManualDayForecast
+          conditionKey = dayForecastInput.condition;
+      } else { // DailyWeather (but not using sunshine_duration path)
+          conditionKey = mapWmoCodeToManualForecastCondition((dayForecastInput as DailyWeather).weather_code);
+      }
+      weatherAdjustmentFactor = conditionFactors[conditionKey] ?? 0.6;
+    }
+    
+    const effectivePeakSunHours = BASE_PEAK_SUN_HOURS_PER_DAY_IDEAL_SUMMER * monthlyFactor * weatherAdjustmentFactor;
+    
+    let dailyTotalGenerationKWh = totalSystemKWp * effectivePeakSunHours * directionFactor * systemEfficiency;
+    dailyTotalGenerationKWh = Math.max(0, dailyTotalGenerationKWh);
+
+    const peakHourSolarNoon = sunriseHour + daylightHours / 2;
+    
     for (let hour = 0; hour < 24; hour++) {
       let estimatedGenerationWh = 0;
-      if (hour >= sunriseHour && hour < sunsetHour) { // Consider hours within daylight
-        // Calculate how far the current hour is from the "solar noon" (middle of daylight period)
-        // The factor is 1 at solar noon, and 0 at sunrise/sunset
-        let generationFactorForHour = 1 - (Math.abs(hour + 0.5 - (sunriseHour + peakHourOffset)) / peakHourOffset);
-        generationFactorForHour = Math.max(0, Math.min(1, generationFactorForHour)); // Clamp between 0 and 1
+      if (hour >= Math.floor(sunriseHour) && hour < Math.ceil(sunsetHour) && daylightHours > 0) {
+        const proximityToNoonFactor = 1 - Math.abs(hour + 0.5 - peakHourSolarNoon) / (daylightHours / 2);
+        let hourlyGenerationFactor = Math.pow(Math.max(0, proximityToNoonFactor), 1.5); // Adjusted power for smoother curve
 
-        // The sum of these factors over daylightHours isn't exactly daylightHours/2 for a discrete sum.
-        // For a simple triangular distribution, the peak is twice the average.
-        estimatedGenerationWh = averageHourlyGenerationWh * generationFactorForHour * 2;
-        // This simple model might make the sum not exactly match dailyTotalGenerationKWh due to discretization.
-        // A more complex distribution or normalization step would be needed for perfect match.
-        // For now, this gives a reasonable shape.
+        const averageHourlyGenerationWh = (dailyTotalGenerationKWh * 1000) / daylightHours;
+        estimatedGenerationWh = averageHourlyGenerationWh * hourlyGenerationFactor * (daylightHours / BASE_PEAK_SUN_HOURS_PER_DAY_IDEAL_SUMMER); // A more dynamic scaling
+        estimatedGenerationWh = Math.max(0, estimatedGenerationWh);
       }
       hourlyForecast.push({
         time: `${hour.toString().padStart(2, '0')}:00`,
@@ -133,33 +159,35 @@ export function calculateSolarGeneration(
       });
     }
     
-    // Normalize hourly forecast to sum up to dailyTotalGenerationKWh
     const currentHourlySumWh = hourlyForecast.reduce((sum, hf) => sum + hf.estimatedGenerationWh, 0);
-    if (currentHourlySumWh > 0 && dailyTotalGenerationKWh > 0) {
+    if (currentHourlySumWh > 0.001 && dailyTotalGenerationKWh > 0) { 
         const normalizationFactor = (dailyTotalGenerationKWh * 1000) / currentHourlySumWh;
         hourlyForecast.forEach(hf => {
             hf.estimatedGenerationWh = parseFloat((hf.estimatedGenerationWh * normalizationFactor).toFixed(3));
         });
-    } else if (dailyTotalGenerationKWh === 0) { // Ensure hourly is zero if daily is zero
+    } else if (dailyTotalGenerationKWh <= 0.001) { 
          hourlyForecast.forEach(hf => {
             hf.estimatedGenerationWh = 0;
         });
     }
 
-
     return {
-      date: manualDayForecast.date,
-      weatherCondition: manualDayForecast.condition,
+      date: dayForecastInput.date,
+      weatherCondition: outputWeatherConditionString,
       dailyTotalGenerationKWh: parseFloat(dailyTotalGenerationKWh.toFixed(2)),
       hourlyForecast,
       errorMessage: null,
+      tempMax: 'temperature_2m_max' in dayForecastInput ? (dayForecastInput as DailyWeather).temperature_2m_max : undefined,
+      tempMin: 'temperature_2m_min' in dayForecastInput ? (dayForecastInput as DailyWeather).temperature_2m_min : undefined,
+      precipitationSum: 'precipitation_sum' in dayForecastInput ? (dayForecastInput as DailyWeather).precipitation_sum : undefined,
+      sunshineDurationHours: actualSunshineDurationHours,
     };
 
   } catch (error: any) {
     console.error("Error in calculateSolarGeneration:", error);
     return {
-      date: manualDayForecast.date,
-      weatherCondition: manualDayForecast.condition || "unknown", // Fallback
+      date: dayForecastInput.date,
+      weatherCondition: ('condition' in dayForecastInput ? dayForecastInput.condition : (dayForecastInput as DailyWeather).weatherConditionString) || "unknown",
       dailyTotalGenerationKWh: 0,
       hourlyForecast: [],
       errorMessage: `Calculation error: ${error.message}`,

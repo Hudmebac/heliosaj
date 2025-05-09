@@ -245,6 +245,7 @@ export default function SettingsPage() {
 
   const watchedPanelCount = form.watch('panelCount');
   const watchedPanelWatts = form.watch('panelWatts');
+  const watchedSource = form.watch('selectedWeatherSource');
 
   useEffect(() => {
     if (currentInputMode === 'Panels' && watchedPanelCount && watchedPanelWatts) {
@@ -923,66 +924,78 @@ export default function SettingsPage() {
     </Card>
 
     <Card>
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="monthly-efficiency">
-          <AccordionTrigger className="px-6 py-3 hover:no-underline">
-            <div className="flex-1">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                  <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
-              </CardTitle>
-              <CardDescription className="text-left mt-1">
-                Adjust the relative generation factor for each month. Default values are estimates.
-                Current month: {isMounted ? format(new Date(), "MMMM") : ""}.
-              </CardDescription>
+      {watchedSource === 'manual' ? (
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="monthly-efficiency">
+            <AccordionTrigger className="px-6 py-3 hover:no-underline">
+              <div className="flex-1">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                    <CalendarDays className="h-5 w-5"/> Manage Time of Year Efficiency
+                </CardTitle>
+                <CardDescription className="text-left mt-1">
+                  Adjust the relative generation factor for each month for 'Manual Input' source.
+                  Current month: {isMounted ? format(new Date(), "MMMM") : ""}.
+                </CardDescription>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <CardContent className="pt-2">
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {monthNames.map((monthName, index) => (
+                        <FormField
+                          key={monthName}
+                          control={form.control}
+                          name={`monthlyGenerationFactors.${index}` as `monthlyGenerationFactors.${number}`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
+                                {monthName} Factor
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  max="2"
+                                  placeholder="e.g., 1.00"
+                                  {...field}
+                                  value={field.value ?? ''}
+                                  onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <FormDescription>
+                      These factors adjust the baseline solar generation estimate for seasonality when using 'Manual Input' source.
+                      A factor of 1.00 means average generation for that month, 0.50 means 50%, 1.20 means 120%.
+                    </FormDescription>
+                    <Button type="submit" className="btn-silver w-full sm:w-auto">Save Monthly Factors</Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : (
+         <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-2">
+                <CalendarDays className="h-5 w-5 text-muted-foreground"/>
+                <h3 className="text-lg font-semibold">Time of Year Efficiency</h3>
             </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <CardContent className="pt-2">
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {monthNames.map((monthName, index) => (
-                      <FormField
-                        key={monthName}
-                        control={form.control}
-                        name={`monthlyGenerationFactors.${index}` as `monthlyGenerationFactors.${number}`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
-                              {monthName} Factor
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                max="2"
-                                placeholder="e.g., 1.00"
-                                {...field}
-                                value={field.value ?? ''}
-                                onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <FormDescription>
-                    These factors adjust the baseline solar generation estimate for seasonality.
-                    A factor of 1.00 means average generation for that month, 0.50 means 50%, 1.20 means 120%.
-                  </FormDescription>
-                  <Button type="submit" className="btn-silver w-full sm:w-auto">Save Monthly Factors</Button>
-                </form>
-              </Form>
-            </CardContent>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+            <p className="text-sm text-muted-foreground">
+                Monthly generation factors are only applicable when the weather source is set to 'Manual Input'.
+                For API-based sources like Open-Meteo, seasonal variations are inherently part of the detailed forecast data provided by the API (e.g., sunshine duration, solar radiation).
+            </p>
+         </CardContent>
+      )}
     </Card>
     </div>
     </TooltipProvider>
   );
 }
-
