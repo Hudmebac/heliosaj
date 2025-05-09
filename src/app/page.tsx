@@ -82,8 +82,8 @@ export default function HomePage() {
     let tomorrowInput: ManualDayForecast | DailyWeather | null = null;
 
     if (isApiSourceSelected && weatherForecastData) {
-        todayInput = weatherForecastData.todayForecast; // Directly use DailyWeather | null
-        tomorrowInput = weatherForecastData.tomorrowForecast; // Directly use DailyWeather | null
+        todayInput = weatherForecastData.todayForecast;
+        tomorrowInput = weatherForecastData.tomorrowForecast;
     } else if (!isApiSourceSelected) {
       refreshManualForecastDates();
       todayInput = manualForecast.today;
@@ -379,7 +379,6 @@ export default function HomePage() {
     const dayOfWeek = format(parseISO(dayData.date), 'EEE');
     const dateDisplay = format(parseISO(dayData.date), 'dd/MM');
 
-    // Directly pass DailyWeather object for API source
     const calculated = calculateSolarGeneration(dayData, settings);
 
     const weatherIcon = getWeatherIconFromString(dayData.weatherConditionString);
@@ -481,7 +480,7 @@ export default function HomePage() {
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Location Not Set for API</AlertTitle>
-                 <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in Settings to use Auto forecast function or change source to Manual Input</AlertDescription>
+                 <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in <a href="/settings" className="underline font-medium">Settings</a> to use Auto forecast function or change source to Manual Input</AlertDescription>
              </Alert>
         )}
 

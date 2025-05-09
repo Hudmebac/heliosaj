@@ -465,7 +465,7 @@ export default function AdvisoryPage() {
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Location Not Set for API</AlertTitle>
-                 <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in Settings to use Auto forecast function or change source to Manual Input</AlertDescription>
+                 <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in <a href="/settings" className="underline font-medium">Settings</a> to use Auto forecast function or change source to Manual Input</AlertDescription>
              </Alert>
         )}
          {isMounted && settings && weatherError && isApiSourceSelected && (
