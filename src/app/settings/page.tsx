@@ -15,7 +15,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent } from 'lucide-react';
+import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
@@ -155,17 +155,18 @@ const defaultMonthlyFactors = [
 
 const settingsSchema = z.object({
   location: z.string().min(3, { message: "Location must be at least 3 characters." }),
-  latitude: z.coerce.number().optional(), // Made optional as it can be derived
-  longitude: z.coerce.number().optional(), // Made optional as it can be derived
-  propertyDirection: z.string().min(1, { message: "Please select a property direction." }), // Changed from enum
-  propertyDirectionFactor: z.coerce.number().optional(), // Added to store the factor
+  latitude: z.coerce.number().optional(), 
+  longitude: z.coerce.number().optional(), 
+  propertyDirection: z.string().min(1, { message: "Please select a property direction." }), 
+  propertyDirectionFactor: z.coerce.number().optional(), 
   inputMode: z.enum(['Panels', 'TotalPower']),
   panelCount: z.coerce.number().int().positive().optional(),
   panelWatts: z.coerce.number().int().positive().optional(),
   totalKWp: z.coerce.number().positive().optional(),
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
+  batteryMaxChargeRateKWh: z.coerce.number().positive().optional(), // Added
   preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
-  systemEfficiency: z.coerce.number().min(0).max(1).optional(), // 0.0 to 1.0
+  systemEfficiency: z.coerce.number().min(0).max(1).optional(), 
   dailyConsumptionKWh: z.coerce.number().positive().optional(),
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
   hourlyUsageProfile: z.array(z.coerce.number().nonnegative()).length(24).optional(),
@@ -218,13 +219,14 @@ export default function SettingsPage() {
       propertyDirectionFactor: SOUTH_DIRECTION_INFO.factor,
       inputMode: 'Panels',
       systemEfficiency: 0.85,
-      selectedWeatherSource: 'manual', // Default to manual forecast
+      selectedWeatherSource: 'open-meteo', // Default to open-meteo
       dailyConsumptionKWh: 10,
       avgHourlyConsumptionKWh: 0.4,
-      hourlyUsageProfile: Array(HOURS_IN_DAY).fill(0.4), // Default hourly usage
+      hourlyUsageProfile: Array(HOURS_IN_DAY).fill(0.4), 
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
+      batteryMaxChargeRateKWh: 5, // Default battery charge rate
       monthlyGenerationFactors: [...defaultMonthlyFactors],
       preferredOvernightBatteryChargePercent: 100,
     },
@@ -256,8 +258,9 @@ export default function SettingsPage() {
          propertyDirectionFactor: storedSettings.propertyDirectionFactor ?? SOUTH_DIRECTION_INFO.factor,
          monthlyGenerationFactors: factorsToSet,
          hourlyUsageProfile: hourlyProfileToSet,
-         selectedWeatherSource: storedSettings.selectedWeatherSource || 'manual',
+         selectedWeatherSource: storedSettings.selectedWeatherSource || 'open-meteo',
          preferredOvernightBatteryChargePercent: storedSettings.preferredOvernightBatteryChargePercent ?? 100,
+         batteryMaxChargeRateKWh: storedSettings.batteryMaxChargeRateKWh ?? 5, // Load saved or default
        });
        setCurrentInputMode(storedSettings.inputMode || 'Panels');
        if (storedSettings.location && storedSettings.latitude && storedSettings.longitude) {
@@ -283,8 +286,9 @@ export default function SettingsPage() {
          panelWatts: undefined,
          totalKWp: undefined,
          batteryCapacityKWh: undefined,
+         batteryMaxChargeRateKWh: 5,
          systemEfficiency: 0.85,
-         selectedWeatherSource: 'manual',
+         selectedWeatherSource: 'open-meteo',
          dailyConsumptionKWh: 10,
          avgHourlyConsumptionKWh: 0.4,
          hourlyUsageProfile: Array(HOURS_IN_DAY).fill(0.4),
@@ -320,7 +324,7 @@ export default function SettingsPage() {
 
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
-        'batteryCapacityKWh', 'systemEfficiency', 'dailyConsumptionKWh',
+        'batteryCapacityKWh', 'batteryMaxChargeRateKWh', 'systemEfficiency', 'dailyConsumptionKWh',
         'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh', 
         'propertyDirectionFactor', 'preferredOvernightBatteryChargePercent'
     ];
@@ -353,11 +357,11 @@ export default function SettingsPage() {
 
     if (selectedDirectionInfo && data.propertyDirection === selectedDirectionInfo.value) {
         saveData.propertyDirectionFactor = selectedDirectionInfo.factor;
-    } else { // Ensure factor is set if direction changed but not through handler
+    } else { 
         const direction = propertyDirectionOptions.find(opt => opt.value === data.propertyDirection);
         saveData.propertyDirectionFactor = direction ? direction.factor : SOUTH_DIRECTION_INFO.factor;
     }
-    saveData.selectedWeatherSource = data.selectedWeatherSource || 'manual';
+    saveData.selectedWeatherSource = data.selectedWeatherSource || 'open-meteo';
     saveData.preferredOvernightBatteryChargePercent = data.preferredOvernightBatteryChargePercent ?? 100;
 
 
@@ -723,7 +727,7 @@ export default function SettingsPage() {
               />
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="batteryCapacityKWh"
@@ -733,7 +737,21 @@ export default function SettingsPage() {
                       <FormControl>
                         <Input type="number" step="0.01" placeholder="e.g., 19.00" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
                       </FormControl>
-                      <FormDescription>Total usable capacity of your battery system. Leave blank if no battery.</FormDescription>
+                      <FormDescription>Total usable capacity. Leave blank if no battery.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="batteryMaxChargeRateKWh"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1"><Zap className="h-4 w-4"/>Battery Max Charge Rate (kW)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.1" placeholder="e.g., 5.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                      </FormControl>
+                      <FormDescription>Max power battery can charge at. Default 5kW.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -743,11 +761,11 @@ export default function SettingsPage() {
                     name="preferredOvernightBatteryChargePercent"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Preferred Overnight Battery Target (%)</FormLabel>
+                            <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Overnight Battery Target (%)</FormLabel>
                             <FormControl>
                                 <Input type="number" step="1" min="0" max="100" placeholder="e.g., 90" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
                             </FormControl>
-                            <FormDescription>Target charge level for overnight charging (0-100%). Default 100%.</FormDescription>
+                            <FormDescription>Target charge level for overnight (0-100%). Default 100%.</FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -927,4 +945,3 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
-

@@ -1,4 +1,3 @@
-
 export interface UserSettings {
   location: string; // User-friendly location string (e.g., "Lochgelly, UK")
   latitude?: number; // Optional: Derived from location or direct input
@@ -10,6 +9,7 @@ export interface UserSettings {
   panelWatts?: number; // Optional, used if inputMode is 'Panels'
   totalKWp?: number; // Optional, used if inputMode is 'TotalPower'
   batteryCapacityKWh?: number; // Made optional as not everyone has a battery
+  batteryMaxChargeRateKWh?: number; // Optional: Max power battery can charge at (kW)
   systemEfficiency?: number; // Optional: 0 to 1 (e.g., 0.85 for 85%) - defaults can be used if not set
   dailyConsumptionKWh?: number; // Optional: Average daily household energy consumption
   avgHourlyConsumptionKWh?: number; // Optional: Average hourly household energy consumption
@@ -22,7 +22,7 @@ export interface UserSettings {
   lastKnownBatteryLevelKWh?: number; // Added to store last known battery level from advisory
 
   monthlyGenerationFactors?: number[]; // Array of 12 numbers, one for each month (0=Jan, 11=Dec)
-  selectedWeatherSource?: string; // ID of the selected weather source
+  selectedWeatherSource?: string; // ID of the selected weather source ('open-meteo', 'manual', etc.)
   preferredOvernightBatteryChargePercent?: number; // Percentage (0-100) for target overnight charge
 }
 
@@ -40,8 +40,7 @@ export interface ManualDayForecast {
   sunrise: string; // HH:MM
   sunset: string; // HH:MM
   condition: 'sunny' | 'partly_cloudy' | 'cloudy' | 'overcast' | 'rainy';
-  // Add a weather condition modifier to allow users to fine-tune forecasts
-  weatherConditionModifier?: number; // e.g., 1.0 for sunny, 0.5 for cloudy, etc.
+  // No need for weatherConditionModifier if using Open-Meteo which provides sunshine_duration
 }
 
 export interface ManualForecastInput {
@@ -74,4 +73,3 @@ export const getFactorByDirectionValue = (value: string): number | undefined => 
   const option = propertyDirectionOptions.find(opt => opt.value === value);
   return option?.factor;
 };
-

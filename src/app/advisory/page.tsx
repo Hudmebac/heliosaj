@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -8,19 +7,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon, Percent } from 'lucide-react';
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon, Percent, RefreshCw } from 'lucide-react';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast} from '@/lib/solar-calculations';
 import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice,  } from '@/lib/charging-advice';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
-import { addDays, format } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { HowToInfo } from '@/components/how-to-info';
+import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the hook
+import { ManualForecastModal } from '@/components/manual-forecast-modal'; // Import the modal
+import type { DailyWeather } from '@/types/weather';
+import { mapWmoCodeToManualForecastCondition } from '@/types/weather';
 
 
 const HOURS_IN_DAY = 24;
@@ -30,13 +32,15 @@ const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
-    const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
+    const [manualForecast, setManualForecast] = useManualForecast(); // Manual forecast hook
 
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
     const [todayAdvice, setTodayAdvice] = useState<ChargingAdvice | null>(null);
     const [adviceError, setAdviceError] = useState<string | null>(null);
-    const [tomorrowForecastCalc, setTomorrowForecastCalc] = useState<CalculatedForecast | null>(null);
+    
     const [todayForecastCalc, setTodayForecastCalc] = useState<CalculatedForecast | null>(null);
+    const [tomorrowForecastCalc, setTomorrowForecastCalc] = useState<CalculatedForecast | null>(null);
+    
     const [isMounted, setIsMounted] = useState(false);
     const [currentHour, setCurrentHour] = useState<number | null>(null);
     const { toast } = useToast();
@@ -52,9 +56,16 @@ export default function AdvisoryPage() {
     const [evChargeByTime, setEvChargeByTime] = useState<string>('07:00');
     const [evMaxChargeRateKWh, setEvMaxChargeRateKWh] = useState<number>(DEFAULT_EV_MAX_CHARGE_RATE);
 
-    const [isForecastModalOpen, setIsForecastModalOpen] = useState(false);
-    const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(manualForecast);
-    const [selectedCityForTimesModal, setSelectedCityForTimesModal] = useState<string>("");
+    const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+     const {
+        weatherForecastData,
+        weatherLoading,
+        weatherError,
+        refetchWeather,
+        weatherRefetching,
+        isApiSourceSelected,
+        locationAvailable
+    } = useWeatherForecast();
 
 
     useEffect(() => {
@@ -93,10 +104,6 @@ export default function AdvisoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [settings, isMounted]); 
 
-    useEffect(() => {
-      setEditableForecast(manualForecast);
-    }, [manualForecast]);
-
 
     useEffect(() => {
        if (isMounted && settings) {
@@ -127,6 +134,139 @@ export default function AdvisoryPage() {
    // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted]);
 
+
+    // Calculate solar generation based on selected source
+    useEffect(() => {
+        if (!isMounted || !settings) {
+            setTodayForecastCalc(null);
+            setTomorrowForecastCalc(null);
+            return;
+        }
+
+        let todayInput: ManualDayForecast | null = null;
+        let tomorrowInput: ManualDayForecast | null = null;
+
+        if (isApiSourceSelected && weatherForecastData) {
+            if (weatherForecastData.todayForecast) {
+                const apiToday = weatherForecastData.todayForecast;
+                todayInput = {
+                    date: apiToday.date,
+                    sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
+                    sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
+                    condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code),
+                };
+            }
+            if (weatherForecastData.tomorrowForecast) {
+                const apiTomorrow = weatherForecastData.tomorrowForecast;
+                tomorrowInput = {
+                    date: apiTomorrow.date,
+                    sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
+                    sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
+                    condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code),
+                };
+            }
+        } else if (!isApiSourceSelected) {
+            todayInput = manualForecast.today;
+            tomorrowInput = manualForecast.tomorrow;
+        }
+
+        if (todayInput) {
+            setTodayForecastCalc(calculateSolarGeneration(todayInput, settings));
+        } else {
+            setTodayForecastCalc(null);
+        }
+
+        if (tomorrowInput) {
+            setTomorrowForecastCalc(calculateSolarGeneration(tomorrowInput, settings));
+        } else {
+            setTomorrowForecastCalc(null);
+        }
+    }, [isMounted, settings, weatherForecastData, manualForecast, isApiSourceSelected]);
+
+
+    const generateAdvice = useCallback(() => {
+        if (!isMounted || !settings || currentHour === null || !todayForecastCalc || !tomorrowForecastCalc) {
+             setTodayAdvice(null);
+             setTomorrowAdvice(null);
+             setAdviceError(null);
+             if (isMounted && !settings) setAdviceError("Please configure your system in Settings first.");
+             if (isMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && (isApiSourceSelected && (weatherLoading || weatherRefetching))) {
+                 setAdviceError("Fetching forecast data for advice...");
+             } else if (isMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && !isApiSourceSelected) {
+                  setAdviceError("Manual forecast data incomplete for advice.");
+             } else if (isMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && isApiSourceSelected && !weatherLoading && !weatherRefetching) {
+                  setAdviceError("Could not load API forecast data for advice. Check location settings.");
+             }
+            return;
+        }
+         setAdviceError(null);
+
+        if (!settings.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) {
+             setAdviceError("Battery capacity not set. This is required for charging advice.");
+            return;
+        }
+
+         const evNeedsInput = {
+             chargeRequiredKWh: evChargeRequiredKWh ?? 0,
+             chargeByHour: evChargeByTime ? parseInt(evChargeByTime.split(':')[0]) : 7,
+             maxChargeRateKWh: evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE,
+         };
+
+        try {
+            if (!todayForecastCalc || todayForecastCalc.errorMessage || !todayForecastCalc.hourlyForecast) throw new Error(todayForecastCalc?.errorMessage || "Today's solar forecast could not be calculated or hourly data missing.");
+            const todayParams: ChargingAdviceParams = {
+                forecast: todayForecastCalc,
+                settings: settings,
+                tariffPeriods: tariffPeriods,
+                currentBatteryLevelKWh: currentBatteryLevel,
+                hourlyConsumptionProfile: hourlyUsage,
+                currentHour: currentHour,
+                evNeeds: evNeedsInput,
+                adviceType: 'today',
+                preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
+            };
+            const todayGeneratedAdvice = getChargingAdvice(todayParams);
+            if (!todayGeneratedAdvice) throw new Error("Failed to generate today's advice.");
+            setTodayAdvice(todayGeneratedAdvice);
+        } catch (err: any) {
+            console.error("Error generating today's advice:", err);
+             setAdviceError(`Today's Advice Error: ${err.message}`);
+             setTodayAdvice(null);
+        }
+
+        try {
+             if (!tomorrowForecastCalc || tomorrowForecastCalc.errorMessage || !tomorrowForecastCalc.hourlyForecast) throw new Error(tomorrowForecastCalc?.errorMessage || "Tomorrow's solar forecast could not be calculated or hourly data missing.");
+            const overnightParams: ChargingAdviceParams = {
+                forecast: tomorrowForecastCalc, 
+                settings: settings,
+                tariffPeriods: tariffPeriods,
+                currentBatteryLevelKWh: currentBatteryLevel, 
+                hourlyConsumptionProfile: hourlyUsage, 
+                currentHour: currentHour, 
+                evNeeds: evNeedsInput,
+                adviceType: 'overnight',
+                preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
+            };
+            const tomorrowGeneratedAdvice = getChargingAdvice(overnightParams);
+            if (!tomorrowGeneratedAdvice) throw new Error("Failed to generate tomorrow's advice.");
+            setTomorrowAdvice(tomorrowGeneratedAdvice);
+        } catch (err: any) {
+             console.error("Error generating tomorrow's advice:", err);
+             setAdviceError(prev => prev ? `${prev}\nTomorrow's Advice Error: ${err.message}` : `Tomorrow's Advice Error: ${err.message}`);
+             setTomorrowAdvice(null);
+        }
+    }, [ 
+        isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
+        todayForecastCalc, tomorrowForecastCalc, 
+        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent,
+        weatherLoading, weatherRefetching, isApiSourceSelected
+    ]);
+
+    useEffect(() => {
+        generateAdvice();
+    }, [generateAdvice]);
+
+
     const handleSliderChange = (index: number, value: number[]) => {
       const newHourlyUsage = [...hourlyUsage];
       newHourlyUsage[index] = value[0];
@@ -154,169 +294,30 @@ export default function AdvisoryPage() {
       setDailyConsumption(parseFloat((avgHourlyConsumption * HOURS_IN_DAY).toFixed(2)));
     };
 
-    const generateAdvice = useCallback(() => {
-        if (!isMounted || !settings || currentHour === null) {
-             setTodayAdvice(null);
-             setTomorrowAdvice(null);
-             setTodayForecastCalc(null);
-             setTomorrowForecastCalc(null);
-             setAdviceError(null);
-             if (isMounted && !settings) setAdviceError("Please configure your system in Settings first.");
-            return;
-        }
-         setAdviceError(null);
-
-        if (!settings.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) {
-             setAdviceError("Battery capacity not set. This is required for charging advice.");
-            return;
-        }
-
-        const todayDateStr = format(new Date(), 'yyyy-MM-dd');
-        const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
-
-        if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-             refreshForecastDates(); // This will update dates and trigger a re-render and re-calculation
-            return;
-        }
-
-        const todayCalculated = calculateSolarGeneration(manualForecast.today, settings);
-        const tomorrowCalculated = calculateSolarGeneration(manualForecast.tomorrow, settings);
-
-        setTodayForecastCalc(todayCalculated);
-        setTomorrowForecastCalc(tomorrowCalculated);
-
-         const evNeeds = {
-             chargeRequiredKWh: evChargeRequiredKWh ?? 0,
-             chargeByHour: evChargeByTime ? parseInt(evChargeByTime.split(':')[0]) : 7,
-             maxChargeRateKWh: evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE,
-         };
-
-        try {
-            if (!todayCalculated || todayCalculated.errorMessage || !todayCalculated.hourlyForecast) throw new Error(todayCalculated?.errorMessage || "Today's solar forecast could not be calculated or hourly data missing.");
-            const todayParams: ChargingAdviceParams = {
-                forecast: todayCalculated,
-                settings: settings,
-                tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel,
-                hourlyConsumptionProfile: hourlyUsage,
-                currentHour: currentHour,
-                evNeeds: evNeeds,
-                adviceType: 'today',
-                preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
-            };
-            const todayGeneratedAdvice = getChargingAdvice(todayParams);
-            if (!todayGeneratedAdvice) throw new Error("Failed to generate today's advice.");
-            setTodayAdvice(todayGeneratedAdvice);
-        } catch (err: any) {
-            console.error("Error generating today's advice:", err);
-             setAdviceError(`Today's Advice Error: ${err.message}`);
-             setTodayAdvice(null);
-        }
-
-        try {
-             if (!tomorrowCalculated || tomorrowCalculated.errorMessage || !tomorrowCalculated.hourlyForecast) throw new Error(tomorrowCalculated?.errorMessage || "Tomorrow's solar forecast could not be calculated or hourly data missing.");
-            const overnightParams: ChargingAdviceParams = {
-                forecast: tomorrowCalculated, 
-                settings: settings,
-                tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel, 
-                hourlyConsumptionProfile: hourlyUsage, 
-                currentHour: currentHour, 
-                evNeeds: evNeeds,
-                adviceType: 'overnight',
-                preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
-            };
-            const tomorrowGeneratedAdvice = getChargingAdvice(overnightParams);
-            if (!tomorrowGeneratedAdvice) throw new Error("Failed to generate tomorrow's advice.");
-            setTomorrowAdvice(tomorrowGeneratedAdvice);
-        } catch (err: any) {
-             console.error("Error generating tomorrow's advice:", err);
-             setAdviceError(prev => prev ? `${prev}\nTomorrow's Advice Error: ${err.message}` : `Tomorrow's Advice Error: ${err.message}`);
-             setTomorrowAdvice(null);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ 
-        isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
-        manualForecast, refreshForecastDates, 
-        evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent
-    ]);
-
-    useEffect(() => {
-        generateAdvice();
-    }, [generateAdvice]);
-
-
-    const handleForecastModalSave = () => {
-      const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-      if (!timeRegex.test(editableForecast.today.sunrise) || !timeRegex.test(editableForecast.today.sunset) ||
-          !timeRegex.test(editableForecast.tomorrow.sunrise) || !timeRegex.test(editableForecast.tomorrow.sunset)) {
-        toast({
-          title: "Invalid Time Format",
-          description: "Please use HH:MM for sunrise and sunset times.",
-          variant: "destructive",
-        });
-        return;
-      }
-       // Validate sunrise is before sunset
-      if (editableForecast.today.sunrise >= editableForecast.today.sunset) {
-        toast({
-          title: "Invalid Times for Today",
-          description: "Sunrise time must be before sunset time for today.",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (editableForecast.tomorrow.sunrise >= editableForecast.tomorrow.sunset) {
-        toast({
-          title: "Invalid Times for Tomorrow",
-          description: "Sunrise time must be before sunset time for tomorrow.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setManualForecast(editableForecast); 
-      setIsForecastModalOpen(false);
-      toast({
-        title: "Forecast Updated",
-        description: "Manual weather forecast has been saved.",
-      });
-    };
-
-   const handleCityTimeSelectModal = (cityName: string) => {
-        setSelectedCityForTimesModal(cityName);
-        if (!cityName) return;
-
-        const todayDate = new Date();
-        const tomorrowDate = addDays(todayDate, 1);
-
-        const todayTimes = getApproximateSunriseSunset(cityName, todayDate);
-        const tomorrowTimes = getApproximateSunriseSunset(cityName, tomorrowDate);
-
-        setEditableForecast(prev => ({
-          ...prev,
-          today: {
-            ...prev.today,
-            sunrise: todayTimes?.sunrise || prev.today.sunrise,
-            sunset: todayTimes?.sunset || prev.today.sunset,
-          },
-          tomorrow: {
-            ...prev.tomorrow,
-            sunrise: tomorrowTimes?.sunrise || prev.tomorrow.sunrise,
-            sunset: tomorrowTimes?.sunset || prev.tomorrow.sunset,
-          }
-        }));
-    };
-
-
    const renderAdviceCard = (advice: ChargingAdvice | null, title: string, description: string, icon?: React.ReactNode) => {
      if (!isMounted) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;
      if (!settings) return null; 
 
-     const errorKey = title.split(':')[0].toLowerCase(); 
-     const relevantError = adviceError?.split('\n').find(line => line.toLowerCase().includes(errorKey));
+     let displayError = adviceError;
+     if(isApiSourceSelected && (weatherLoading || weatherRefetching)){
+        return (
+             <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">{icon}{title}</CardTitle>
+                  <CardDescription>{description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" /> Loading forecast for advice...
+                </CardContent>
+            </Card>
+        )
+     }
+      if(isApiSourceSelected && !weatherLoading && !weatherRefetching && weatherError){
+        displayError = `API Forecast Error: ${weatherError.message}. ${adviceError || ''}`;
+     }
 
 
-     if (relevantError) {
+     if (displayError) {
         return (
           <Card>
             <CardHeader>
@@ -327,7 +328,7 @@ export default function AdvisoryPage() {
               <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4"/>
                 <AlertTitle>Error Generating Advice</AlertTitle>
-                <AlertDescription>{relevantError}</AlertDescription>
+                <AlertDescription>{displayError}</AlertDescription>
               </Alert>
             </CardContent>
           </Card>
@@ -417,96 +418,41 @@ export default function AdvisoryPage() {
        <div className="flex justify-between items-center mb-6">
             <div>
                 <h1 className="text-3xl font-bold">Smart Charging Advisory</h1>
-                <p className="text-muted-foreground">Optimize battery &amp; EV charging based on your manual forecast, tariffs, and consumption.</p>
+                <p className="text-muted-foreground">Optimize battery &amp; EV charging based on your forecast, tariffs, and consumption.</p>
             </div>
-            <div className="flex items-center gap-2">
-             <HowToInfo pageKey="advisory" />
-             <Dialog open={isForecastModalOpen} onOpenChange={setIsForecastModalOpen}>
-                <DialogTrigger asChild>
-                    <Button variant="outline" disabled={!isMounted || !settings}>
+             <div className="flex items-center gap-2">
+                 <HowToInfo pageKey="advisory" />
+                  {isApiSourceSelected && (
+                    <Button
+                        onClick={() => refetchWeather()}
+                        disabled={weatherLoading || weatherRefetching || !isMounted || !settings || !locationAvailable }
+                        variant="outline"
+                        size="sm"
+                    >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Refresh API Forecast
+                    </Button>
+                )}
+                {!isApiSourceSelected && (
+                    <Button variant="outline" onClick={() => setIsManualModalOpen(true)} disabled={!isMounted || !settings}>
                         <Edit3 className="h-4 w-4 mr-2" />
                         Edit Manual Forecast
                     </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
-                    <DialogDescription>
-                      Input sunrise, sunset, and weather conditions for today and tomorrow.
-                      Or, select a city to pre-fill approximate sunrise/sunset times.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-6 py-4">
-                   <div className="space-y-2">
-                        <Label htmlFor="city-time-select-modal">Apply Approx. Times from City</Label>
-                        <Select value={selectedCityForTimesModal} onValueChange={handleCityTimeSelectModal}>
-                            <SelectTrigger id="city-time-select-modal">
-                                <SelectValue placeholder="Select city for sunrise/sunset..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {sunriseSunsetData.map(city => (
-                                    <SelectItem key={city.city} value={city.city}>
-                                        {city.city}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    {(['today', 'tomorrow'] as const).map((dayKey) => (
-                        <div key={dayKey} className="space-y-3 p-3 border rounded-md">
-                          <h3 className="font-semibold text-lg capitalize">{dayKey} ({editableForecast[dayKey].date})</h3>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label htmlFor={`${dayKey}-sunrise-adv`}>Sunrise (HH:MM)</Label>
-                              <Input
-                                id={`${dayKey}-sunrise-adv`}
-                                type="time"
-                                value={editableForecast[dayKey].sunrise}
-                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunrise: e.target.value}}))}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor={`${dayKey}-sunset-adv`}>Sunset (HH:MM)</Label>
-                              <Input
-                                id={`${dayKey}-sunset-adv`}
-                                type="time"
-                                value={editableForecast[dayKey].sunset}
-                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunset: e.target.value}}))}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor={`${dayKey}-condition-adv`}>Weather Condition</Label>
-                            <Select
-                              value={editableForecast[dayKey].condition}
-                              onValueChange={(value) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], condition: value as ManualDayForecast['condition']}}))}
-                            >
-                              <SelectTrigger id={`${dayKey}-condition-adv`}>
-                                <SelectValue placeholder="Select condition" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="sunny">Sunny</SelectItem>
-                                <SelectItem value="partly_cloudy">Partly Cloudy</SelectItem>
-                                <SelectItem value="cloudy">Cloudy</SelectItem>
-                                <SelectItem value="overcast">Overcast</SelectItem>
-                                <SelectItem value="rainy">Rainy</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="mt-4 border-t pt-4">
-                        <ForecastInfo />
-                      </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsForecastModalOpen(false)}>Cancel</Button>
-                    <Button onClick={handleForecastModalSave}>Save Forecast</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                )}
             </div>
        </div>
+        {isMounted && !isApiSourceSelected && (
+            <ManualForecastModal
+                isOpen={isManualModalOpen}
+                onClose={() => setIsManualModalOpen(false)}
+                currentForecast={manualForecast}
+                onSave={(updatedForecast) => {
+                    setManualForecast(updatedForecast);
+                    setIsManualModalOpen(false);
+                }}
+            />
+        )}
+
 
         {isMounted && !settings && (
              <Alert>
@@ -516,10 +462,26 @@ export default function AdvisoryPage() {
              </Alert>
         )}
 
+         {isMounted && settings && isApiSourceSelected && !locationAvailable && (
+             <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                 <AlertTitle>Location Not Set for API</AlertTitle>
+                 <AlertDescription>Please set your latitude and longitude in <a href="/settings" className="underline font-medium">Settings</a> to use Open-Meteo forecast for advice.</AlertDescription>
+             </Alert>
+        )}
+         {isMounted && settings && weatherError && isApiSourceSelected && (
+            <Alert variant="destructive">
+                 <AlertCircle className="h-4 w-4" />
+                 <AlertTitle>Error Loading API Forecast</AlertTitle>
+                 <AlertDescription>{weatherError.message}</AlertDescription>
+            </Alert>
+        )}
+
+
       {isMounted && settings && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-           {renderAdviceCard(todayAdvice, "Today's Recommendation", "Based on current conditions and today's manual forecast.", <Sun className="h-5 w-5" />)}
-           {renderAdviceCard(tomorrowAdvice, "Overnight Charging (for Tomorrow)", "Recommendation based on tomorrow's manual forecast and overnight tariffs.", <BatteryCharging className="h-5 w-5" />)}
+           {renderAdviceCard(todayAdvice, "Today's Recommendation", "Based on current conditions and forecast.", <Sun className="h-5 w-5" />)}
+           {renderAdviceCard(tomorrowAdvice, "Overnight Charging (for Tomorrow)", "Recommendation based on tomorrow's forecast and overnight tariffs.", <BatteryCharging className="h-5 w-5" />)}
         </div>
       )}
 
@@ -760,7 +722,7 @@ export default function AdvisoryPage() {
                      <span className="text-muted-foreground"> None defined</span>
                  )}
              </div>
-              <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on your manual forecast inputs, system settings, tariff periods, and current consumption inputs. Recommendations are estimates.</p>
+              <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on your forecast inputs, system settings, tariff periods, and current consumption inputs. Recommendations are estimates.</p>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                  <Clock className="h-3 w-3"/>
                  Current Hour (for Today's advice): {isMounted && currentHour !== null ? `${currentHour.toString().padStart(2,'0')}:00` : 'Loading...'}
@@ -771,4 +733,3 @@ export default function AdvisoryPage() {
      </div>
    );
  }
-

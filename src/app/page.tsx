@@ -1,55 +1,63 @@
+
 'use client';
-import React, {useState, useEffect, useMemo, Fragment, useCallback } from 'react';
-import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from '@/components/ui/card';
+import React, {useState, useEffect, useMemo, useCallback } from 'react';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, HelpCircle, AlertCircle, BarChart2, LineChart as LineChartIcon, AreaChart as AreaChartIcon } from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, AlertCircle, BarChart2, LineChart as LineChartIcon, AreaChart as AreaChartIcon, RefreshCw, Thermometer, Wind, Droplets, Eye } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
-import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart";
+import {ChartContainer} from "@/components/ui/chart";
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {BarChart, AreaChart, LineChart, Bar, Area, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
-import { addDays, format, isValid, parse } from 'date-fns';
+import { addDays, format, isValid, parse, parseISO } from 'date-fns';
 import { HowToInfo } from '@/components/how-to-info';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useWeatherForecast } from '@/hooks/use-weather-forecast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { DailyWeather, HourlyWeather } from '@/types/weather'; // Removed ManualForecastCondition as it's covered by settings
+import { ManualForecastModal } from '@/components/manual-forecast-modal';
+import { mapWmoCodeToManualForecastCondition, WMO_CODE_MAP } from '@/types/weather';
+
 
 type ChartType = 'bar' | 'line' | 'area';
 
-const getWeatherIcon = (condition: ManualDayForecast['condition'] | undefined) => {
-  if (!condition) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />;
-  switch (condition) {
-    case 'sunny': return <Sun className="w-6 h-6 text-yellow-500" data-ai-hint="sun weather" />;
-    case 'partly_cloudy': return <Cloud className="w-6 h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
-    case 'cloudy': return <Cloud className="w-6 h-6 text-gray-500" data-ai-hint="cloud icon" />;
-    case 'overcast': return <Cloud className="w-6 h-6 text-gray-700" data-ai-hint="dark cloud" />;
-    case 'rainy': return <CloudRain className="w-6 h-6 text-blue-500" data-ai-hint="rain cloud" />;
-    default: return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="weather icon" />;
-  }
+const getWeatherIconFromString = (conditionString: string | undefined) => {
+  if (!conditionString) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />;
+  const condition = conditionString.toLowerCase();
+  if (condition.includes('sunny') || condition.includes('clear')) return <Sun className="w-6 h-6 text-yellow-500" data-ai-hint="sun weather" />;
+  if (condition.includes('partly cloudy') || condition.includes('mainly sunny')) return <Cloud className="w-6 h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
+  if (condition.includes('cloudy')) return <Cloud className="w-6 h-6 text-gray-500" data-ai-hint="cloud icon" />;
+  if (condition.includes('overcast') || condition.includes('fog')) return <Cloud className="w-6 h-6 text-gray-700" data-ai-hint="dark cloud" />;
+  if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('showers')) return <CloudRain className="w-6 h-6 text-blue-500" data-ai-hint="rain cloud" />;
+  return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="weather icon" />;
 };
+
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
+  const [manualForecast, setManualForecast] = useManualForecast();
 
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
-  const [calculatedForecasts, setCalculatedForecasts] = useState<{
-    today: CalculatedForecast | null;
-    tomorrow: CalculatedForecast | null;
-  }>({ today: null, tomorrow: null });
+  const {
+    weatherForecastData,
+    weatherLoading,
+    weatherError,
+    refetchWeather,
+    weatherRefetching,
+    isApiSourceSelected,
+    locationAvailable,
+  } = useWeatherForecast();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(manualForecast);
-  const [selectedCityForTimes, setSelectedCityForTimes] = useState<string>("");
+  const [todayCalculatedForecast, setTodayCalculatedForecast] = useState<CalculatedForecast | null>(null);
+  const [tomorrowCalculatedForecast, setTomorrowCalculatedForecast] = useState<CalculatedForecast | null>(null);
+  
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [selectedChartType, setSelectedChartType] = useState<ChartType>('bar');
 
   useEffect(() => {
@@ -63,128 +71,68 @@ export default function HomePage() {
     }
   }, [settings]);
 
-
   useEffect(() => {
-    setEditableForecast(manualForecast);
-  }, [manualForecast]);
-
-  const calculateAndSetForecasts = useCallback(() => {
-    if (!isMounted || !settings ) {
-      setCalculatedForecasts({ today: null, tomorrow: null });
-      return;
-    }
-    const todayDateStr = format(new Date(), 'yyyy-MM-dd');
-    const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
-
-    let currentManualForecast = manualForecast;
-
-    if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        refreshForecastDates();
-        return;
-    }
-
-    try {
-      const todayCalc = calculateSolarGeneration(currentManualForecast.today, settings);
-      const tomorrowCalc = calculateSolarGeneration(currentManualForecast.tomorrow, settings);
-      setCalculatedForecasts({ today: todayCalc, tomorrow: tomorrowCalc });
-    } catch (calcError) {
-      console.error("Error calculating solar generation:", calcError);
-      toast({
-        title: "Calculation Error",
-        description: "Could not calculate solar generation based on current inputs.",
-        variant: "destructive",
-      });
-      setCalculatedForecasts({ today: null, tomorrow: null });
-    }
-  }, [isMounted, settings, manualForecast, toast, refreshForecastDates]);
-
-
-  useEffect(() => {
-    calculateAndSetForecasts();
-  }, [calculateAndSetForecasts]);
-
-
-  const handleModalSave = () => {
-    const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-    if (!timeRegex.test(editableForecast.today.sunrise) || !timeRegex.test(editableForecast.today.sunset) ||
-        !timeRegex.test(editableForecast.tomorrow.sunrise) || !timeRegex.test(editableForecast.tomorrow.sunset)) {
-      toast({
-        title: "Invalid Time Format",
-        description: "Please use HH:MM for sunrise and sunset times.",
-        variant: "destructive",
-      });
+    if (!isMounted || !settings) {
+      setTodayCalculatedForecast(null);
+      setTomorrowCalculatedForecast(null);
       return;
     }
 
-    if (editableForecast.today.sunrise >= editableForecast.today.sunset) {
-      toast({
-        title: "Invalid Times for Today",
-        description: "Sunrise time must be before sunset time for today.",
-        variant: "destructive",
-      });
-      return;
+    let todayInput: ManualDayForecast | null = null;
+    let tomorrowInput: ManualDayForecast | null = null;
+
+    if (isApiSourceSelected && weatherForecastData && weatherForecastData.todayForecast && weatherForecastData.tomorrowForecast) {
+        const apiToday = weatherForecastData.todayForecast;
+        todayInput = {
+          date: apiToday.date, // This should be YYYY-MM-DD string
+          sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
+          sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
+          condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code),
+        };
+      
+        const apiTomorrow = weatherForecastData.tomorrowForecast;
+        tomorrowInput = {
+          date: apiTomorrow.date, // This should be YYYY-MM-DD string
+          sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
+          sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
+          condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code),
+        };
+    } else if (!isApiSourceSelected) {
+      todayInput = manualForecast.today;
+      tomorrowInput = manualForecast.tomorrow;
     }
-    if (editableForecast.tomorrow.sunrise >= editableForecast.tomorrow.sunset) {
-      toast({
-        title: "Invalid Times for Tomorrow",
-        description: "Sunrise time must be before sunset time for tomorrow.",
-        variant: "destructive",
-      });
-      return;
+
+    if (todayInput) {
+      setTodayCalculatedForecast(calculateSolarGeneration(todayInput, settings));
+    } else {
+      setTodayCalculatedForecast(null);
     }
 
-    setManualForecast(editableForecast);
-    setIsModalOpen(false);
-    toast({
-      title: "Forecast Updated",
-      description: "Manual weather forecast has been saved.",
-    });
-  };
+    if (tomorrowInput) {
+      setTomorrowCalculatedForecast(calculateSolarGeneration(tomorrowInput, settings));
+    } else {
+      setTomorrowCalculatedForecast(null);
+    }
 
-  const handleCityTimeSelect = (cityName: string) => {
-    setSelectedCityForTimes(cityName);
-    if (!cityName) return;
+  }, [isMounted, settings, weatherForecastData, manualForecast, isApiSourceSelected]);
 
-    const todayDate = new Date();
-    const tomorrowDate = addDays(todayDate, 1);
-
-    const todayTimes = getApproximateSunriseSunset(cityName, todayDate);
-    const tomorrowTimes = getApproximateSunriseSunset(cityName, tomorrowDate);
-
-    setEditableForecast(prev => ({
-      ...prev,
-      today: {
-        ...prev.today,
-        sunrise: todayTimes?.sunrise || prev.today.sunrise,
-        sunset: todayTimes?.sunset || prev.today.sunset,
-      },
-      tomorrow: {
-        ...prev.tomorrow,
-        sunrise: tomorrowTimes?.sunrise || prev.tomorrow.sunrise,
-        sunset: tomorrowTimes?.sunset || prev.tomorrow.sunset,
-      }
-    }));
-  };
-
- const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
+  const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast) return [];
     return forecast.hourlyForecast.map(h => ({
-        time: h.time.split(':')[0] + ':00',
+        time: h.time.split(':')[0] + ':00', 
         kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
     }));
   }, []);
 
-
-  const todayChartData = useMemo(() => formatChartData(calculatedForecasts.today), [calculatedForecasts.today, formatChartData]);
-  const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
+  const todayChartData = useMemo(() => formatChartData(todayCalculatedForecast), [todayCalculatedForecast, formatChartData]);
+  const tomorrowChartData = useMemo(() => formatChartData(tomorrowCalculatedForecast), [tomorrowCalculatedForecast, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5; // Default to 0.5 if no data or all zero
+    if (!chartData || chartData.length === 0) return 0.5;
     const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
-    if (maxKWh === 0) return 0.5; // If all values are 0
-    return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25; // Ensure max tick is above highest value and is multiple of 0.25
+    if (maxKWh === 0) return 0.5; 
+    return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25; 
   }, []);
-
 
   const todayMaxY = useMemo(() => getMaxYValue(todayChartData), [todayChartData, getMaxYValue]);
   const tomorrowMaxY = useMemo(() => getMaxYValue(tomorrowChartData), [tomorrowChartData, getMaxYValue]);
@@ -192,117 +140,136 @@ export default function HomePage() {
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
     if (maxYValueForChart <= 0) return [0];
     const ticks: number[] = [];
-    // Ensure ticks start at 0 and increment by 0.25
     for (let i = 0; i <= maxYValueForChart; i += 0.25) {
         ticks.push(parseFloat(i.toFixed(2)));
     }
-    // Ensure the maxYValueForChart itself is a tick if not perfectly divisible by 0.25,
-    // or if it's the only way to show a value slightly above the last 0.25 increment.
-    if (ticks[ticks.length -1] < maxYValueForChart && maxYValueForChart % 0.25 !== 0) {
-        // Add the next 0.25 increment that covers the max value
+    if (ticks.length > 0 && ticks[ticks.length -1] < maxYValueForChart && maxYValueForChart % 0.25 !== 0) {
         ticks.push(parseFloat((Math.ceil(maxYValueForChart / 0.25) * 0.25).toFixed(2)));
+    } else if (ticks.length === 0 && maxYValueForChart > 0) { 
+        ticks.push(0, parseFloat(maxYValueForChart.toFixed(2)));
     }
-    // Remove duplicates which might occur if maxYValueForChart is a multiple of 0.25
     return Array.from(new Set(ticks));
   }, []);
-
 
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
   const tomorrowYAxisTicks = useMemo(() => getYAxisTicks(tomorrowMaxY), [tomorrowMaxY, getYAxisTicks]);
 
   const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return undefined; // No data, no ticks
+    if (!chartData || chartData.length === 0) return undefined; 
 
-    // Filter for hours where there's generation, then get unique times
     const hoursWithGeneration = chartData
-        .filter(d => d.kWh > 0.00001) // Consider a tiny threshold for "generation"
+        .filter(d => d.kWh > 0.00001) 
         .map(d => d.time);
 
-    if (hoursWithGeneration.length === 0) return undefined; // No generation, no ticks
+    if (hoursWithGeneration.length === 0) return undefined; 
 
-    const uniqueHours = Array.from(new Set(hoursWithGeneration));
-    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0])); // Sort numerically by hour
+    let uniqueHours = Array.from(new Set(hoursWithGeneration));
+    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0])); 
+    
+    // If few hours, show all. Otherwise, show a max of ~8 ticks.
+    if (uniqueHours.length <= 8) return uniqueHours;
 
-    // Select ticks: first, last, and some in between, ensuring they are spread out
-    if (uniqueHours.length <= 6) return uniqueHours; // If few hours, show all
-
-    const ticksToShow: string[] = [uniqueHours[0]]; // Always show the first hour of generation
-    const step = Math.max(1, Math.floor(uniqueHours.length / 5)); // Aim for around 5-6 ticks
-    for (let i = step; i < uniqueHours.length -1; i += step) {
+    const step = Math.max(1, Math.floor(uniqueHours.length / 7)); // Aim for around 7-8 ticks
+    const ticksToShow: string[] = [];
+    for (let i = 0; i < uniqueHours.length; i += step) {
         ticksToShow.push(uniqueHours[i]);
     }
-    ticksToShow.push(uniqueHours[uniqueHours.length - 1]); // Always show the last hour of generation
-
-    return Array.from(new Set(ticksToShow)); // Ensure uniqueness again if first/last overlap with stepped ticks
+    // Ensure the last generating hour is always included if not caught by step
+    if (uniqueHours.length > 0 && !ticksToShow.includes(uniqueHours[uniqueHours.length - 1])) {
+        ticksToShow.push(uniqueHours[uniqueHours.length - 1]);
+    }
+    return Array.from(new Set(ticksToShow)); // Ensure uniqueness again after adding last hour
   }, []);
-
 
   const todayChartXTicks = useMemo(() => calculateChartXTicks(todayChartData), [todayChartData, calculateChartXTicks]);
   const tomorrowChartXTicks = useMemo(() => calculateChartXTicks(tomorrowChartData), [tomorrowChartData, calculateChartXTicks]);
 
-
   const renderForecastCard = useCallback((
     title: string,
-    forecastData: CalculatedForecast | null,
-    manualDayData: ManualDayForecast | null,
+    calculatedDayForecast: CalculatedForecast | null, 
+    apiDayData: DailyWeather | null, 
+    manualDayData: ManualDayForecast | null, 
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
     maxYValueForChart: number,
     yAxisTicksForChart: number[],
     chartXTicksForChart: string[] | undefined
   ) => {
-    if (!manualDayData) {
+    if ((isApiSourceSelected && (weatherLoading || weatherRefetching)) || (!isMounted && isApiSourceSelected)) {
       return (
         <Card>
           <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
-          <CardContent><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading data...</CardContent>
+          <CardContent className="h-[300px] flex justify-center items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading data...</CardContent>
         </Card>
       );
     }
+    
+    const displaySource = isApiSourceSelected ? apiDayData : manualDayData;
+    
+    if (!displaySource) {
+        return (
+            <Card>
+                 <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
+                 <CardContent className="h-[300px] flex justify-center items-center text-center">
+                     <div>
+                        <AlertCircle className="w-8 h-8 text-muted-foreground mb-2 mx-auto" />
+                        <p className="text-muted-foreground text-sm">Forecast data unavailable. Check settings or select a data source.</p>
+                     </div>
+                 </CardContent>
+            </Card>
+        )
+    }
 
-    const weatherIcon = getWeatherIcon(manualDayData?.condition);
-
-    const generationValue = forecastData?.dailyTotalGenerationKWh;
+    const weatherIcon = getWeatherIconFromString(isApiSourceSelected ? apiDayData?.weatherConditionString : manualDayData?.condition.replace(/_/g, ' '));
+    const generationValue = calculatedDayForecast?.dailyTotalGenerationKWh;
     const displayGeneration = (typeof generationValue === 'number' && !isNaN(generationValue))
       ? `${generationValue.toFixed(2)} kWh`
       : 'N/A';
+    
+    const conditionText = (isApiSourceSelected ? apiDayData?.weatherConditionString : manualDayData?.condition.replace(/_/g, ' ')) || 'N/A';
+    
+    const sunriseTime = displaySource.sunrise ? (displaySource.sunrise.includes('T') ? format(parseISO(displaySource.sunrise), 'HH:mm') : displaySource.sunrise) : 'N/A';
+    const sunsetTime = displaySource.sunset ? (displaySource.sunset.includes('T') ? format(parseISO(displaySource.sunset), 'HH:mm') : displaySource.sunset) : 'N/A';
 
-    const conditionText = manualDayData?.condition ? manualDayData.condition.replace(/_/g, ' ') : 'N/A';
 
     let chartPlaceholderMessage = '';
-    if (!isMounted) {
+    if (!isMounted && (weatherLoading || weatherRefetching)) {
         chartPlaceholderMessage = 'Loading forecast data...';
     } else if (!settings) {
         chartPlaceholderMessage = 'Forecast data unavailable. Please configure your system in Settings first.';
-    } else if (forecastData?.errorMessage) {
-        chartPlaceholderMessage = forecastData.errorMessage;
-    } else if (!forecastData) {
+    } else if (isApiSourceSelected && !locationAvailable) {
+        chartPlaceholderMessage = 'Location not set. Please configure your location in Settings for Open-Meteo forecast.';
+    } else if (calculatedDayForecast?.errorMessage) {
+        chartPlaceholderMessage = calculatedDayForecast.errorMessage;
+    } else if (!calculatedDayForecast && !isApiSourceSelected) {
         chartPlaceholderMessage = 'Calculating forecast... Ensure manual forecast inputs are saved.';
-    } else {
-        if (!manualDayData || !manualDayData.sunrise || !manualDayData.sunset || manualDayData.sunrise >= manualDayData.sunset) {
-            chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset in the forecast settings.";
-        } else if (!forecastData.hourlyForecast || forecastData.hourlyForecast.length === 0) {
+    } else if (!calculatedDayForecast && isApiSourceSelected && !weatherLoading && !weatherRefetching) {
+        chartPlaceholderMessage = 'Could not retrieve forecast data from Open-Meteo.';
+    } else { 
+        if (!displaySource.sunrise || !displaySource.sunset || sunriseTime >= sunsetTime) {
+            chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset.";
+        } else if (!calculatedDayForecast?.hourlyForecast || calculatedDayForecast.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
-        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d=>d.kWh > 0.00001)) { // Use a small threshold for "significant generation"
+        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d => d.kWh > 0.00001)) { 
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
 
-    const xAxisHeight = 50; // Increased height for rotated labels
+    const xAxisHeight = 50; 
 
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
-        margin: { top: 5, right: 20, left: 0, bottom: xAxisHeight - 20 }, // Adjusted margins
+        margin: { top: 5, right: isMobile ? 5 : 20, left: isMobile ? 0 : 5, bottom: xAxisHeight - 20 }, 
       };
       const commonYAxisProps = {
         fontSize: 10,
         tickLine: false,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        domain: [0, maxYValueForChart] as [number, number], // Ensure Y-axis starts at 0
+        domain: [0, maxYValueForChart] as [number, number], 
         allowDecimals: true,
         tickFormatter: (value: number) => value.toFixed(2),
-        width: 40, // Adjusted width for Y-axis labels
+        width: isMobile ? 35 : 40, 
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -310,14 +277,14 @@ export default function HomePage() {
         tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        ticks: chartXTicksForChart, // Use the calculated ticks
+        ticks: chartXTicksForChart, 
         tickFormatter: (value: string) => value ? `${parseInt(value.split(':')[0]) % 12 || 12}${parseInt(value.split(':')[0]) >= 12 ? 'pm' : 'am'}`: '',
-        interval: 'preserveStartEnd', // Show specified ticks, preserving first and last
-        angle: -45, // Slightly less steep angle for better readability
+        interval: 'preserveStartEnd', 
+        angle: -45, 
         textAnchor: 'end' as const,
-        dx: -5, // Adjust horizontal position
-        dy: 5,  // Adjust vertical position
-        height: xAxisHeight, // Provide ample height for rotated labels
+        dx: -5, 
+        dy: 5,  
+        height: xAxisHeight, 
         fontSize: 10,
       };
 
@@ -341,7 +308,7 @@ export default function HomePage() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
               <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />
+              {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Line type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} yAxisId="left" />
             </LineChart>
@@ -352,7 +319,7 @@ export default function HomePage() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
               <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />
+              {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Area type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} yAxisId="left"/>
             </AreaChart>
@@ -364,14 +331,13 @@ export default function HomePage() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
               <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
-              <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />
+              {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
-              <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={4} yAxisId="left" />
+              <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={isMobile ? 2 : 4} yAxisId="left" />
             </BarChart>
           );
       }
     };
-
 
     return (
         <Card>
@@ -389,16 +355,15 @@ export default function HomePage() {
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
-                    <span className="flex items-center gap-1">
-                        <Sunrise className="w-3 h-3"/> {manualDayData?.sunrise || 'N/A'}
-                    </span>
-                    <span className="flex items-center gap-1">
-                        <Sunset className="w-3 h-3"/> {manualDayData?.sunset || 'N/A'}
-                    </span>
+                    <span className="flex items-center gap-1"><Sunrise className="w-3 h-3"/> {sunriseTime}</span>
+                    <span className="flex items-center gap-1"><Sunset className="w-3 h-3"/> {sunsetTime}</span>
+                    {isApiSourceSelected && apiDayData?.temperature_2m_max !== undefined && (
+                         <span className="flex items-center gap-1"><Thermometer className="w-3 h-3"/> {apiDayData.temperature_2m_max.toFixed(0)}°C</span>
+                    )}
                 </div>
             </CardHeader>
             <CardContent>
-                {forecastData && !forecastData.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
+                {calculatedDayForecast && !calculatedDayForecast.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
                     <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                            {renderChart()}
@@ -415,15 +380,42 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  }, [isMounted, settings, selectedChartType]); // Added selectedChartType to dependencies
+  }, [isMounted, settings, selectedChartType, weatherLoading, weatherRefetching, locationAvailable, isApiSourceSelected, isMobile]); 
 
- const isValidDateString = (dateStr: string | undefined): dateStr is string => {
-    if (!dateStr) return false;
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(dateStr)) return false;
-    const date = parse(dateStr, 'yyyy-MM-dd', new Date());
-    return isValid(date);
-  }
+  const renderWeeklyForecastItem = (dayData: DailyWeather, index: number) => {
+    if (!settings) return null;
+    const dayOfWeek = format(parseISO(dayData.date), 'EEE');
+    const dateDisplay = format(parseISO(dayData.date), 'dd/MM');
+
+    // For weekly, we create a ManualDayForecast-like object for calculation
+    const forecastInputForCalc: ManualDayForecast = {
+        date: dayData.date,
+        sunrise: dayData.sunrise ? format(parseISO(dayData.sunrise), 'HH:mm') : '00:00',
+        sunset: dayData.sunset ? format(parseISO(dayData.sunset), 'HH:mm') : '00:00',
+        condition: mapWmoCodeToManualForecastCondition(dayData.weather_code),
+    };
+
+    const calculated = calculateSolarGeneration(forecastInputForCalc, settings);
+
+    const weatherIcon = getWeatherIconFromString(dayData.weatherConditionString);
+    const generationDisplay = calculated?.dailyTotalGenerationKWh?.toFixed(1) || 'N/A';
+
+    return (
+      <Card key={`week-${dayData.date}-${index}`} className="text-center flex flex-col p-2">
+        <CardHeader className="pb-1 pt-2 px-1">
+          <CardTitle className="text-sm font-medium">{dayOfWeek}</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">{dateDisplay}</CardDescription>
+          <div className="pt-1 flex justify-center items-center h-6">
+            {weatherIcon}
+          </div>
+        </CardHeader>
+        <CardContent className="p-1 mt-auto">
+          <p className="text-base font-semibold">{generationDisplay}</p>
+          <p className="text-xs text-muted-foreground -mt-1">kWh</p>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -433,117 +425,37 @@ export default function HomePage() {
                 <p className="text-muted-foreground">Forecasting for: {isMounted ? locationDisplay : 'Loading...'}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <HowToInfo pageKey="dashboard" />
-              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" disabled={!isMounted}>
-                      <Edit3 className="h-4 w-4 mr-2" />
-                      Edit Manual Forecast
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
-                    <DialogDescription>
-                      Input sunrise, sunset, and weather conditions for today and tomorrow.
-                      Or, select a city to pre-fill approximate sunrise/sunset times.
-                      For general weather conditions, you can refer to sites like {' '}
-                      <a href="https://weather.com/en-GB/weather/today" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">weather.com</a>.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-6 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="city-time-select">Apply Approx. Times from City</Label>
-                        <Select value={selectedCityForTimes} onValueChange={handleCityTimeSelect}>
-                            <SelectTrigger id="city-time-select">
-                                <SelectValue placeholder="Select city for sunrise/sunset..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {sunriseSunsetData.map(city => (
-                                    <SelectItem key={city.city} value={city.city}>
-                                        {city.city}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {(['today', 'tomorrow'] as const).map((dayKey) => {
-                      const dayData = editableForecast[dayKey];
-                      const dayDateStr = dayData?.date;
-
-                      return (
-                        <div key={dayKey} className="space-y-3 p-3 border rounded-md">
-                           <div className="space-y-1">
-                              <h3 className="font-bold text-lg capitalize">{dayKey}</h3>
-                              {dayData && isValidDateString(dayDateStr) ? (
-                                  <>
-                                      <p className="text-muted-foreground">
-                                          {format(parse(dayDateStr, 'yyyy-MM-dd', new Date()), 'EEEE')}
-                                      </p>
-                                      <p className="text-muted-foreground">
-                                          {format(parse(dayDateStr, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')}
-                                      </p>
-                                  </>
-                              ) : (
-                                  <p className="text-muted-foreground text-destructive">
-                                    Date for {dayKey} is invalid or not loaded.
-                                  </p>
-                              )}
-                           </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label htmlFor={`${dayKey}-sunrise`}>Sunrise (HH:MM)</Label>
-                              <Input
-                                id={`${dayKey}-sunrise`}
-                                type="time"
-                                value={dayData?.sunrise || ''}
-                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunrise: e.target.value}}))}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label htmlFor={`${dayKey}-sunset`}>Sunset (HH:MM)</Label>
-                              <Input
-                                id={`${dayKey}-sunset`}
-                                type="time"
-                                value={dayData?.sunset || ''}
-                                onChange={(e) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], sunset: e.target.value}}))}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor={`${dayKey}-condition`}>Weather Condition</Label>
-                            <Select
-                              value={dayData?.condition || 'sunny'}
-                              onValueChange={(value) => setEditableForecast(prev => ({...prev, [dayKey]: {...prev[dayKey], condition: value as ManualDayForecast['condition']}}))}
-                            >
-                              <SelectTrigger id={`${dayKey}-condition`}>
-                                <SelectValue placeholder="Select condition" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="sunny">Sunny</SelectItem>
-                                <SelectItem value="partly_cloudy">Partly Cloudy</SelectItem>
-                                <SelectItem value="cloudy">Cloudy</SelectItem>
-                                <SelectItem value="overcast">Overcast</SelectItem>
-                                <SelectItem value="rainy">Rainy</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      );
-                    })}
-                     <div className="mt-4 border-t pt-4">
-                      <ForecastInfo />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                    <Button onClick={handleModalSave}>Save Forecast</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                <HowToInfo pageKey="dashboard" />
+                {isApiSourceSelected && (
+                    <Button
+                        onClick={() => refetchWeather()}
+                        disabled={weatherLoading || weatherRefetching || !isMounted || !settings || !locationAvailable}
+                        variant="outline"
+                        size="sm"
+                    >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Refresh Forecast
+                    </Button>
+                )}
+                 {!isApiSourceSelected && (
+                    <Button variant="outline" onClick={() => setIsManualModalOpen(true)} disabled={!isMounted || !settings}>
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit Manual Forecast
+                    </Button>
+                )}
             </div>
         </div>
+        {isMounted && !isApiSourceSelected && settings && (
+             <ManualForecastModal
+                isOpen={isManualModalOpen}
+                onClose={() => setIsManualModalOpen(false)}
+                currentForecast={manualForecast}
+                onSave={(updatedForecast) => {
+                    setManualForecast(updatedForecast);
+                    setIsManualModalOpen(false);
+                }}
+            />
+        )}
 
         <div className="flex justify-end mb-4">
           <Select value={selectedChartType} onValueChange={(value) => setSelectedChartType(value as ChartType)}>
@@ -558,33 +470,62 @@ export default function HomePage() {
           </Select>
         </div>
 
-
-      {!isMounted && (
+      {(weatherLoading && isApiSourceSelected) && (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="ml-2">Loading dashboard...</p>
         </div>
       )}
 
-       {!settings && isMounted && (
+       {isMounted && !settings && (
             <Alert>
              <AlertTitle>Welcome to HelioHeggie!</AlertTitle>
              <AlertDescription>
-               Please go to the <a href="/settings" className="underline font-medium">Settings page</a> to configure your solar panel system details.
-               This is required to calculate your energy forecast using manual inputs.
+               Please go to the <a href="/settings" className="underline font-medium">Settings page</a> to configure your system details.
              </AlertDescription>
             </Alert>
         )}
+        
+        {isMounted && settings && isApiSourceSelected && !locationAvailable && !weatherLoading && (
+             <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                 <AlertTitle>Location Not Set for API</AlertTitle>
+                 <AlertDescription>Please set your latitude and longitude in <a href="/settings" className="underline font-medium">Settings</a> to use Open-Meteo forecast.</AlertDescription>
+             </Alert>
+        )}
 
-        {isMounted && settings && (
+        {isMounted && settings && weatherError && isApiSourceSelected && !weatherLoading && (
+            <Alert variant="destructive">
+                 <AlertCircle className="h-4 w-4" />
+                 <AlertTitle>Error Loading API Forecast</AlertTitle>
+                 <AlertDescription>{weatherError.message}</AlertDescription>
+            </Alert>
+        )}
+
+        {isMounted && settings && (!weatherLoading || !isApiSourceSelected) && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks)}
-                    {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks)}
+                    {renderForecastCard("Today", todayCalculatedForecast, weatherForecastData?.todayForecast || null, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks)}
+                    {renderForecastCard("Tomorrow", tomorrowCalculatedForecast, weatherForecastData?.tomorrowForecast || null, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks)}
                 </div>
-                 {/* Week ahead placeholder removed based on user request to hide until API integration */}
+                
+                {isApiSourceSelected && !isMobile && weatherForecastData?.weeklyForecast && weatherForecastData.weeklyForecast.length > 0 && !weatherLoading && (
+                  <div className="mt-8">
+                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                          {weatherForecastData.weeklyForecast.map((forecast, index) => renderWeeklyForecastItem(forecast, index))}
+                      </div>
+                  </div>
+                )}
+                 {!isApiSourceSelected && !isMobile && (
+                  <div className="mt-8">
+                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+                      <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is only available with Open-Meteo source. Please select Open-Meteo in the header source dropdown.</p>
+                  </div>
+                )}
             </>
         )}
     </div>
   );
 }
+
