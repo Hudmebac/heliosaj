@@ -176,20 +176,28 @@ const settingsSchema = z.object({
   monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
 }).refine(data => {
     if (data.inputMode === 'Panels') {
-      return data.panelCount !== undefined && data.panelWatts !== undefined;
+      return !!data.panelCount;
     }
     return true;
   }, {
-    message: "Panel Count and Panel Watts are required when 'By Panel' mode is selected.",
-    path: ["inputMode"],
+    message: "Panel Count is required when 'By Panel' mode is selected.",
+    path: ["panelCount"],
   }).refine(data => {
+    if (data.inputMode === 'Panels') {
+      return !!data.panelWatts;
+    }
+    return true;
+  }, {
+    message: "Panel Watts is required when 'By Panel' mode is selected.",
+    path: ["panelWatts"],
+}).refine(data => {
     if (data.inputMode === 'TotalPower') {
-      return data.totalKWp !== undefined;
+      return !!data.totalKWp;
     }
     return true;
   }, {
     message: "Total System Power (kWp) is required when 'By Total Power' mode is selected.",
-    path: ["inputMode"],
+    path: ["totalKWp"],
 });
 
 const HOURS_IN_DAY = 24;
@@ -225,7 +233,6 @@ export default function SettingsPage() {
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
-      batteryMaxChargeRateKWh: 5,
       monthlyGenerationFactors: [...defaultMonthlyFactors],
       preferredOvernightBatteryChargePercent: 100,
       panelCount: undefined,
@@ -676,7 +683,7 @@ export default function SettingsPage() {
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
-                     <FormMessage /> {/* This will display errors pathed to "inputMode" */}
+                     <FormMessage />
                   </FormItem>
                 )}
               />
