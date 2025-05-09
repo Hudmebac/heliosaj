@@ -16,28 +16,28 @@ import { HowToInfo } from '@/components/how-to-info';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { DailyWeather, HourlyWeather } from '@/types/weather'; 
+import type { DailyWeather } from '@/types/weather';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
-import { mapWmoCodeToManualForecastCondition, WMO_CODE_MAP } from '@/types/weather';
+import { mapWmoCodeToManualForecastCondition } from '@/types/weather';
 
 
 type ChartType = 'bar' | 'line' | 'area';
 
 const getWeatherIconFromString = (conditionString: string | undefined) => {
-  if (!conditionString) return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="sun icon" />;
+  if (!conditionString) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" data-ai-hint="sun icon" />;
   const condition = conditionString.toLowerCase();
-  if (condition.includes('sunny') || condition.includes('clear')) return <Sun className="w-6 h-6 text-yellow-500" data-ai-hint="sun weather" />;
-  if (condition.includes('partly cloudy') || condition.includes('mainly sunny')) return <Cloud className="w-6 h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
-  if (condition.includes('cloudy')) return <Cloud className="w-6 h-6 text-gray-500" data-ai-hint="cloud icon" />;
-  if (condition.includes('overcast') || condition.includes('fog')) return <Cloud className="w-6 h-6 text-gray-700" data-ai-hint="dark cloud" />;
-  if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('showers')) return <CloudRain className="w-6 h-6 text-blue-500" data-ai-hint="rain cloud" />;
-  return <Sun className="w-6 h-6 text-muted-foreground" data-ai-hint="weather icon" />;
+  if (condition.includes('sunny') || condition.includes('clear')) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" data-ai-hint="sun weather" />;
+  if (condition.includes('partly cloudy') || condition.includes('mainly sunny')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
+  if (condition.includes('cloudy')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" data-ai-hint="cloud icon" />;
+  if (condition.includes('overcast') || condition.includes('fog')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" data-ai-hint="dark cloud" />;
+  if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('showers')) return <CloudRain className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" data-ai-hint="rain cloud" />;
+  return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" data-ai-hint="weather icon" />;
 };
 
 
 export default function HomePage() {
   const [settings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [manualForecast, setManualForecast] = useManualForecast();
+  const [manualForecast, setManualForecast, refreshManualForecastDates] = useManualForecast();
 
   const [locationDisplay, setLocationDisplay] = useState<string>('Default Location');
   const [isMounted, setIsMounted] = useState(false);
@@ -56,7 +56,7 @@ export default function HomePage() {
 
   const [todayCalculatedForecast, setTodayCalculatedForecast] = useState<CalculatedForecast | null>(null);
   const [tomorrowCalculatedForecast, setTomorrowCalculatedForecast] = useState<CalculatedForecast | null>(null);
-  
+
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [selectedChartType, setSelectedChartType] = useState<ChartType>('bar');
 
@@ -78,26 +78,14 @@ export default function HomePage() {
       return;
     }
 
-    let todayInput: ManualDayForecast | null = null;
-    let tomorrowInput: ManualDayForecast | null = null;
+    let todayInput: ManualDayForecast | DailyWeather | null = null;
+    let tomorrowInput: ManualDayForecast | DailyWeather | null = null;
 
-    if (isApiSourceSelected && weatherForecastData && weatherForecastData.todayForecast && weatherForecastData.tomorrowForecast) {
-        const apiToday = weatherForecastData.todayForecast;
-        todayInput = {
-          date: apiToday.date, 
-          sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
-          sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
-          condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code),
-        };
-      
-        const apiTomorrow = weatherForecastData.tomorrowForecast;
-        tomorrowInput = {
-          date: apiTomorrow.date, 
-          sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
-          sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
-          condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code),
-        };
+    if (isApiSourceSelected && weatherForecastData) {
+        todayInput = weatherForecastData.todayForecast; // Directly use DailyWeather | null
+        tomorrowInput = weatherForecastData.tomorrowForecast; // Directly use DailyWeather | null
     } else if (!isApiSourceSelected) {
+      refreshManualForecastDates();
       todayInput = manualForecast.today;
       tomorrowInput = manualForecast.tomorrow;
     }
@@ -114,12 +102,12 @@ export default function HomePage() {
       setTomorrowCalculatedForecast(null);
     }
 
-  }, [isMounted, settings, weatherForecastData, manualForecast, isApiSourceSelected]);
+  }, [isMounted, settings, weatherForecastData, manualForecast, isApiSourceSelected, refreshManualForecastDates]);
 
   const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast) return [];
     return forecast.hourlyForecast.map(h => ({
-        time: h.time.split(':')[0] + ':00', 
+        time: h.time.split(':')[0] + ':00',
         kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
     }));
   }, []);
@@ -130,8 +118,8 @@ export default function HomePage() {
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
     if (!chartData || chartData.length === 0) return 0.5;
     const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
-    if (maxKWh === 0) return 0.5; 
-    return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25; 
+    if (maxKWh === 0) return 0.5;
+    return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25;
   }, []);
 
   const todayMaxY = useMemo(() => getMaxYValue(todayChartData), [todayChartData, getMaxYValue]);
@@ -145,7 +133,7 @@ export default function HomePage() {
     }
     if (ticks.length > 0 && ticks[ticks.length -1] < maxYValueForChart && maxYValueForChart % 0.25 !== 0) {
         ticks.push(parseFloat((Math.ceil(maxYValueForChart / 0.25) * 0.25).toFixed(2)));
-    } else if (ticks.length === 0 && maxYValueForChart > 0) { 
+    } else if (ticks.length === 0 && maxYValueForChart > 0) {
         ticks.push(0, parseFloat(maxYValueForChart.toFixed(2)));
     }
     return Array.from(new Set(ticks));
@@ -155,20 +143,20 @@ export default function HomePage() {
   const tomorrowYAxisTicks = useMemo(() => getYAxisTicks(tomorrowMaxY), [tomorrowMaxY, getYAxisTicks]);
 
   const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return undefined; 
+    if (!chartData || chartData.length === 0) return undefined;
 
     const hoursWithGeneration = chartData
-        .filter(d => d.kWh > 0.00001) 
+        .filter(d => d.kWh > 0.00001)
         .map(d => d.time);
 
-    if (hoursWithGeneration.length === 0) return undefined; 
+    if (hoursWithGeneration.length === 0) return undefined;
 
     let uniqueHours = Array.from(new Set(hoursWithGeneration));
-    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0])); 
-    
+    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
+
     if (uniqueHours.length <= 8) return uniqueHours;
 
-    const step = Math.max(1, Math.floor(uniqueHours.length / 7)); 
+    const step = Math.max(1, Math.floor(uniqueHours.length / (isMobile ? 4 : 7)));
     const ticksToShow: string[] = [];
     for (let i = 0; i < uniqueHours.length; i += step) {
         ticksToShow.push(uniqueHours[i]);
@@ -176,17 +164,16 @@ export default function HomePage() {
     if (uniqueHours.length > 0 && !ticksToShow.includes(uniqueHours[uniqueHours.length - 1])) {
         ticksToShow.push(uniqueHours[uniqueHours.length - 1]);
     }
-    return Array.from(new Set(ticksToShow)); 
-  }, []);
+    return Array.from(new Set(ticksToShow));
+  }, [isMobile]);
 
   const todayChartXTicks = useMemo(() => calculateChartXTicks(todayChartData), [todayChartData, calculateChartXTicks]);
   const tomorrowChartXTicks = useMemo(() => calculateChartXTicks(tomorrowChartData), [tomorrowChartData, calculateChartXTicks]);
 
   const renderForecastCard = useCallback((
     title: string,
-    calculatedDayForecast: CalculatedForecast | null, 
-    apiDayData: DailyWeather | null, 
-    manualDayData: ManualDayForecast | null, 
+    calculatedDayForecast: CalculatedForecast | null,
+    sourceDayData: DailyWeather | ManualDayForecast | null,
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
     maxYValueForChart: number,
     yAxisTicksForChart: number[],
@@ -196,18 +183,16 @@ export default function HomePage() {
       return (
         <Card>
           <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
-          <CardContent className="h-[300px] flex justify-center items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading data...</CardContent>
+          <CardContent className="h-[250px] sm:h-[300px] flex justify-center items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading data...</CardContent>
         </Card>
       );
     }
-    
-    const displaySource = isApiSourceSelected ? apiDayData : manualDayData;
-    
-    if (!displaySource) {
+
+    if (!sourceDayData) {
         return (
             <Card>
                  <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
-                 <CardContent className="h-[300px] flex justify-center items-center text-center">
+                 <CardContent className="h-[250px] sm:h-[300px] flex justify-center items-center text-center">
                      <div>
                         <AlertCircle className="w-8 h-8 text-muted-foreground mb-2 mx-auto" />
                         <p className="text-muted-foreground text-sm">Forecast data unavailable. Check settings or select a data source.</p>
@@ -217,16 +202,24 @@ export default function HomePage() {
         )
     }
 
-    const weatherIcon = getWeatherIconFromString(isApiSourceSelected ? apiDayData?.weatherConditionString : manualDayData?.condition.replace(/_/g, ' '));
+    const weatherConditionString = 'condition' in sourceDayData // ManualDayForecast
+        ? sourceDayData.condition.replace(/_/g, ' ')
+        : (sourceDayData as DailyWeather).weatherConditionString; // DailyWeather
+
+    const weatherIcon = getWeatherIconFromString(weatherConditionString);
     const generationValue = calculatedDayForecast?.dailyTotalGenerationKWh;
     const displayGeneration = (typeof generationValue === 'number' && !isNaN(generationValue))
       ? `${generationValue.toFixed(2)} kWh`
       : 'N/A';
-    
-    const conditionText = (isApiSourceSelected ? apiDayData?.weatherConditionString : manualDayData?.condition.replace(/_/g, ' ')) || 'N/A';
-    
-    const sunriseTime = displaySource.sunrise ? (displaySource.sunrise.includes('T') ? format(parseISO(displaySource.sunrise), 'HH:mm') : displaySource.sunrise) : 'N/A';
-    const sunsetTime = displaySource.sunset ? (displaySource.sunset.includes('T') ? format(parseISO(displaySource.sunset), 'HH:mm') : displaySource.sunset) : 'N/A';
+
+    const conditionText = weatherConditionString || 'N/A';
+
+    const sunriseTime = sourceDayData.sunrise
+        ? (typeof sourceDayData.sunrise === 'string' && sourceDayData.sunrise.includes('T') ? format(parseISO(sourceDayData.sunrise), 'HH:mm') : sourceDayData.sunrise as string)
+        : 'N/A';
+    const sunsetTime = sourceDayData.sunset
+        ? (typeof sourceDayData.sunset === 'string' && sourceDayData.sunset.includes('T') ? format(parseISO(sourceDayData.sunset), 'HH:mm') : sourceDayData.sunset as string)
+        : 'N/A';
 
 
     let chartPlaceholderMessage = '';
@@ -242,32 +235,32 @@ export default function HomePage() {
         chartPlaceholderMessage = 'Calculating forecast... Ensure manual forecast inputs are saved.';
     } else if (!calculatedDayForecast && isApiSourceSelected && !weatherLoading && !weatherRefetching) {
         chartPlaceholderMessage = 'Could not retrieve forecast data from Open-Meteo.';
-    } else { 
-        if (!displaySource.sunrise || !displaySource.sunset || sunriseTime >= sunsetTime) {
+    } else {
+        if (!sourceDayData.sunrise || !sourceDayData.sunset || sunriseTime >= sunsetTime) {
             chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset.";
         } else if (!calculatedDayForecast?.hourlyForecast || calculatedDayForecast.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
-        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d => d.kWh > 0.00001)) { 
+        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d => d.kWh > 0.00001)) {
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
 
-    const xAxisHeight = 50; 
+    const xAxisHeight = isMobile ? 60 : 50;
 
     const renderChart = () => {
       const commonProps = {
         data: chartDataToDisplay,
-        margin: { top: 5, right: isMobile ? 5 : 20, left: isMobile ? 0 : 5, bottom: xAxisHeight - 20 }, 
+        margin: { top: 5, right: isMobile ? 5 : 20, left: isMobile ? -10 : 5, bottom: xAxisHeight - (isMobile ? 10 : 20) },
       };
       const commonYAxisProps = {
-        fontSize: 10,
+        fontSize: isMobile ? 9 : 10,
         tickLine: false,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        domain: [0, maxYValueForChart] as [number, number], 
+        domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
         tickFormatter: (value: number) => value.toFixed(2),
-        width: isMobile ? 35 : 40, 
+        width: isMobile ? 30 : 40, // Adjusted width for mobile
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -275,15 +268,15 @@ export default function HomePage() {
         tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        ticks: chartXTicksForChart, 
+        ticks: chartXTicksForChart,
         tickFormatter: (value: string) => value ? `${parseInt(value.split(':')[0]) % 12 || 12}${parseInt(value.split(':')[0]) >= 12 ? 'pm' : 'am'}`: '',
-        interval: 'preserveStartEnd', 
-        angle: -45, 
+        interval: 'preserveStartEnd',
+        angle: -45,
         textAnchor: 'end' as const,
-        dx: -5, 
-        dy: 5,  
-        height: xAxisHeight, 
-        fontSize: 10,
+        dx: -5,
+        dy: 5,
+        height: xAxisHeight,
+        fontSize: isMobile ? 9 : 10,
       };
 
       const customTooltip = (props: any) => {
@@ -308,7 +301,7 @@ export default function HomePage() {
               <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
-              <Line type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} yAxisId="left" />
+              <Line type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: isMobile ? 2 : 3 }} activeDot={{ r: isMobile ? 4 : 6 }} yAxisId="left" />
             </LineChart>
           );
         case 'area':
@@ -342,8 +335,8 @@ export default function HomePage() {
             <CardHeader>
                 <div className="flex justify-between items-start">
                     <div>
-                        <CardTitle>{title} Forecast</CardTitle>
-                        <CardDescription>
+                        <CardTitle className="text-lg sm:text-xl">{title} Forecast</CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">
                             Est. Generation: {displayGeneration}
                             {` (${conditionText})`}
                         </CardDescription>
@@ -352,23 +345,23 @@ export default function HomePage() {
                         {weatherIcon}
                     </div>
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
+                <div className="flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                     <span className="flex items-center gap-1"><Sunrise className="w-3 h-3"/> {sunriseTime}</span>
                     <span className="flex items-center gap-1"><Sunset className="w-3 h-3"/> {sunsetTime}</span>
-                    {isApiSourceSelected && apiDayData?.temperature_2m_max !== undefined && (
-                         <span className="flex items-center gap-1"><Thermometer className="w-3 h-3"/> {apiDayData.temperature_2m_max.toFixed(0)}°C</span>
+                    {isApiSourceSelected && 'temperature_2m_max' in sourceDayData && (sourceDayData as DailyWeather).temperature_2m_max !== undefined && (
+                         <span className="flex items-center gap-1"><Thermometer className="w-3 h-3"/> {((sourceDayData as DailyWeather).temperature_2m_max!).toFixed(0)}°C</span>
                     )}
                 </div>
             </CardHeader>
             <CardContent>
                 {calculatedDayForecast && !calculatedDayForecast.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
-                    <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[300px] w-full">
+                    <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[250px] sm:h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                            {renderChart()}
                         </ResponsiveContainer>
                     </ChartContainer>
                 ) : (
-                    <div className="flex flex-col justify-center items-center h-[300px] text-center p-4">
+                    <div className="flex flex-col justify-center items-center h-[250px] sm:h-[300px] text-center p-4">
                         <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
                         <p className="text-muted-foreground text-sm">
                            {chartPlaceholderMessage}
@@ -378,21 +371,16 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  }, [isMounted, settings, selectedChartType, weatherLoading, weatherRefetching, locationAvailable, isApiSourceSelected, isMobile]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted, settings, selectedChartType, weatherLoading, weatherRefetching, locationAvailable, isApiSourceSelected, isMobile, toast]);
 
   const renderWeeklyForecastItem = (dayData: DailyWeather, index: number) => {
     if (!settings) return null;
     const dayOfWeek = format(parseISO(dayData.date), 'EEE');
     const dateDisplay = format(parseISO(dayData.date), 'dd/MM');
 
-    const forecastInputForCalc: ManualDayForecast = {
-        date: dayData.date,
-        sunrise: dayData.sunrise ? format(parseISO(dayData.sunrise), 'HH:mm') : '00:00',
-        sunset: dayData.sunset ? format(parseISO(dayData.sunset), 'HH:mm') : '00:00',
-        condition: mapWmoCodeToManualForecastCondition(dayData.weather_code),
-    };
-
-    const calculated = calculateSolarGeneration(forecastInputForCalc, settings);
+    // Directly pass DailyWeather object for API source
+    const calculated = calculateSolarGeneration(dayData, settings);
 
     const weatherIcon = getWeatherIconFromString(dayData.weatherConditionString);
     const generationDisplay = calculated?.dailyTotalGenerationKWh?.toFixed(1) || 'N/A';
@@ -400,14 +388,14 @@ export default function HomePage() {
     return (
       <Card key={`week-${dayData.date}-${index}`} className="text-center flex flex-col p-2">
         <CardHeader className="pb-1 pt-2 px-1">
-          <CardTitle className="text-sm font-medium">{dayOfWeek}</CardTitle>
+          <CardTitle className="text-xs sm:text-sm font-medium">{dayOfWeek}</CardTitle>
           <CardDescription className="text-xs text-muted-foreground">{dateDisplay}</CardDescription>
           <div className="pt-1 flex justify-center items-center h-6">
             {weatherIcon}
           </div>
         </CardHeader>
         <CardContent className="p-1 mt-auto">
-          <p className="text-base font-semibold">{generationDisplay}</p>
+          <p className="text-sm sm:text-base font-semibold">{generationDisplay}</p>
           <p className="text-xs text-muted-foreground -mt-1">kWh</p>
         </CardContent>
       </Card>
@@ -418,8 +406,8 @@ export default function HomePage() {
     <div className="space-y-6">
        <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row">
            <div className="mb-4 sm:mb-0">
-                <h1 className="text-3xl font-bold">Solar Dashboard</h1>
-                <p className="text-muted-foreground">Forecasting for: {isMounted ? locationDisplay : 'Loading...'}</p>
+                <h1 className="text-2xl sm:text-3xl font-bold">Solar Dashboard</h1>
+                <p className="text-sm sm:text-base text-muted-foreground">Forecasting for: {isMounted ? locationDisplay : 'Loading...'}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <HowToInfo pageKey="dashboard" />
@@ -462,7 +450,7 @@ export default function HomePage() {
 
         <div className="flex justify-end mb-4">
           <Select value={selectedChartType} onValueChange={(value) => setSelectedChartType(value as ChartType)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Select chart type" />
             </SelectTrigger>
             <SelectContent>
@@ -488,12 +476,12 @@ export default function HomePage() {
              </AlertDescription>
             </Alert>
         )}
-        
+
         {isMounted && settings && isApiSourceSelected && !locationAvailable && !weatherLoading && (
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Location Not Set for API</AlertTitle>
-                 <AlertDescription>Please set your latitude and longitude in <a href="/settings" className="underline font-medium">Settings</a> to use Open-Meteo forecast.</AlertDescription>
+                 <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in Settings to use Auto forecast function or change source to Manual Input</AlertDescription>
              </Alert>
         )}
 
@@ -507,22 +495,22 @@ export default function HomePage() {
 
         {isMounted && settings && (!weatherLoading || !isApiSourceSelected) && (
             <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {renderForecastCard("Today", todayCalculatedForecast, weatherForecastData?.todayForecast || null, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks)}
-                    {renderForecastCard("Tomorrow", tomorrowCalculatedForecast, weatherForecastData?.tomorrowForecast || null, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks)}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {renderForecastCard("Today", todayCalculatedForecast, isApiSourceSelected ? weatherForecastData?.todayForecast || null : manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks)}
+                    {renderForecastCard("Tomorrow", tomorrowCalculatedForecast, isApiSourceSelected ? weatherForecastData?.tomorrowForecast || null : manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks)}
                 </div>
-                
-                {isApiSourceSelected && !isMobile && weatherForecastData?.weeklyForecast && weatherForecastData.weeklyForecast.length > 0 && !weatherLoading && (
+
+                {isApiSourceSelected && weatherForecastData?.weeklyForecast && weatherForecastData.weeklyForecast.length > 0 && !weatherLoading && !isMobile && (
                   <div className="mt-8">
-                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                      <h2 className="text-xl sm:text-2xl font-bold mb-4">Week Ahead</h2>
+                      <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
                           {weatherForecastData.weeklyForecast.map((forecast, index) => renderWeeklyForecastItem(forecast, index))}
                       </div>
                   </div>
                 )}
                  {!isApiSourceSelected && !isMobile && (
                   <div className="mt-8">
-                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold mb-4">Week Ahead</h2>
                       <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is only available with Open-Meteo source. Please select Open-Meteo in the header source dropdown.</p>
                   </div>
                 )}
@@ -531,5 +519,4 @@ export default function HomePage() {
     </div>
   );
 }
-
 

@@ -15,15 +15,13 @@ import { calculateSolarGeneration, type CalculatedForecast} from '@/lib/solar-ca
 import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice,  } from '@/lib/charging-advice';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
-import { addDays, format, parseISO } from 'date-fns';
+import { ForecastInfo } from '@/components/forecast-info';
+import { format, parseISO } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { HowToInfo } from '@/components/how-to-info';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
 import type { DailyWeather } from '@/types/weather';
-import { mapWmoCodeToManualForecastCondition } from '@/types/weather';
 
 
 const HOURS_IN_DAY = 24;
@@ -33,7 +31,7 @@ const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
-    const [manualForecast, setManualForecast] = useManualForecast();
+    const [manualForecast, setManualForecast, refreshManualForecastDates] = useManualForecast();
 
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
     const [todayAdvice, setTodayAdvice] = useState<ChargingAdvice | null>(null);
@@ -126,11 +124,11 @@ export default function AdvisoryPage() {
    }, [isMounted, settings]);
 
      useEffect(() => {
-       if (isMounted && settings) { // ensure settings is not null before trying to spread it
+       if (isMounted && settings) {
            const handler = setTimeout(() => {
                setSettings(prev => {
                 const newSettings = {
-                   ...(prev!), // prev should always be UserSettings here due to the outer if (settings)
+                   ...(prev!),
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
@@ -150,7 +148,6 @@ export default function AdvisoryPage() {
        }
    // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted, settings]);
-   // Removed setSettings from deps as it's guaranteed to be stable from the (now fixed) useLocalStorage hook. `settings` is included for read.
 
 
     useEffect(() => {
@@ -160,26 +157,14 @@ export default function AdvisoryPage() {
             return;
         }
 
-        let todayInput: ManualDayForecast | null = null;
-        let tomorrowInput: ManualDayForecast | null = null;
+        let todayInput: ManualDayForecast | DailyWeather | null = null;
+        let tomorrowInput: ManualDayForecast | DailyWeather | null = null;
 
-        if (isApiSourceSelected && weatherForecastData && weatherForecastData.todayForecast && weatherForecastData.tomorrowForecast) {
-            const apiToday = weatherForecastData.todayForecast;
-            todayInput = {
-                date: apiToday.date,
-                sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
-                sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
-                condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code), // Ensure this maps to ManualForecastCondition
-            };
-
-            const apiTomorrow = weatherForecastData.tomorrowForecast;
-            tomorrowInput = {
-                date: apiTomorrow.date,
-                sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
-                sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
-                condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code), // Ensure this maps to ManualForecastCondition
-            };
+        if (isApiSourceSelected && weatherForecastData) {
+            todayInput = weatherForecastData.todayForecast;
+            tomorrowInput = weatherForecastData.tomorrowForecast;
         } else if (!isApiSourceSelected) {
+            refreshManualForecastDates();
             todayInput = manualForecast.today;
             tomorrowInput = manualForecast.tomorrow;
         }
@@ -195,7 +180,7 @@ export default function AdvisoryPage() {
         } else {
             setTomorrowForecastCalc(null);
         }
-    }, [isMounted, settings, weatherForecastData, manualForecast, isApiSourceSelected]);
+    }, [isMounted, settings, weatherForecastData, manualForecast, isApiSourceSelected, refreshManualForecastDates]);
 
 
     const generateAdvice = useCallback(() => {
@@ -317,8 +302,8 @@ export default function AdvisoryPage() {
         return (
              <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">{icon}{title}</CardTitle>
-                  <CardDescription>{description}</CardDescription>
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex items-center justify-center">
                     <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" /> Loading forecast for advice...
@@ -335,8 +320,8 @@ export default function AdvisoryPage() {
         return (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">{icon}{title}</CardTitle>
-              <CardDescription>{description}</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title}</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
             </CardHeader>
             <CardContent>
               <Alert variant="destructive">
@@ -352,8 +337,8 @@ export default function AdvisoryPage() {
        return (
          <Card>
            <CardHeader>
-             <CardTitle className="flex items-center gap-2">{icon}{title}</CardTitle>
-             <CardDescription>{description}</CardDescription>
+             <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title}</CardTitle>
+             <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
            </CardHeader>
            <CardContent>
              <Alert variant="default">
@@ -375,14 +360,14 @@ export default function AdvisoryPage() {
      return (
         <Card className={`${advice.recommendChargeNow || advice.recommendChargeLater ? 'border-primary/50 dark:border-primary/40' : ''}`}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">{icon} {recommendationTitle}</CardTitle>
-            <CardDescription>{description}</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-base sm:text-xl">{icon} {recommendationTitle}</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
           </CardHeader>
           <CardContent>
             <Alert className="border-none p-0">
               <RecommendationIcon className={`h-5 w-5 ${advice.recommendChargeNow || advice.recommendChargeLater ? 'text-primary' : 'text-muted-foreground'}`} />
              <AlertTitle className="ml-7 font-semibold"></AlertTitle>
-             <AlertDescription className="ml-7">
+             <AlertDescription className="ml-7 text-xs sm:text-sm">
                {advice.reason}
                {advice.details && <span className="block mt-1 text-xs text-muted-foreground">{advice.details}</span>}
                 {advice.chargeNeededKWh !== undefined && advice.chargeNeededKWh > 0 && (
@@ -393,7 +378,7 @@ export default function AdvisoryPage() {
                  )}
                   {advice.evRecommendation && (
                      <span className={cn(
-                        "block mt-2 text-sm font-medium",
+                        "block mt-2 text-xs sm:text-sm font-medium",
                         advice.evRecommendation.includes("Consider") || advice.evRecommendation.includes("Grid") ? "text-orange-600 dark:text-orange-400" : "text-blue-600 dark:text-blue-400"
                      )}>
                          <Car className="inline h-4 w-4 mr-1"/> EV Charge: {advice.evRecommendation}
@@ -429,10 +414,10 @@ export default function AdvisoryPage() {
 
    return (
      <div className="space-y-6">
-       <div className="flex justify-between items-center mb-6">
-            <div>
-                <h1 className="text-3xl font-bold">Smart Charging Advisory</h1>
-                <p className="text-muted-foreground">Optimize battery &amp; EV charging based on your forecast, tariffs, and consumption.</p>
+       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+            <div className="mb-2 sm:mb-0">
+                <h1 className="text-2xl sm:text-3xl font-bold">Smart Charging Advisory</h1>
+                <p className="text-sm sm:text-base text-muted-foreground">Optimize battery &amp; EV charging based on your forecast, tariffs, and consumption.</p>
             </div>
              <div className="flex items-center gap-2">
                  <HowToInfo pageKey="advisory" />
@@ -480,7 +465,7 @@ export default function AdvisoryPage() {
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Location Not Set for API</AlertTitle>
-                 <AlertDescription>Please set your latitude and longitude in <a href="/settings" className="underline font-medium">Settings</a> to use Open-Meteo forecast for advice.</AlertDescription>
+                 <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in Settings to use Auto forecast function or change source to Manual Input</AlertDescription>
              </Alert>
         )}
          {isMounted && settings && weatherError && isApiSourceSelected && (
@@ -520,7 +505,7 @@ export default function AdvisoryPage() {
                value={currentBatteryLevel}
                onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput > 0 ? batteryMaxInput : Infinity, parseFloat(e.target.value) || 0)))}
                placeholder="e.g., 5.20"
-               className="max-w-xs"
+               className="w-full sm:max-w-xs"
              />
               {isMounted && settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0 ? (
                  <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -535,7 +520,7 @@ export default function AdvisoryPage() {
               <Label htmlFor="preferredOvernightCharge" className="flex items-center gap-2">
                 <BatteryChargingIcon className="h-4 w-4" /> Preferred Overnight Battery Target
               </Label>
-              <div className="flex items-center gap-4 max-w-md">
+              <div className="flex items-center gap-2 sm:gap-4 w-full sm:max-w-md">
                 <Slider
                   id="preferredOvernightCharge"
                   min={0}
@@ -573,7 +558,7 @@ export default function AdvisoryPage() {
                        value={dailyConsumption}
                        onChange={(e) => setDailyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
                        placeholder="e.g., 10.50"
-                       className="max-w-xs"
+                       className="w-full sm:max-w-xs"
                     />
                 </div>
                 <Button variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
@@ -593,7 +578,7 @@ export default function AdvisoryPage() {
                          value={avgHourlyConsumption}
                          onChange={(e) => setAvgHourlyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
                          placeholder="e.g., 0.40"
-                         className="max-w-xs"
+                         className="w-full sm:max-w-xs"
                      />
                  </div>
                   <Button variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
@@ -604,14 +589,14 @@ export default function AdvisoryPage() {
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="hourly-consumption">
                 <AccordionTrigger>
-                  <Label className="flex items-center gap-2 text-base font-semibold">
+                  <Label className="flex items-center gap-2 text-base font-semibold cursor-pointer">
                     Adjust Hourly Consumption Profile (kWh)
                   </Label>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-2 space-y-3">
                      <p className="text-xs text-muted-foreground">Fine-tune expected usage per hour. Total daily consumption updates automatically.</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
+                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-3">
                       {hourlyUsage.map((usage, index) => (
                         <div key={index} className="space-y-1">
                           <Label
@@ -651,10 +636,10 @@ export default function AdvisoryPage() {
         {isMounted && settings && (
        <Card>
          <CardHeader>
-             <CardTitle className="flex items-center gap-2">
+             <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                  <Car className="h-5 w-5"/> EV Charging Preferences
              </CardTitle>
-             <CardDescription>
+             <CardDescription className="text-xs sm:text-sm">
                  Set your EV charging needs to integrate them into recommendations (values are saved automatically).
              </CardDescription>
          </CardHeader>
@@ -670,6 +655,7 @@ export default function AdvisoryPage() {
                          placeholder="e.g., 40.0"
                          value={evChargeRequiredKWh}
                          onChange={(e) => setEvChargeRequiredKWh(Math.max(0, parseFloat(e.target.value) || 0))}
+                         className="w-full"
                      />
                  </div>
                  <div className="space-y-1">
@@ -679,6 +665,7 @@ export default function AdvisoryPage() {
                          type="time"
                          value={evChargeByTime}
                          onChange={(e) => setEvChargeByTime(e.target.value)}
+                         className="w-full"
                      />
                  </div>
                   <div className="space-y-1">
@@ -691,6 +678,7 @@ export default function AdvisoryPage() {
                          placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE.toFixed(1)}`}
                          value={evMaxChargeRateKWh}
                          onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE))}
+                         className="w-full"
                      />
                  </div>
              </div>
@@ -704,8 +692,8 @@ export default function AdvisoryPage() {
        {isMounted && settings && (
         <Card>
           <CardHeader>
-            <CardTitle>Forecast & Configuration Used</CardTitle>
-             <CardDescription>Summary of the data used to generate the current advice.</CardDescription>
+            <CardTitle className="text-lg sm:text-xl">Forecast & Configuration Used</CardTitle>
+             <CardDescription className="text-xs sm:text-sm">Summary of the data used to generate the current advice.</CardDescription>
           </CardHeader>
           <CardContent className="text-sm space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -747,4 +735,3 @@ export default function AdvisoryPage() {
      </div>
    );
  }
-
