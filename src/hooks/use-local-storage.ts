@@ -1,20 +1,22 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react'; // Added useMemo
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ManualForecastInput, ManualDayForecast } from '@/types/settings';
 import { format, addDays } from 'date-fns';
 
 
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
-  const readValue = useCallback((): T => {
+  const readValueFromLocalStorage = useCallback((): T => {
+    // This function should only be called on the client.
+    // For SSR and initial client render, `initialValue` is used directly by useState.
     if (typeof window === 'undefined') {
+      // This case should ideally not be hit if called from useEffect on client.
+      // If somehow called server-side directly, return initialValue.
       return initialValue;
     }
     try {
       const item = window.localStorage.getItem(key);
-      // Ensure that if initialValue is a function, it's not called here unless localStorage is empty.
-      // JSON.parse will handle actual stored values.
       return item ? (JSON.parse(item) as T) : initialValue;
     } catch (error) {
       console.warn(`Error reading localStorage key “${key}”:`, error);
@@ -22,17 +24,31 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     }
   }, [initialValue, key]);
 
-  // Initialize state. If readValue changes, useState will re-initialize with its result.
-  // This part is generally fine if readValue itself is stable or its instability is intended for initialization.
-  const [storedValue, setStoredValue] = useState<T>(readValue);
+  // Initialize with `initialValue` to ensure server and client first render match.
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+
+  // Effect to read from localStorage and update state, runs only on client after mount.
+  useEffect(() => {
+    const valueFromStorage = readValueFromLocalStorage();
+    // Check if the value from storage is different to avoid unnecessary re-render.
+    // This simple stringify comparison might not be perfect for complex objects if order matters,
+    // but for typical settings data, it's usually sufficient.
+    if (JSON.stringify(valueFromStorage) !== JSON.stringify(initialValue)) {
+        setStoredValue(valueFromStorage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, initialValue]); // Removed readValueFromLocalStorage from deps, it's stable via useCallback.
+                           // initialValue in deps ensures if it changes, we re-evaluate. Key also.
 
   const setValue = (value: T | ((val: T) => T)) => {
      if (typeof window === 'undefined') {
       console.warn(
         `Tried setting localStorage key “${key}” even though environment is not a client`,
       );
+      return; // Do not proceed if not on client
     }
     try {
+      // Allow value to be a function so we have the same API as useState
       const valueToStore =
         value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
@@ -41,29 +57,25 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
       console.warn(`Error setting localStorage key “${key}”:`, error);
     }
   };
-
-   // This effect synchronizes the state if the initial readValue (due to prop change) differs or key changes.
-   // The problem arises if `readValue` itself is unstable (changes reference on every render without its underlying value changing).
-   useEffect(() => {
-    // Only update if the read value is different from current stored value to avoid unnecessary re-renders
-    // This comparison might be tricky for objects, but fundamental issue is readValue stability
-    const currentValueFromStorage = readValue();
-    // Basic check; for objects, a deep comparison might be needed if values can be same but references differ
-    // However, the primary fix is stabilizing `readValue` by stabilizing `initialValue`
-    if (JSON.stringify(currentValueFromStorage) !== JSON.stringify(storedValue)) {
-      setStoredValue(currentValueFromStorage);
-    }
-  }, [key, readValue, storedValue]); // Added storedValue to dependencies to re-evaluate only when absolutely necessary.
-
+  
+  // Effect to listen for storage changes from other tabs/windows
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === key && event.newValue !== event.oldValue) {
-         setStoredValue(readValue());
+      if (event.key === key && event.storageArea === window.localStorage) {
+        try {
+          setStoredValue(event.newValue ? JSON.parse(event.newValue) : initialValue);
+        } catch (error) {
+            console.warn(`Error parsing storage event value for key "${key}":`, error);
+            setStoredValue(initialValue);
+        }
       }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [key, readValue]); // readValue dependency here is fine if it's stable.
+  }, [key, initialValue]);
 
   return [storedValue, setValue];
 }
@@ -75,11 +87,7 @@ const getDefaultManualDayForecast = (date: Date): ManualDayForecast => ({
   condition: 'sunny', // Default condition
 });
 
-/**
- * Hook to manage manual weather forecast input for today and tomorrow.
- * @returns [ManualForecastInput, (value: ManualForecastInput | ((val: ManualForecastInput) => ManualForecastInput)) => void] - Tuple with current manual forecast and a setter.
- */
-export const useManualForecast = (): [ManualForecastInput, (value: ManualForecastInput | ((val: ManualForecastInput) => ManualForecastInput)) => void] => {
+export const useManualForecast = (): [ManualForecastInput, (value: ManualForecastInput | ((val: ManualForecastInput) => ManualForecastInput)) => void, () => void] => {
   const initialManualForecast = useMemo(() => {
     const today = new Date();
     const tomorrow = addDays(today, 1);
@@ -87,38 +95,40 @@ export const useManualForecast = (): [ManualForecastInput, (value: ManualForecas
       today: getDefaultManualDayForecast(today),
       tomorrow: getDefaultManualDayForecast(tomorrow),
     };
-  }, []); // Empty dependency array creates this value once per component lifecycle
+  }, []);
 
   const [forecast, setForecast] = useLocalStorage<ManualForecastInput>('manualWeatherForecast', initialManualForecast);
 
-  // Effect to update dates if they become stale (e.g., app opened next day)
-  useEffect(() => {
-    const currentDateToday = format(new Date(), 'yyyy-MM-dd');
-    const currentDateTomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+  const refreshDates = useCallback(() => {
+    setForecast(prevForecast => {
+      const currentDateToday = format(new Date(), 'yyyy-MM-dd');
+      const currentDateTomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
-    // Check if the dates in the current forecast state are stale
-    if (forecast.today.date !== currentDateToday || forecast.tomorrow.date !== currentDateTomorrow) {
-      setForecast(prevForecast => {
-        // Create new day objects only if dates mismatch to preserve user's sunrise/sunset/condition for the correct day
-        const newTodayData = prevForecast.today.date === currentDateToday
-          ? prevForecast.today
-          : { ...getDefaultManualDayForecast(new Date()), condition: prevForecast.today.condition, sunrise: prevForecast.today.sunrise, sunset: prevForecast.today.sunset, date:currentDateToday }; // Carry over settings if it's an update on the same day structure
+      const newTodayData = prevForecast.today.date === currentDateToday
+        ? prevForecast.today
+        : { ...getDefaultManualDayForecast(new Date()), condition: prevForecast.today.condition, sunrise: prevForecast.today.sunrise, sunset: prevForecast.today.sunset, date: currentDateToday };
 
-        const newTomorrowData = prevForecast.tomorrow.date === currentDateTomorrow
-          ? prevForecast.tomorrow
-          : { ...getDefaultManualDayForecast(addDays(new Date(), 1)), condition: prevForecast.tomorrow.condition, sunrise: prevForecast.tomorrow.sunrise, sunset: prevForecast.tomorrow.sunset, date: currentDateTomorrow };
-
+      const newTomorrowData = prevForecast.tomorrow.date === currentDateTomorrow
+        ? prevForecast.tomorrow
+        : { ...getDefaultManualDayForecast(addDays(new Date(), 1)), condition: prevForecast.tomorrow.condition, sunrise: prevForecast.tomorrow.sunrise, sunset: prevForecast.tomorrow.sunset, date: currentDateTomorrow };
+      
+      if (newTodayData.date !== prevForecast.today.date || newTomorrowData.date !== prevForecast.tomorrow.date ||
+          JSON.stringify(newTodayData) !== JSON.stringify(prevForecast.today) || 
+          JSON.stringify(newTomorrowData) !== JSON.stringify(prevForecast.tomorrow)) {
         return {
           today: newTodayData,
           tomorrow: newTomorrowData,
         };
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount to check for stale dates from localStorage. setForecast will handle updates.
-           // The `forecast.today.date` and `forecast.tomorrow.date` should not be in deps here
-           // because we want to compare against the *current actual date* on mount, not react to `forecast` changes itself.
-           // This effect's job is to *correct* forecast if it's stale from a previous session.
+      }
+      return prevForecast; 
+    });
+  }, [setForecast]);
 
-  return [forecast, setForecast];
+  useEffect(() => {
+    refreshDates();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
+
+  return [forecast, setForecast, refreshDates];
 };
+

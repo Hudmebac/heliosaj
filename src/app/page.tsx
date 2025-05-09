@@ -5,7 +5,7 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/compo
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, AlertCircle, BarChart2, LineChart as LineChartIcon, AreaChart as AreaChartIcon, RefreshCw, Thermometer, Wind, Droplets, Eye } from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, AlertCircle, BarChart2, LineChart as LineChartIcon, AreaChart as AreaChartIcon, RefreshCw, Thermometer } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer} from "@/components/ui/chart";
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { HowToInfo } from '@/components/how-to-info';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { DailyWeather, HourlyWeather } from '@/types/weather'; // Removed ManualForecastCondition as it's covered by settings
+import type { DailyWeather, HourlyWeather } from '@/types/weather'; 
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
 import { mapWmoCodeToManualForecastCondition, WMO_CODE_MAP } from '@/types/weather';
 
@@ -84,7 +84,7 @@ export default function HomePage() {
     if (isApiSourceSelected && weatherForecastData && weatherForecastData.todayForecast && weatherForecastData.tomorrowForecast) {
         const apiToday = weatherForecastData.todayForecast;
         todayInput = {
-          date: apiToday.date, // This should be YYYY-MM-DD string
+          date: apiToday.date, 
           sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
           sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
           condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code),
@@ -92,7 +92,7 @@ export default function HomePage() {
       
         const apiTomorrow = weatherForecastData.tomorrowForecast;
         tomorrowInput = {
-          date: apiTomorrow.date, // This should be YYYY-MM-DD string
+          date: apiTomorrow.date, 
           sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
           sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
           condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code),
@@ -166,19 +166,17 @@ export default function HomePage() {
     let uniqueHours = Array.from(new Set(hoursWithGeneration));
     uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0])); 
     
-    // If few hours, show all. Otherwise, show a max of ~8 ticks.
     if (uniqueHours.length <= 8) return uniqueHours;
 
-    const step = Math.max(1, Math.floor(uniqueHours.length / 7)); // Aim for around 7-8 ticks
+    const step = Math.max(1, Math.floor(uniqueHours.length / 7)); 
     const ticksToShow: string[] = [];
     for (let i = 0; i < uniqueHours.length; i += step) {
         ticksToShow.push(uniqueHours[i]);
     }
-    // Ensure the last generating hour is always included if not caught by step
     if (uniqueHours.length > 0 && !ticksToShow.includes(uniqueHours[uniqueHours.length - 1])) {
         ticksToShow.push(uniqueHours[uniqueHours.length - 1]);
     }
-    return Array.from(new Set(ticksToShow)); // Ensure uniqueness again after adding last hour
+    return Array.from(new Set(ticksToShow)); 
   }, []);
 
   const todayChartXTicks = useMemo(() => calculateChartXTicks(todayChartData), [todayChartData, calculateChartXTicks]);
@@ -387,7 +385,6 @@ export default function HomePage() {
     const dayOfWeek = format(parseISO(dayData.date), 'EEE');
     const dateDisplay = format(parseISO(dayData.date), 'dd/MM');
 
-    // For weekly, we create a ManualDayForecast-like object for calculation
     const forecastInputForCalc: ManualDayForecast = {
         date: dayData.date,
         sunrise: dayData.sunrise ? format(parseISO(dayData.sunrise), 'HH:mm') : '00:00',
@@ -426,21 +423,27 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <HowToInfo pageKey="dashboard" />
-                {isApiSourceSelected && (
-                    <Button
-                        onClick={() => refetchWeather()}
-                        disabled={weatherLoading || weatherRefetching || !isMounted || !settings || !locationAvailable}
-                        variant="outline"
-                        size="sm"
-                    >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Refresh Forecast
-                    </Button>
-                )}
-                 {!isApiSourceSelected && (
-                    <Button variant="outline" onClick={() => setIsManualModalOpen(true)} disabled={!isMounted || !settings}>
-                        <Edit3 className="h-4 w-4 mr-2" />
-                        Edit Manual Forecast
+                {isMounted ? (
+                    isApiSourceSelected ? (
+                        <Button
+                            onClick={() => refetchWeather()}
+                            disabled={weatherLoading || weatherRefetching || !settings || !locationAvailable}
+                            variant="outline"
+                            size="sm"
+                        >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Refresh Forecast
+                        </Button>
+                    ) : (
+                        <Button variant="outline" onClick={() => setIsManualModalOpen(true)} disabled={!settings}>
+                            <Edit3 className="h-4 w-4 mr-2" />
+                            Edit Manual Forecast
+                        </Button>
+                    )
+                ) : (
+                    <Button variant="outline" size="sm" disabled>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Loading Source...
                     </Button>
                 )}
             </div>
@@ -528,4 +531,5 @@ export default function HomePage() {
     </div>
   );
 }
+
 
