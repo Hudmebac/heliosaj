@@ -81,7 +81,7 @@ export interface HourlyWeather {
   time: string; // ISO string for consistency
   temperature_2m?: number;
   apparent_temperature?: number;
-  precipitation_probability?: number; // This might not be available in UKMO, use precipitation
+  precipitation_probability?: number;
   precipitation?: number;
   weather_code?: number;
   wind_speed_10m?: number;
@@ -96,19 +96,18 @@ export interface DailyWeather {
   weather_code?: number;
   temperature_2m_max?: number;
   temperature_2m_min?: number;
-  sunrise?: string; // ISO string
-  sunset?: string; // ISO string
+  sunrise?: string; // ISO string, can be undefined if not available
+  sunset?: string; // ISO string, can be undefined if not available
   precipitation_sum?: number;
-  precipitation_probability_max?: number; // This might need to be derived or use precipitation_hours
+  precipitation_probability_max?: number;
   precipitation_hours?: number;
   shortwave_radiation_sum?: number;
   weatherConditionString?: string; // Mapped from WMO code
-  // For direct display from API if needed
   daylight_duration?: number;
   sunshine_duration?: number;
   uv_index_max?: number;
   uv_index_clear_sky_max?: number;
-  hourly: HourlyWeather[]; // All hourly data for this specific day
+  hourly: HourlyWeather[];
 }
 
 export interface WeatherForecast {
@@ -116,10 +115,9 @@ export interface WeatherForecast {
   currentConditions?: CurrentWeather;
   todayForecast: DailyWeather | null;
   tomorrowForecast: DailyWeather | null;
-  weeklyForecast: DailyWeather[]; // Array of 7 days, including today
+  weeklyForecast: DailyWeather[];
 }
 
-// This will be used by solar-calculations and advisory pages for the simplified condition
 export type ManualForecastCondition = 'sunny' | 'partly_cloudy' | 'cloudy' | 'overcast' | 'rainy';
 
 export const mapWmoCodeToManualForecastCondition = (wmoCode: number | undefined | null): ManualForecastCondition => {
