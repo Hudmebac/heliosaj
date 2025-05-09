@@ -8,11 +8,7 @@ import { format, addDays } from 'date-fns';
 
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   const readValueFromLocalStorage = useCallback((): T => {
-    // This function should only be called on the client.
-    // For SSR and initial client render, `initialValue` is used directly by useState.
     if (typeof window === 'undefined') {
-      // This case should ideally not be hit if called from useEffect on client.
-      // If somehow called server-side directly, return initialValue.
       return initialValue;
     }
     try {
@@ -24,31 +20,29 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     }
   }, [initialValue, key]);
 
-  // Initialize with `initialValue` to ensure server and client first render match.
   const [storedValue, setStoredValue] = useState<T>(initialValue);
 
-  // Effect to read from localStorage and update state, runs only on client after mount.
   useEffect(() => {
-    const valueFromStorage = readValueFromLocalStorage();
-    // Check if the value from storage is different to avoid unnecessary re-render.
-    // This simple stringify comparison might not be perfect for complex objects if order matters,
-    // but for typical settings data, it's usually sufficient.
-    if (JSON.stringify(valueFromStorage) !== JSON.stringify(initialValue)) {
-        setStoredValue(valueFromStorage);
+    // This effect runs ONCE on mount on the client to sync with localStorage
+    // It ensures that the state is updated with the value from localStorage
+    // if it differs from the initialValue used for SSR/initial client render.
+    if (typeof window !== 'undefined') {
+        const valueFromStorage = readValueFromLocalStorage();
+        if (JSON.stringify(valueFromStorage) !== JSON.stringify(storedValue)) {
+            setStoredValue(valueFromStorage);
+        }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, initialValue]); // Removed readValueFromLocalStorage from deps, it's stable via useCallback.
-                           // initialValue in deps ensures if it changes, we re-evaluate. Key also.
+  }, [key]); // Only re-run if key changes. readValueFromLocalStorage is stable.
 
-  const setValue = (value: T | ((val: T) => T)) => {
-     if (typeof window === 'undefined') {
+  const setValue = useCallback((value: T | ((val: T) => T)) => {
+    if (typeof window === 'undefined') {
       console.warn(
         `Tried setting localStorage key “${key}” even though environment is not a client`,
       );
-      return; // Do not proceed if not on client
+      return;
     }
     try {
-      // Allow value to be a function so we have the same API as useState
       const valueToStore =
         value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
@@ -56,9 +50,8 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     } catch (error) {
       console.warn(`Error setting localStorage key “${key}”:`, error);
     }
-  };
-  
-  // Effect to listen for storage changes from other tabs/windows
+  }, [key, storedValue]); // Dependencies: key and storedValue
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
@@ -75,16 +68,16 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [key, initialValue]);
+  }, [key, initialValue]); // readValueFromLocalStorage was removed as it's covered by the direct set or initialValue
 
   return [storedValue, setValue];
 }
 
 const getDefaultManualDayForecast = (date: Date): ManualDayForecast => ({
   date: format(date, 'yyyy-MM-dd'),
-  sunrise: '06:00', // Default sunrise
-  sunset: '18:00',  // Default sunset
-  condition: 'sunny', // Default condition
+  sunrise: '06:00',
+  sunset: '18:00',
+  condition: 'sunny',
 });
 
 export const useManualForecast = (): [ManualForecastInput, (value: ManualForecastInput | ((val: ManualForecastInput) => ManualForecastInput)) => void, () => void] => {
@@ -104,17 +97,23 @@ export const useManualForecast = (): [ManualForecastInput, (value: ManualForecas
       const currentDateToday = format(new Date(), 'yyyy-MM-dd');
       const currentDateTomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
-      const newTodayData = prevForecast.today.date === currentDateToday
-        ? prevForecast.today
-        : { ...getDefaultManualDayForecast(new Date()), condition: prevForecast.today.condition, sunrise: prevForecast.today.sunrise, sunset: prevForecast.today.sunset, date: currentDateToday };
+      let changed = false;
+      const newTodayData = { ...prevForecast.today };
+      if (prevForecast.today.date !== currentDateToday) {
+        newTodayData.date = currentDateToday;
+        // Optionally reset other fields if date changes, or keep them
+        // For now, just updating date. If sunrise/sunset also need reset, do it here.
+        // newTodayData.sunrise = '06:00'; // etc. if needed
+        changed = true;
+      }
 
-      const newTomorrowData = prevForecast.tomorrow.date === currentDateTomorrow
-        ? prevForecast.tomorrow
-        : { ...getDefaultManualDayForecast(addDays(new Date(), 1)), condition: prevForecast.tomorrow.condition, sunrise: prevForecast.tomorrow.sunrise, sunset: prevForecast.tomorrow.sunset, date: currentDateTomorrow };
+      const newTomorrowData = { ...prevForecast.tomorrow };
+      if (prevForecast.tomorrow.date !== currentDateTomorrow) {
+        newTomorrowData.date = currentDateTomorrow;
+        changed = true;
+      }
       
-      if (newTodayData.date !== prevForecast.today.date || newTomorrowData.date !== prevForecast.tomorrow.date ||
-          JSON.stringify(newTodayData) !== JSON.stringify(prevForecast.today) || 
-          JSON.stringify(newTomorrowData) !== JSON.stringify(prevForecast.tomorrow)) {
+      if (changed) {
         return {
           today: newTodayData,
           tomorrow: newTomorrowData,

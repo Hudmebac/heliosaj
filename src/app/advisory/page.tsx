@@ -20,28 +20,28 @@ import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/
 import { addDays, format, parseISO } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { HowToInfo } from '@/components/how-to-info';
-import { useWeatherForecast } from '@/hooks/use-weather-forecast'; 
-import { ManualForecastModal } from '@/components/manual-forecast-modal'; 
+import { useWeatherForecast } from '@/hooks/use-weather-forecast';
+import { ManualForecastModal } from '@/components/manual-forecast-modal';
 import type { DailyWeather } from '@/types/weather';
 import { mapWmoCodeToManualForecastCondition } from '@/types/weather';
 
 
 const HOURS_IN_DAY = 24;
-const DEFAULT_BATTERY_MAX = 100; 
-const DEFAULT_EV_MAX_CHARGE_RATE = 7.5; 
+const DEFAULT_BATTERY_MAX = 100;
+const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
-    const [manualForecast, setManualForecast] = useManualForecast(); 
+    const [manualForecast, setManualForecast] = useManualForecast();
 
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
     const [todayAdvice, setTodayAdvice] = useState<ChargingAdvice | null>(null);
     const [adviceError, setAdviceError] = useState<string | null>(null);
-    
+
     const [todayForecastCalc, setTodayForecastCalc] = useState<CalculatedForecast | null>(null);
     const [tomorrowForecastCalc, setTomorrowForecastCalc] = useState<CalculatedForecast | null>(null);
-    
+
     const [isMounted, setIsMounted] = useState(false);
     const [currentHour, setCurrentHour] = useState<number | null>(null);
     const { toast } = useToast();
@@ -77,19 +77,22 @@ export default function AdvisoryPage() {
       if (settings) {
         setDailyConsumption(settings.dailyConsumptionKWh ?? 10);
         const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
-        setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
-        
-        const newHourlyProfileSource = settings.hourlyUsageProfile && settings.hourlyUsageProfile.length === HOURS_IN_DAY 
-            ? settings.hourlyUsageProfile 
+        setAvgHourlyConsumption(s => {
+            const newAvg = parseFloat(avg.toFixed(2));
+            return s === newAvg ? s : newAvg;
+        });
+
+        const newHourlyProfileSource = settings.hourlyUsageProfile && settings.hourlyUsageProfile.length === HOURS_IN_DAY
+            ? settings.hourlyUsageProfile
             : Array(HOURS_IN_DAY).fill(parseFloat(avg.toFixed(2)));
 
         setHourlyUsage(currentProfile => {
             if (JSON.stringify(currentProfile) !== JSON.stringify(newHourlyProfileSource)) {
                 return newHourlyProfileSource;
             }
-            return currentProfile; 
+            return currentProfile;
         });
-        
+
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
         setEvChargeByTime(settings.evChargeByTime ?? '07:00');
         setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
@@ -110,7 +113,7 @@ export default function AdvisoryPage() {
         setPreferredOvernightBatteryChargePercent(100);
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [settings, isMounted]); 
+    }, [settings, isMounted]);
 
 
     useEffect(() => {
@@ -123,31 +126,31 @@ export default function AdvisoryPage() {
    }, [isMounted, settings]);
 
      useEffect(() => {
-       if (isMounted && settings) {
+       if (isMounted && settings) { // ensure settings is not null before trying to spread it
            const handler = setTimeout(() => {
                setSettings(prev => {
                 const newSettings = {
-                   ...(prev!),
+                   ...(prev!), // prev should always be UserSettings here due to the outer if (settings)
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
                    lastKnownBatteryLevelKWh: currentBatteryLevel,
                    dailyConsumptionKWh: dailyConsumption,
                    avgHourlyConsumptionKWh: avgHourlyConsumption,
-                   hourlyUsageProfile: hourlyUsage, 
+                   hourlyUsageProfile: hourlyUsage,
                    preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
                 };
-                // Only call setSettings if there's an actual change to avoid infinite loops with useLocalStorage
                 if (JSON.stringify(prev) !== JSON.stringify(newSettings)) {
                     return newSettings;
                 }
                 return prev;
                });
-           }, 1000); 
+           }, 1000);
            return () => clearTimeout(handler);
        }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted, setSettings]);
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted, settings]);
+   // Removed setSettings from deps as it's guaranteed to be stable from the (now fixed) useLocalStorage hook. `settings` is included for read.
 
 
     useEffect(() => {
@@ -166,15 +169,15 @@ export default function AdvisoryPage() {
                 date: apiToday.date,
                 sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
                 sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
-                condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code),
+                condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code), // Ensure this maps to ManualForecastCondition
             };
-        
+
             const apiTomorrow = weatherForecastData.tomorrowForecast;
             tomorrowInput = {
                 date: apiTomorrow.date,
                 sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
                 sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
-                condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code),
+                condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code), // Ensure this maps to ManualForecastCondition
             };
         } else if (!isApiSourceSelected) {
             todayInput = manualForecast.today;
@@ -248,12 +251,12 @@ export default function AdvisoryPage() {
         try {
              if (!tomorrowForecastCalc || tomorrowForecastCalc.errorMessage || !tomorrowForecastCalc.hourlyForecast) throw new Error(tomorrowForecastCalc?.errorMessage || "Tomorrow's solar forecast could not be calculated or hourly data missing.");
             const overnightParams: ChargingAdviceParams = {
-                forecast: tomorrowForecastCalc, 
+                forecast: tomorrowForecastCalc,
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel, 
-                hourlyConsumptionProfile: hourlyUsage, 
-                currentHour: currentHour, 
+                currentBatteryLevelKWh: currentBatteryLevel,
+                hourlyConsumptionProfile: hourlyUsage,
+                currentHour: currentHour,
                 evNeeds: evNeedsInput,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -266,9 +269,9 @@ export default function AdvisoryPage() {
              setAdviceError(prev => prev ? `${prev}\nTomorrow's Advice Error: ${err.message}` : `Tomorrow's Advice Error: ${err.message}`);
              setTomorrowAdvice(null);
         }
-    }, [ 
+    }, [
         isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
-        todayForecastCalc, tomorrowForecastCalc, 
+        todayForecastCalc, tomorrowForecastCalc,
         evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent,
         weatherLoading, weatherRefetching, isApiSourceSelected
     ]);
@@ -297,7 +300,7 @@ export default function AdvisoryPage() {
     };
 
     const applyAverageConsumption = () => {
-      if (avgHourlyConsumption <0) { 
+      if (avgHourlyConsumption <0) {
          toast({title: "Invalid Input", description:"Average hourly consumption must be 0 or greater to apply.", variant: "destructive"});
          return;
       }
@@ -307,7 +310,7 @@ export default function AdvisoryPage() {
 
    const renderAdviceCard = (advice: ChargingAdvice | null, title: string, description: string, icon?: React.ReactNode) => {
      if (!isMounted) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;
-     if (!settings) return null; 
+     if (!settings) return null;
 
      let displayError = adviceError;
      if(isApiSourceSelected && (weatherLoading || weatherRefetching)){
@@ -376,7 +379,7 @@ export default function AdvisoryPage() {
             <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Alert className="border-none p-0"> 
+            <Alert className="border-none p-0">
               <RecommendationIcon className={`h-5 w-5 ${advice.recommendChargeNow || advice.recommendChargeLater ? 'text-primary' : 'text-muted-foreground'}`} />
              <AlertTitle className="ml-7 font-semibold"></AlertTitle>
              <AlertDescription className="ml-7">
@@ -513,7 +516,7 @@ export default function AdvisoryPage() {
                type="number"
                step="0.01"
                min="0"
-               max={batteryMaxInput > 0 ? batteryMaxInput : undefined} 
+               max={batteryMaxInput > 0 ? batteryMaxInput : undefined}
                value={currentBatteryLevel}
                onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput > 0 ? batteryMaxInput : Infinity, parseFloat(e.target.value) || 0)))}
                placeholder="e.g., 5.20"
