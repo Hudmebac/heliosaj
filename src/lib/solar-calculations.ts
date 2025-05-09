@@ -2,7 +2,7 @@
 import type { UserSettings, ManualDayForecast, ManualForecastCondition } from '@/types/settings';
 import type { DailyWeather } from '@/types/weather';
 import { mapWmoCodeToManualForecastCondition } from '@/types/weather';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid, parse } from 'date-fns';
 
 export interface HourlyForecast {
   time: string; // HH:MM format
@@ -47,8 +47,8 @@ export function calculateSolarGeneration(
     let sunsetString: string | undefined;
     let weatherConditionForCalc: ManualForecastCondition;
     let sunshineDurationForCalc: number | undefined = undefined;
-    let wmoCodeForCalc: number | undefined = undefined; // For Open-Meteo WMO code
-    let apiWeatherConditionString: string | undefined; // For Open-Meteo display string
+    // let wmoCodeForCalc: number | undefined = undefined; // Not explicitly used after mapping
+    let apiWeatherConditionString: string | undefined;
 
     if ('condition' in dayForecastInput) { // ManualDayForecast
         sunriseString = dayForecastInput.sunrise;
@@ -56,11 +56,29 @@ export function calculateSolarGeneration(
         weatherConditionForCalc = dayForecastInput.condition;
     } else { // DailyWeather from API
         const apiDayData = dayForecastInput as DailyWeather;
-        sunriseString = apiDayData.sunrise ? format(parseISO(apiDayData.sunrise), 'HH:mm') : undefined;
-        sunsetString = apiDayData.sunset ? format(parseISO(apiDayData.sunset), 'HH:mm') : undefined;
+        // Ensure sunrise/sunset from API are valid ISO strings before formatting
+        const tryFormatISO = (dateString: string | undefined, timeFormat: string = 'HH:mm') => {
+          if (!dateString) return undefined;
+          try {
+            const parsedDate = parseISO(dateString);
+            if (isValid(parsedDate)) {
+              return format(parsedDate, timeFormat);
+            }
+            // Attempt to parse if it's just HH:mm already
+            const parsedTime = parse(dateString, 'HH:mm', new Date());
+            if(isValid(parsedTime)) return dateString;
+
+          } catch (e) {
+            console.warn(`Invalid date string for formatting: ${dateString}`, e);
+          }
+          return undefined;
+        };
+
+        sunriseString = tryFormatISO(apiDayData.sunrise);
+        sunsetString = tryFormatISO(apiDayData.sunset);
         weatherConditionForCalc = mapWmoCodeToManualForecastCondition(apiDayData.weather_code);
         sunshineDurationForCalc = apiDayData.sunshine_duration !== undefined && apiDayData.sunshine_duration !== null ? apiDayData.sunshine_duration / 3600 : undefined;
-        wmoCodeForCalc = apiDayData.weather_code;
+        // wmoCodeForCalc = apiDayData.weather_code;
         apiWeatherConditionString = apiDayData.weatherConditionString;
     }
 
@@ -117,27 +135,38 @@ export function calculateSolarGeneration(
     const systemEfficiency = settings.systemEfficiency ?? 0.85;
     const directionFactor = settings.propertyDirectionFactor ?? 1.0;
 
-    const currentDate = new Date(dayForecastInput.date + "T12:00:00Z");
-    const currentMonth = currentDate.getUTCMonth();
+    // Ensure date parsing is robust for getUTCMonth
+    let currentMonth: number;
+    try {
+        // Assuming dayForecastInput.date is 'YYYY-MM-DD'
+        const dateObj = parseISO(dayForecastInput.date + "T12:00:00Z"); // Add time and Z for UTC
+        if (!isValid(dateObj)) {
+            throw new Error("Invalid date string for month calculation");
+        }
+        currentMonth = dateObj.getUTCMonth();
+    } catch (e) {
+        console.error("Error parsing date for month calculation:", dayForecastInput.date, e);
+        currentMonth = new Date().getUTCMonth(); // Fallback to current month
+    }
+
 
     let effectivePeakSunHours: number;
 
     // Determine weather condition string for the output
     const outputWeatherConditionString = ('condition' in dayForecastInput)
-        ? weatherConditionForCalc.replace(/_/g, ' ') // Use mapped/derived condition for manual
-        : (apiWeatherConditionString || 'unknown'); // Use direct string from API data
+        ? weatherConditionForCalc.replace(/_/g, ' ')
+        : (apiWeatherConditionString || 'unknown');
 
     if (settings.selectedWeatherSource === 'open-meteo' && sunshineDurationForCalc !== undefined) {
         let conditionRefinementFactor = 1.0;
-        // Use weatherConditionForCalc which is derived from WMO for API data
         if (weatherConditionForCalc === 'rainy') conditionRefinementFactor = 0.4;
         else if (weatherConditionForCalc === 'overcast') conditionRefinementFactor = 0.6;
         else if (weatherConditionForCalc === 'cloudy') conditionRefinementFactor = 0.8;
         effectivePeakSunHours = sunshineDurationForCalc * conditionRefinementFactor;
-    } else { // Manual input or API fallback
+    } else { 
         const userMonthlyFactors = (settings.selectedWeatherSource === 'manual' && settings.monthlyGenerationFactors && settings.monthlyGenerationFactors.length === 12)
             ? settings.monthlyGenerationFactors
-            : Array(12).fill(1.0); // Default to 1.0 if not manual or factors not set
+            : Array(12).fill(1.0); 
         const currentMonthlyFactor = userMonthlyFactors[currentMonth] ?? 1.0;
 
         const conditionFactors: Record<ManualForecastCondition, number> = {
@@ -154,21 +183,28 @@ export function calculateSolarGeneration(
     let dailyTotalGenerationKWh = totalSystemKWp * effectivePeakSunHours * directionFactor * systemEfficiency;
     dailyTotalGenerationKWh = Math.max(0, dailyTotalGenerationKWh);
 
+    // If the source is Open-Meteo, divide the result by 2.5
+    if (settings.selectedWeatherSource === 'open-meteo') {
+        dailyTotalGenerationKWh = dailyTotalGenerationKWh / 2.5;
+    }
+
+
     const peakHourSolarNoon = sunriseHour + daylightHours / 2;
 
     for (let hour = 0; hour < 24; hour++) {
       let estimatedGenerationWh = 0;
       if (hour >= Math.floor(sunriseHour) && hour < Math.ceil(sunsetHour) && daylightHours > 0) {
         const proximityToNoonFactor = 1 - Math.abs(hour + 0.5 - peakHourSolarNoon) / (daylightHours / 2);
-        let hourlyGenerationFactor = Math.pow(Math.max(0, proximityToNoonFactor), 1.5);
-        estimatedGenerationWh = hourlyGenerationFactor;
+        // Using Math.pow with 1.5 creates a more realistic bell curve than 2
+        let hourlyGenerationFactor = Math.pow(Math.max(0, proximityToNoonFactor), 1.5); 
+        estimatedGenerationWh = hourlyGenerationFactor; 
       }
       hourlyForecast.push({
         time: `${hour.toString().padStart(2, '0')}:00`,
-        estimatedGenerationWh: estimatedGenerationWh,
+        estimatedGenerationWh: estimatedGenerationWh, 
       });
     }
-
+    
     const sumOfHourlyFactors = hourlyForecast.reduce((sum, hf) => sum + hf.estimatedGenerationWh, 0);
 
     if (sumOfHourlyFactors > 0.001 && dailyTotalGenerationKWh > 0) {
@@ -176,11 +212,12 @@ export function calculateSolarGeneration(
         hourlyForecast.forEach(hf => {
             hf.estimatedGenerationWh = parseFloat(((hf.estimatedGenerationWh / sumOfHourlyFactors) * totalGenerationWh).toFixed(3));
         });
-    } else {
+    } else { 
          hourlyForecast.forEach(hf => {
             hf.estimatedGenerationWh = 0;
         });
     }
+
 
     return {
       date: dayForecastInput.date,
@@ -208,3 +245,4 @@ export function calculateSolarGeneration(
     };
   }
 }
+
