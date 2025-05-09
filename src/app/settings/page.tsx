@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -155,18 +154,18 @@ const defaultMonthlyFactors = [
 
 const settingsSchema = z.object({
   location: z.string().min(3, { message: "Location must be at least 3 characters." }),
-  latitude: z.coerce.number().optional(), 
-  longitude: z.coerce.number().optional(), 
-  propertyDirection: z.string().min(1, { message: "Please select a property direction." }), 
-  propertyDirectionFactor: z.coerce.number().optional(), 
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
+  propertyDirection: z.string().min(1, { message: "Please select a property direction." }),
+  propertyDirectionFactor: z.coerce.number().optional(),
   inputMode: z.enum(['Panels', 'TotalPower']),
   panelCount: z.coerce.number().int().positive().optional(),
   panelWatts: z.coerce.number().int().positive().optional(),
   totalKWp: z.coerce.number().positive().optional(),
   batteryCapacityKWh: z.coerce.number().nonnegative().optional(),
-  batteryMaxChargeRateKWh: z.coerce.number().positive().optional(), // Added
+  batteryMaxChargeRateKWh: z.coerce.number().positive().optional(),
   preferredOvernightBatteryChargePercent: z.coerce.number().min(0).max(100).optional(),
-  systemEfficiency: z.coerce.number().min(0).max(1).optional(), 
+  systemEfficiency: z.coerce.number().min(0).max(1).optional(),
   dailyConsumptionKWh: z.coerce.number().positive().optional(),
   avgHourlyConsumptionKWh: z.coerce.number().positive().optional(),
   hourlyUsageProfile: z.array(z.coerce.number().nonnegative()).length(24).optional(),
@@ -181,16 +180,16 @@ const settingsSchema = z.object({
     }
     return true;
   }, {
-    message: "Panel Count and Watts per Panel are required when 'By Panel' is selected.",
-    path: ["panelCount"],
+    message: "Panel Count and Panel Watts are required when 'By Panel' mode is selected.",
+    path: ["inputMode"],
   }).refine(data => {
     if (data.inputMode === 'TotalPower') {
       return data.totalKWp !== undefined;
     }
     return true;
   }, {
-    message: "Total System Power (kWp) is required when 'By Total Power' is selected.",
-    path: ["totalKWp"],
+    message: "Total System Power (kWp) is required when 'By Total Power' mode is selected.",
+    path: ["inputMode"],
 });
 
 const HOURS_IN_DAY = 24;
@@ -215,20 +214,24 @@ export default function SettingsPage() {
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       location: '',
-      propertyDirection: SOUTH_DIRECTION_INFO.value, 
+      propertyDirection: SOUTH_DIRECTION_INFO.value,
       propertyDirectionFactor: SOUTH_DIRECTION_INFO.factor,
       inputMode: 'Panels',
       systemEfficiency: 0.85,
-      selectedWeatherSource: 'open-meteo', // Default to open-meteo
+      selectedWeatherSource: 'open-meteo',
       dailyConsumptionKWh: 10,
       avgHourlyConsumptionKWh: 0.4,
-      hourlyUsageProfile: Array(HOURS_IN_DAY).fill(0.4), 
+      hourlyUsageProfile: Array(HOURS_IN_DAY).fill(0.4),
       evChargeRequiredKWh: 0,
       evChargeByTime: '07:00',
       evMaxChargeRateKWh: 7.5,
-      batteryMaxChargeRateKWh: 5, // Default battery charge rate
+      batteryMaxChargeRateKWh: 5,
       monthlyGenerationFactors: [...defaultMonthlyFactors],
       preferredOvernightBatteryChargePercent: 100,
+      panelCount: undefined,
+      panelWatts: undefined,
+      totalKWp: undefined,
+      batteryCapacityKWh: undefined,
     },
     mode: 'onChange',
   });
@@ -247,7 +250,7 @@ export default function SettingsPage() {
       const factorsToSet = storedSettings.monthlyGenerationFactors && storedSettings.monthlyGenerationFactors.length === 12
         ? storedSettings.monthlyGenerationFactors
         : [...defaultMonthlyFactors];
-      
+
       const hourlyProfileToSet = storedSettings.hourlyUsageProfile && storedSettings.hourlyUsageProfile.length === HOURS_IN_DAY
         ? storedSettings.hourlyUsageProfile
         : Array(HOURS_IN_DAY).fill(storedSettings.avgHourlyConsumptionKWh || 0.4);
@@ -260,21 +263,21 @@ export default function SettingsPage() {
          hourlyUsageProfile: hourlyProfileToSet,
          selectedWeatherSource: storedSettings.selectedWeatherSource || 'open-meteo',
          preferredOvernightBatteryChargePercent: storedSettings.preferredOvernightBatteryChargePercent ?? 100,
-         batteryMaxChargeRateKWh: storedSettings.batteryMaxChargeRateKWh ?? 5, // Load saved or default
+         batteryMaxChargeRateKWh: storedSettings.batteryMaxChargeRateKWh ?? 5,
        });
        setCurrentInputMode(storedSettings.inputMode || 'Panels');
        if (storedSettings.location && storedSettings.latitude && storedSettings.longitude) {
           const matchingAddress = addresses.find(addr => addr.lat === storedSettings.latitude && addr.lng === storedSettings.longitude);
           setSelectedAddressValue(matchingAddress ? matchingAddress.place_id.toString() : storedSettings.location);
        } else if (storedSettings.location) {
-         setSelectedAddressValue(storedSettings.location); 
+         setSelectedAddressValue(storedSettings.location);
        } else {
           setSelectedAddressValue(undefined);
        }
         const currentDirection = propertyDirectionOptions.find(opt => opt.value === (storedSettings.propertyDirection || SOUTH_DIRECTION_INFO.value));
         setSelectedDirectionInfo(currentDirection || SOUTH_DIRECTION_INFO);
 
-     } else if (isMounted) { 
+     } else if (isMounted) {
         form.reset({
          location: '',
          latitude: undefined,
@@ -325,7 +328,7 @@ export default function SettingsPage() {
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
         'batteryCapacityKWh', 'batteryMaxChargeRateKWh', 'systemEfficiency', 'dailyConsumptionKWh',
-        'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh', 
+        'avgHourlyConsumptionKWh', 'evChargeRequiredKWh', 'evMaxChargeRateKWh',
         'propertyDirectionFactor', 'preferredOvernightBatteryChargePercent'
     ];
     numericFields.forEach(field => {
@@ -348,7 +351,7 @@ export default function SettingsPage() {
     }
 
     if (saveData.hourlyUsageProfile) {
-        saveData.hourlyUsageProfile = saveData.hourlyUsageProfile.map(usage => 
+        saveData.hourlyUsageProfile = saveData.hourlyUsageProfile.map(usage =>
             (usage === null || usage === undefined || isNaN(Number(usage))) ? 0 : Number(usage)
         );
     } else {
@@ -357,7 +360,7 @@ export default function SettingsPage() {
 
     if (selectedDirectionInfo && data.propertyDirection === selectedDirectionInfo.value) {
         saveData.propertyDirectionFactor = selectedDirectionInfo.factor;
-    } else { 
+    } else {
         const direction = propertyDirectionOptions.find(opt => opt.value === data.propertyDirection);
         saveData.propertyDirectionFactor = direction ? direction.factor : SOUTH_DIRECTION_INFO.factor;
     }
@@ -380,8 +383,8 @@ export default function SettingsPage() {
     setLookupLoading(true);
     setLookupError(null);
     setAddresses([]);
-    setSelectedAddressValue(undefined); 
-    form.setValue('location', ''); 
+    setSelectedAddressValue(undefined);
+    form.setValue('location', '');
     form.setValue('latitude', undefined);
     form.setValue('longitude', undefined);
 
@@ -399,7 +402,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleAddressSelect = (selectedValue: string) => { 
+  const handleAddressSelect = (selectedValue: string) => {
       const selectedData = addresses.find(addr => addr.place_id.toString() === selectedValue);
       if (selectedData) {
         setSelectedAddressValue(selectedData.place_id.toString());
@@ -527,7 +530,7 @@ export default function SettingsPage() {
                     <div className="space-y-1 mt-2">
                        <Label htmlFor="addressSelect">Select Address</Label>
                       <Select
-                         value={selectedAddressValue} 
+                         value={selectedAddressValue}
                          onValueChange={handleAddressSelect}
                          aria-label="Select an address from the lookup results"
                        >
@@ -602,7 +605,7 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <FormLabel>Property/Panel Direction</FormLabel>
                     <Tooltip>
-                      <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}> 
+                      <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}>
                          <HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-xs">
@@ -618,10 +621,10 @@ export default function SettingsPage() {
                   </div>
                    <Select
                         onValueChange={(value) => {
-                           handleDirectionChange(value); 
-                           field.onChange(value); 
+                           handleDirectionChange(value);
+                           field.onChange(value);
                         }}
-                        value={field.value} 
+                        value={field.value}
                         defaultValue={SOUTH_DIRECTION_INFO.value}
                     >
                     <FormControl>
@@ -656,8 +659,7 @@ export default function SettingsPage() {
                           field.onChange(value);
                           setCurrentInputMode(value as 'Panels' | 'TotalPower');
                         }}
-                        value={field.value} 
-                        defaultValue={currentInputMode}
+                        value={field.value}
                         className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-4"
                       >
                         <FormItem className="flex items-center space-x-3 space-y-0">
@@ -674,7 +676,7 @@ export default function SettingsPage() {
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
-                     <FormMessage />
+                     <FormMessage /> {/* This will display errors pathed to "inputMode" */}
                   </FormItem>
                 )}
               />
@@ -897,7 +899,7 @@ export default function SettingsPage() {
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <CardContent className="pt-2"> 
+            <CardContent className="pt-2">
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
