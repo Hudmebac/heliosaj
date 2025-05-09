@@ -1,3 +1,4 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -20,28 +21,56 @@ export default function InfoPage() {
               <CardTitle>How to Use HelioHeggie</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
-              <p>Welcome to HelioHeggie! Here’s how to get the most out of the app:</p>
-              <ol className="list-decimal list-inside space-y-2">
+              <p>Welcome to HelioHeggie! Here’s a guide to getting the most out of the app:</p>
+              <ol className="list-decimal list-inside space-y-3">
                 <li>
-                  <strong>Configure Settings:</strong> Go to the 'Settings' tab (gear icon). Enter your location (city/postcode or precise coordinates), the direction your panels face, and details about your solar system (either number/power of panels OR total system power). If you have a battery, enter its capacity. Accurate settings lead to better forecasts.
+                  <strong>Configure System Settings (Gear Icon <span aria-label="Settings icon">&#9881;</span>):</strong>
+                  <ul className="list-disc list-inside space-y-1 pl-6 mt-1">
+                    <li><strong>Location:</strong> Use the postcode lookup (UK) or manually enter your address/coordinates. Accurate latitude and longitude are crucial, especially for the "Open-Meteo" forecast source.</li>
+                    <li><strong>Panel Direction:</strong> Select the direction your solar panels primarily face. This impacts generation estimates.</li>
+                    <li><strong>Solar System Power:</strong> Input your panel count and wattage to estimate total power, then click "Apply to Total System Power", or directly enter your system's "Total System Power (kWp)". This kWp value is vital for forecasts.</li>
+                    <li><strong>Battery:</strong> If you have one, enter its "Capacity (kWh)", "Max Charge Rate (kW)", and your "Preferred Overnight Battery Target (%)".</li>
+                    <li><strong>Consumption:</strong> Optionally, provide your typical daily/hourly energy usage and fine-tune the hourly profile using sliders. This helps the Advisory page.</li>
+                    <li><strong>Tariffs:</strong> Define your electricity tariff periods (name, times, rate, cheap status). This is essential for smart charging advice.</li>
+                    <li>Save settings after making changes.</li>
+                  </ul>
                 </li>
                 <li>
-                  <strong>Check Dashboard:</strong> The 'Dashboard' (home icon) shows the estimated solar energy generation for today and tomorrow based on your settings and the latest weather forecast. A chart visualizes the expected power throughout the day.
+                  <strong>Select Weather Source (Header <span aria-label="Cloud and Sun icon">&#x26C5;</span> Source):</strong>
+                  <ul className="list-disc list-inside space-y-1 pl-6 mt-1">
+                    <li><strong>Open-Meteo (Default):</strong> Provides API-driven forecasts for today, tomorrow, and a 7-day week ahead view. Requires accurate location in Settings.</li>
+                    <li><strong>Manual Input:</strong> Allows you to enter your own sunrise/sunset times and weather conditions for today and tomorrow. Useful if API is unavailable or for custom scenarios.</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>View Dashboard (Home Icon <span aria-label="Home icon">&#127968;</span>):</strong>
+                  <ul className="list-disc list-inside space-y-1 pl-6 mt-1">
+                    <li>Shows estimated solar generation for today and tomorrow based on your settings and selected weather source.</li>
+                    <li>Charts visualize expected hourly generation. Hover for details.</li>
+                    <li>The "Week Ahead" view (for Open-Meteo source on larger screens) gives a 7-day outlook.</li>
+                    <li>Use the "Refresh Forecast" (for API) or "Edit Manual Forecast" button as needed.</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Get Smart Charging Advice (Lightning Bolt Icon <span aria-label="Lightning bolt icon">&#x26A1;</span>):</strong>
+                  <ul className="list-disc list-inside space-y-1 pl-6 mt-1">
+                    <li>Input your current battery level and expected energy usage (daily/hourly).</li>
+                    <li>Set EV charging needs if applicable (kWh, charge-by time, max rate).</li>
+                    <li>The app provides "Today's Recommendation" and "Overnight Charging (for Tomorrow)" advice.</li>
+                    <li>This advice considers your forecast, tariffs, battery state, consumption, and EV needs to suggest optimal grid charging times or reliance on solar/battery.</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Explore Info (This Page - Info Icon <span aria-label="Info icon">&#x2139;</span>):</strong>
+                  <ul className="list-disc list-inside space-y-1 pl-6 mt-1">
+                    <li>Browse the tabs for more on solar panels, common myths, and general solar energy advice.</li>
+                  </ul>
                 </li>
                  <li>
-                  <strong>Manage Tariffs:</strong> Visit the 'Tariffs' tab (chart icon). Here you can view general tariff information. Soon, you'll be able to input your specific electricity rates and times for peak/off-peak periods.
-                </li>
-                <li>
-                  <strong>Get Smart Charging Advice:</strong> In the 'Advisory' tab (lightning bolt icon), define your cheap electricity tariff times. Based on tomorrow's solar forecast and your battery size, the app will suggest whether charging your battery from the grid overnight is recommended.
-                </li>
-                <li>
-                  <strong>Explore Info:</strong> Browse the other tabs here ('Solar Panels', 'Myth Busting', 'General Advice') for useful information about solar energy.
-                </li>
-                 <li>
-                  <strong>Switch Themes:</strong> Use the Sun/Moon icon in the header to toggle between light and dark modes.
+                  <strong>Switch Themes (Header Sun/Moon/Contrast Icon):</strong> Toggle between Light, Dark, and High Contrast display modes for your preference.
                 </li>
               </ol>
-               <p><strong>Tip:</strong> Keep your settings updated if you change your system or move!</p>
+               <p className="pt-2"><strong>Key to Success:</strong> Accurate and up-to-date information in Settings (location, system power, tariffs) and on the Advisory page (current battery, consumption) will yield the most useful forecasts and recommendations. Remember to select your desired weather source in the header.</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -111,7 +140,7 @@ export default function InfoPage() {
                <h3 className="font-semibold text-foreground">Battery Management:</h3>
                  <ul className="list-disc list-inside space-y-1">
                     <li>Set battery reserve levels wisely. Keeping a small reserve (e.g., 10-20%) can be useful for short power outages, but setting it too high reduces the capacity available for daily savings.</li>
-                    <li>Consider smart charging based on forecasts (like this app helps with!). If a cloudy day is predicted and you have cheap overnight electricity, charging the battery from the grid might be cheaper than buying expensive peak power the next day.</li>
+                    <li>Consider smart charging based on forecasts (like this app helps with!). If a cloudy day is predicted and you have cheap overnight electricity, charging the battery from the grid might be cheaper than buying expensive peak power the next day. Use the Advisory page for this.</li>
                  </ul>
 
                <h3 className="font-semibold text-foreground">System Monitoring:</h3>
@@ -133,3 +162,4 @@ export default function InfoPage() {
     </div>
   );
 }
+
