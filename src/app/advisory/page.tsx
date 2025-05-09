@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -19,8 +20,8 @@ import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/
 import { addDays, format, parseISO } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { HowToInfo } from '@/components/how-to-info';
-import { useWeatherForecast } from '@/hooks/use-weather-forecast'; // Import the hook
-import { ManualForecastModal } from '@/components/manual-forecast-modal'; // Import the modal
+import { useWeatherForecast } from '@/hooks/use-weather-forecast'; 
+import { ManualForecastModal } from '@/components/manual-forecast-modal'; 
 import type { DailyWeather } from '@/types/weather';
 import { mapWmoCodeToManualForecastCondition } from '@/types/weather';
 
@@ -32,7 +33,7 @@ const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
-    const [manualForecast, setManualForecast] = useManualForecast(); // Manual forecast hook
+    const [manualForecast, setManualForecast] = useManualForecast(); 
 
     const [tomorrowAdvice, setTomorrowAdvice] = useState<ChargingAdvice | null>(null);
     const [todayAdvice, setTodayAdvice] = useState<ChargingAdvice | null>(null);
@@ -78,11 +79,17 @@ export default function AdvisoryPage() {
         const avg = settings.avgHourlyConsumptionKWh ?? (settings.dailyConsumptionKWh ? settings.dailyConsumptionKWh / 24 : 0.4);
         setAvgHourlyConsumption(parseFloat(avg.toFixed(2)));
         
-        if (settings.hourlyUsageProfile && settings.hourlyUsageProfile.length === HOURS_IN_DAY) {
-            setHourlyUsage(settings.hourlyUsageProfile);
-        } else if (hourlyUsage.every(val => val === 0.4)) { 
-             setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
-        }
+        const newHourlyProfileSource = settings.hourlyUsageProfile && settings.hourlyUsageProfile.length === HOURS_IN_DAY 
+            ? settings.hourlyUsageProfile 
+            : Array(HOURS_IN_DAY).fill(parseFloat(avg.toFixed(2)));
+
+        setHourlyUsage(currentProfile => {
+            if (JSON.stringify(currentProfile) !== JSON.stringify(newHourlyProfileSource)) {
+                return newHourlyProfileSource;
+            }
+            return currentProfile; 
+        });
+        
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
         setEvChargeByTime(settings.evChargeByTime ?? '07:00');
         setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
@@ -93,8 +100,9 @@ export default function AdvisoryPage() {
 
       } else {
         setDailyConsumption(10);
-        setAvgHourlyConsumption(0.4);
-        setHourlyUsage(Array(HOURS_IN_DAY).fill(0.4));
+        const avg = 0.4;
+        setAvgHourlyConsumption(avg);
+        setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
         setCurrentBatteryLevel(0);
         setEvChargeRequiredKWh(0);
         setEvChargeByTime('07:00');
@@ -117,7 +125,8 @@ export default function AdvisoryPage() {
      useEffect(() => {
        if (isMounted && settings) {
            const handler = setTimeout(() => {
-               setSettings(prev => ({
+               setSettings(prev => {
+                const newSettings = {
                    ...(prev!),
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
@@ -127,15 +136,20 @@ export default function AdvisoryPage() {
                    avgHourlyConsumptionKWh: avgHourlyConsumption,
                    hourlyUsageProfile: hourlyUsage, 
                    preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
-               }));
+                };
+                // Only call setSettings if there's an actual change to avoid infinite loops with useLocalStorage
+                if (JSON.stringify(prev) !== JSON.stringify(newSettings)) {
+                    return newSettings;
+                }
+                return prev;
+               });
            }, 1000); 
            return () => clearTimeout(handler);
        }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted]);
+   }, [evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, currentBatteryLevel, dailyConsumption, avgHourlyConsumption, hourlyUsage, preferredOvernightBatteryChargePercent, isMounted, setSettings]);
 
 
-    // Calculate solar generation based on selected source
     useEffect(() => {
         if (!isMounted || !settings) {
             setTodayForecastCalc(null);
@@ -146,25 +160,22 @@ export default function AdvisoryPage() {
         let todayInput: ManualDayForecast | null = null;
         let tomorrowInput: ManualDayForecast | null = null;
 
-        if (isApiSourceSelected && weatherForecastData) {
-            if (weatherForecastData.todayForecast) {
-                const apiToday = weatherForecastData.todayForecast;
-                todayInput = {
-                    date: apiToday.date,
-                    sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
-                    sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
-                    condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code),
-                };
-            }
-            if (weatherForecastData.tomorrowForecast) {
-                const apiTomorrow = weatherForecastData.tomorrowForecast;
-                tomorrowInput = {
-                    date: apiTomorrow.date,
-                    sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
-                    sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
-                    condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code),
-                };
-            }
+        if (isApiSourceSelected && weatherForecastData && weatherForecastData.todayForecast && weatherForecastData.tomorrowForecast) {
+            const apiToday = weatherForecastData.todayForecast;
+            todayInput = {
+                date: apiToday.date,
+                sunrise: apiToday.sunrise ? format(parseISO(apiToday.sunrise), 'HH:mm') : '06:00',
+                sunset: apiToday.sunset ? format(parseISO(apiToday.sunset), 'HH:mm') : '18:00',
+                condition: mapWmoCodeToManualForecastCondition(apiToday.weather_code),
+            };
+        
+            const apiTomorrow = weatherForecastData.tomorrowForecast;
+            tomorrowInput = {
+                date: apiTomorrow.date,
+                sunrise: apiTomorrow.sunrise ? format(parseISO(apiTomorrow.sunrise), 'HH:mm') : '06:00',
+                sunset: apiTomorrow.sunset ? format(parseISO(apiTomorrow.sunset), 'HH:mm') : '18:00',
+                condition: mapWmoCodeToManualForecastCondition(apiTomorrow.weather_code),
+            };
         } else if (!isApiSourceSelected) {
             todayInput = manualForecast.today;
             tomorrowInput = manualForecast.tomorrow;
@@ -733,3 +744,4 @@ export default function AdvisoryPage() {
      </div>
    );
  }
+
