@@ -13,12 +13,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod } from '@/types/settings';
-import { settingsSchema, tariffPeriodsSchema } from '@/types/settings'; // Import tariffPeriodsSchema
+import { settingsSchema, tariffPeriodsSchema, propertyDirectionOptions, SOUTH_DIRECTION_INFO, defaultMonthlyFactors } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search, CalendarDays, HelpCircle as HelpCircleIcon, BarChart, Hourglass, Clock, BatteryCharging as BatteryChargingIcon, Percent, Zap, InfoIcon, CheckCircle, Trash2, PlusCircle, Upload, Download } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
-import { propertyDirectionOptions, getFactorByDirectionValue, type PropertyDirectionInfo } from '@/types/settings';
+import type { PropertyDirectionInfo } from '@/types/settings';
 import { Switch } from '@/components/ui/switch';
 import {
   Tooltip,
@@ -130,12 +130,8 @@ async function lookupAddressesByPostcode(postcode: string): Promise<AddressLooku
   }
 }
 
-const defaultMonthlyFactors = [
-  0.3, 0.4, 0.6, 0.8, 1.0, 1.1, 1.0, 0.9, 0.7, 0.5, 0.35, 0.25
-];
 
 const HOURS_IN_DAY = 24;
-const SOUTH_DIRECTION_INFO = propertyDirectionOptions.find(opt => opt.value === 'South') || propertyDirectionOptions[0];
 
 
 export default function SettingsPage() {
@@ -190,6 +186,8 @@ export default function SettingsPage() {
   const watchedPanelCount = form.watch('panelCount');
   const watchedPanelWatts = form.watch('panelWatts');
   const watchedSource = form.watch('selectedWeatherSource');
+  const watchedTotalKWp = form.watch('totalKWp');
+
 
   useEffect(() => {
     if (watchedPanelCount && watchedPanelWatts && watchedPanelCount > 0 && watchedPanelWatts > 0) {
@@ -267,7 +265,8 @@ export default function SettingsPage() {
        setSelectedAddressValue(undefined);
        setSelectedDirectionInfo(SOUTH_DIRECTION_INFO);
      }
-   }, [storedSettings, form, isMounted, addresses]);
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [storedSettings, form, isMounted]);
 
 
    useEffect(() => {
@@ -279,6 +278,12 @@ export default function SettingsPage() {
   const onSubmit = (data: UserSettings) => {
     const saveData: UserSettings = { ...data };
 
+    // Ensure totalKWp is set if calculatedKWpFromPanels is available and no totalKWp is directly entered
+    if (calculatedKWpFromPanels !== undefined && (saveData.totalKWp === undefined || saveData.totalKWp <= 0)) {
+        saveData.totalKWp = calculatedKWpFromPanels;
+    }
+
+
     const numericFields: (keyof UserSettings)[] = [
         'latitude', 'longitude', 'panelCount', 'panelWatts', 'totalKWp',
         'batteryCapacityKWh', 'batteryMaxChargeRateKWh', 'systemEfficiency', 'dailyConsumptionKWh',
@@ -286,10 +291,11 @@ export default function SettingsPage() {
         'propertyDirectionFactor', 'preferredOvernightBatteryChargePercent'
     ];
     numericFields.forEach(field => {
-       if (saveData[field] === '' || saveData[field] === null || isNaN(Number(saveData[field]))) {
+       const value = saveData[field];
+       if (value === '' || value === null || value === undefined || isNaN(Number(value))) {
             (saveData as any)[field] = undefined;
         } else {
-            (saveData as any)[field] = Number(saveData[field]);
+            (saveData as any)[field] = Number(value);
         }
     });
     if (!saveData.evChargeByTime || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(saveData.evChargeByTime)) {
@@ -320,7 +326,6 @@ export default function SettingsPage() {
     }
     saveData.selectedWeatherSource = data.selectedWeatherSource || 'open-meteo';
     saveData.preferredOvernightBatteryChargePercent = data.preferredOvernightBatteryChargePercent ?? 100;
-
 
     setStoredSettings(saveData);
     toast({
@@ -547,18 +552,25 @@ export default function SettingsPage() {
 
         const validationResult = settingsSchema.safeParse(importedData);
         if (!validationResult.success) {
-          console.error("Import validation errors:", validationResult.error.flatten());
+          console.error("Import validation Zod issues:", JSON.stringify(validationResult.error.issues, null, 2));
+          console.error("Flattened Zod errors:", JSON.stringify(validationResult.error.flatten(), null, 2));
+
           let errorMessages = "Imported file has invalid settings structure. Errors: ";
-          validationResult.error.errors.forEach(err => {
-            errorMessages += `${err.path.join('.')}: ${err.message}. `;
-          });
+          if (validationResult.error.issues && validationResult.error.issues.length > 0) {
+            validationResult.error.issues.forEach(issue => {
+              const pathString = issue.path.join('.');
+              errorMessages += `${pathString || 'File level'}: ${issue.message}. `;
+            });
+          } else {
+            errorMessages += "Unknown validation error. The file might be malformed or empty.";
+          }
           throw new Error(errorMessages);
         }
 
         const validatedSettings = validationResult.data as UserSettings;
 
-        form.reset(validatedSettings);
-        setStoredSettings(validatedSettings);
+        form.reset(validatedSettings); // Apply to form
+        setStoredSettings(validatedSettings); // Persist to localStorage
 
         toast({
           title: "Settings Imported",
@@ -633,11 +645,17 @@ export default function SettingsPage() {
 
         const validationResult = tariffPeriodsSchema.safeParse(importedData);
         if (!validationResult.success) {
-          console.error("Tariff import validation errors:", validationResult.error.flatten());
+          console.error("Tariff import validation Zod issues:", JSON.stringify(validationResult.error.issues, null, 2));
+          console.error("Flattened Zod errors for tariffs:", JSON.stringify(validationResult.error.flatten(), null, 2));
           let errorMessages = "Imported tariff file has invalid structure. Errors: ";
-          validationResult.error.errors.forEach(err => {
-            errorMessages += `${err.path.join('.')}: ${err.message}. `;
-          });
+          if (validationResult.error.issues && validationResult.error.issues.length > 0) {
+            validationResult.error.issues.forEach(issue => {
+              const pathString = issue.path.join('.');
+              errorMessages += `${pathString || 'File level'}: ${issue.message}. `;
+            });
+          } else {
+            errorMessages += "Unknown validation error. The tariff file might be malformed or empty.";
+          }
           throw new Error(errorMessages);
         }
         setTariffPeriods(validationResult.data as TariffPeriod[]);
@@ -1270,3 +1288,4 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
+
