@@ -79,8 +79,8 @@ export default function HomePage() {
     let currentManualForecast = manualForecast;
 
     if(manualForecast.today.date !== todayDateStr || manualForecast.tomorrow.date !== tomorrowDateStr) {
-        refreshForecastDates(); 
-        return; 
+        refreshForecastDates();
+        return;
     }
 
     try {
@@ -169,7 +169,7 @@ export default function HomePage() {
  const formatChartData = useCallback((forecast: CalculatedForecast | null) => {
     if (!forecast?.hourlyForecast) return [];
     return forecast.hourlyForecast.map(h => ({
-        time: h.time.split(':')[0] + ':00', 
+        time: h.time.split(':')[0] + ':00',
         kWh: parseFloat((h.estimatedGenerationWh / 1000).toFixed(2))
     }));
   }, []);
@@ -179,7 +179,7 @@ export default function HomePage() {
   const tomorrowChartData = useMemo(() => formatChartData(calculatedForecasts.tomorrow), [calculatedForecasts.tomorrow, formatChartData]);
 
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return 0.5;
+    if (!chartData || chartData.length === 0) return 0.5; // Default to 0.5 if no data or all zero
     const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
     if (maxKWh === 0) return 0.5; // If all values are 0
     return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25; // Ensure max tick is above highest value and is multiple of 0.25
@@ -192,27 +192,48 @@ export default function HomePage() {
   const getYAxisTicks = useCallback((maxYValueForChart: number) => {
     if (maxYValueForChart <= 0) return [0];
     const ticks: number[] = [];
+    // Ensure ticks start at 0 and increment by 0.25
     for (let i = 0; i <= maxYValueForChart; i += 0.25) {
         ticks.push(parseFloat(i.toFixed(2)));
     }
-    // Ensure the maxYValueForChart itself is a tick if not perfectly divisible
+    // Ensure the maxYValueForChart itself is a tick if not perfectly divisible by 0.25,
+    // or if it's the only way to show a value slightly above the last 0.25 increment.
     if (ticks[ticks.length -1] < maxYValueForChart && maxYValueForChart % 0.25 !== 0) {
+        // Add the next 0.25 increment that covers the max value
         ticks.push(parseFloat((Math.ceil(maxYValueForChart / 0.25) * 0.25).toFixed(2)));
     }
-    return Array.from(new Set(ticks)); 
+    // Remove duplicates which might occur if maxYValueForChart is a multiple of 0.25
+    return Array.from(new Set(ticks));
   }, []);
 
 
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
   const tomorrowYAxisTicks = useMemo(() => getYAxisTicks(tomorrowMaxY), [tomorrowMaxY, getYAxisTicks]);
-  
-  const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
-    if (!chartData || chartData.length === 0) return undefined; 
 
-    const allHoursInData = Array.from(new Set(chartData.map(d => d.time)));
-    allHoursInData.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
-    
-    return allHoursInData.length > 0 ? allHoursInData : undefined;
+  const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
+    if (!chartData || chartData.length === 0) return undefined; // No data, no ticks
+
+    // Filter for hours where there's generation, then get unique times
+    const hoursWithGeneration = chartData
+        .filter(d => d.kWh > 0.00001) // Consider a tiny threshold for "generation"
+        .map(d => d.time);
+
+    if (hoursWithGeneration.length === 0) return undefined; // No generation, no ticks
+
+    const uniqueHours = Array.from(new Set(hoursWithGeneration));
+    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0])); // Sort numerically by hour
+
+    // Select ticks: first, last, and some in between, ensuring they are spread out
+    if (uniqueHours.length <= 6) return uniqueHours; // If few hours, show all
+
+    const ticksToShow: string[] = [uniqueHours[0]]; // Always show the first hour of generation
+    const step = Math.max(1, Math.floor(uniqueHours.length / 5)); // Aim for around 5-6 ticks
+    for (let i = step; i < uniqueHours.length -1; i += step) {
+        ticksToShow.push(uniqueHours[i]);
+    }
+    ticksToShow.push(uniqueHours[uniqueHours.length - 1]); // Always show the last hour of generation
+
+    return Array.from(new Set(ticksToShow)); // Ensure uniqueness again if first/last overlap with stepped ticks
   }, []);
 
 
@@ -261,12 +282,12 @@ export default function HomePage() {
             chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset in the forecast settings.";
         } else if (!forecastData.hourlyForecast || forecastData.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
-        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d=>d.kWh > 0.00001)) {
+        } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d=>d.kWh > 0.00001)) { // Use a small threshold for "significant generation"
              chartPlaceholderMessage = "No significant solar generation is expected based on inputs. Please check inputs and factors.";
         }
     }
-    
-    const xAxisHeight = 50; 
+
+    const xAxisHeight = 50; // Increased height for rotated labels
 
     const renderChart = () => {
       const commonProps = {
@@ -278,7 +299,7 @@ export default function HomePage() {
         tickLine: false,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        domain: [0, maxYValueForChart] as [number, number],
+        domain: [0, maxYValueForChart] as [number, number], // Ensure Y-axis starts at 0
         allowDecimals: true,
         tickFormatter: (value: number) => value.toFixed(2),
         width: 40, // Adjusted width for Y-axis labels
@@ -289,14 +310,14 @@ export default function HomePage() {
         tickLine: true,
         axisLine: false,
         stroke: "hsl(var(--muted-foreground))",
-        ticks: chartXTicksForChart, 
+        ticks: chartXTicksForChart, // Use the calculated ticks
         tickFormatter: (value: string) => value ? `${parseInt(value.split(':')[0]) % 12 || 12}${parseInt(value.split(':')[0]) >= 12 ? 'pm' : 'am'}`: '',
-        interval: 'preserveStartEnd', 
+        interval: 'preserveStartEnd', // Show specified ticks, preserving first and last
         angle: -45, // Slightly less steep angle for better readability
         textAnchor: 'end' as const,
-        dx: -5, 
-        dy: 5, 
-        height: xAxisHeight, 
+        dx: -5, // Adjust horizontal position
+        dy: 5,  // Adjust vertical position
+        height: xAxisHeight, // Provide ample height for rotated labels
         fontSize: 10,
       };
 
@@ -394,7 +415,7 @@ export default function HomePage() {
             </CardContent>
         </Card>
     );
-  }, [isMounted, settings, selectedChartType]); 
+  }, [isMounted, settings, selectedChartType]); // Added selectedChartType to dependencies
 
  const isValidDateString = (dateStr: string | undefined): dateStr is string => {
     if (!dateStr) return false;
@@ -561,12 +582,7 @@ export default function HomePage() {
                     {renderForecastCard("Today", calculatedForecasts.today, manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks)}
                     {renderForecastCard("Tomorrow", calculatedForecasts.tomorrow, manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks)}
                 </div>
-                 {isMounted && (!settings.selectedWeatherSource || settings.selectedWeatherSource === 'manual') && !isMobile && (
-                  <div className="mt-8">
-                      <h2 className="text-2xl font-bold mb-4">Week Ahead</h2>
-                       <p className="text-sm text-muted-foreground mt-2">Week ahead forecast is not available with manual input mode. Future updates may integrate API options for extended forecasts.</p>
-                  </div>
-                )}
+                 {/* Week ahead placeholder removed based on user request to hide until API integration */}
             </>
         )}
     </div>
