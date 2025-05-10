@@ -15,7 +15,6 @@ import { calculateSolarGeneration, type CalculatedForecast} from '@/lib/solar-ca
 import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice,  } from '@/lib/charging-advice';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
-// import { ForecastInfo } from '@/components/forecast-info'; // Not directly used on this page anymore
 import { format, parseISO } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { HowToInfo } from '@/components/how-to-info';
@@ -25,7 +24,7 @@ import type { DailyWeather } from '@/types/weather';
 
 
 const HOURS_IN_DAY = 24;
-const DEFAULT_BATTERY_MAX = 100;
+const DEFAULT_BATTERY_MAX = 100; // Default max for UI elements if capacity not set
 const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 
 export default function AdvisoryPage() {
@@ -44,7 +43,7 @@ export default function AdvisoryPage() {
     const [currentHour, setCurrentHour] = useState<number | null>(null);
     const { toast } = useToast();
 
-    const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(0);
+    const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(10); // Default to 10
     const [hourlyUsage, setHourlyUsage] = useState<number[]>(() => Array(HOURS_IN_DAY).fill(0.4));
     const [dailyConsumption, setDailyConsumption] = useState<number>(10);
     const [avgHourlyConsumption, setAvgHourlyConsumption] = useState<number>(0.4);
@@ -94,17 +93,28 @@ export default function AdvisoryPage() {
         setEvChargeRequiredKWh(settings.evChargeRequiredKWh ?? 0);
         setEvChargeByTime(settings.evChargeByTime ?? '07:00');
         setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
+        
+        const batteryCapacity = settings.batteryCapacityKWh ?? 0; // Default to 0 if not set
         const lastKnown = settings.lastKnownBatteryLevelKWh;
-        const batteryCapacity = settings.batteryCapacityKWh ?? 0;
-        setCurrentBatteryLevel(lastKnown !== undefined && lastKnown !== null && batteryCapacity > 0 ? Math.max(0, Math.min(batteryCapacity, lastKnown)) : 0);
+
+        if (batteryCapacity <= 0) {
+            setCurrentBatteryLevel(0); // If capacity is 0 or not meaningfully set, level must be 0
+        } else if (lastKnown !== undefined && lastKnown !== null) {
+            // Use last known level, capped by actual capacity
+            setCurrentBatteryLevel(Math.max(0, Math.min(batteryCapacity, lastKnown)));
+        } else {
+            // No last known level, but capacity > 0. Cap the current state (initial 10 or user input) by capacity.
+            setCurrentBatteryLevel(prev => Math.max(0, Math.min(batteryCapacity, prev)));
+        }
         setPreferredOvernightBatteryChargePercent(settings.preferredOvernightBatteryChargePercent ?? 100);
 
       } else {
+        // Settings are null, reset relevant states to their defaults
+        setCurrentBatteryLevel(10); // Default to 10 if settings are null
         setDailyConsumption(10);
         const avg = 0.4;
         setAvgHourlyConsumption(avg);
         setHourlyUsage(Array(HOURS_IN_DAY).fill(avg));
-        setCurrentBatteryLevel(0);
         setEvChargeRequiredKWh(0);
         setEvChargeByTime('07:00');
         setEvMaxChargeRateKWh(DEFAULT_EV_MAX_CHARGE_RATE);
@@ -132,7 +142,7 @@ export default function AdvisoryPage() {
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
-                   lastKnownBatteryLevelKWh: currentBatteryLevel,
+                   lastKnownBatteryLevelKWh: currentBatteryLevel, // Persist currentBatteryLevel
                    dailyConsumptionKWh: dailyConsumption,
                    avgHourlyConsumptionKWh: avgHourlyConsumption,
                    hourlyUsageProfile: hourlyUsage,
@@ -201,8 +211,11 @@ export default function AdvisoryPage() {
          setAdviceError(null);
 
         if (!settings.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) {
-             setAdviceError("Battery capacity not set. This is required for charging advice.");
-            return;
+            // If capacity is 0, advice for battery is limited, but EV advice might still be relevant
+             if(evChargeRequiredKWh <= 0 ) { // If no EV charge either, then error out
+                setAdviceError("Battery capacity not set or is 0. This is required for battery charging advice.");
+                return;
+             }
         }
 
          const evNeedsInput = {
@@ -239,9 +252,9 @@ export default function AdvisoryPage() {
                 forecast: tomorrowForecastCalc,
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel,
-                hourlyConsumptionProfile: hourlyUsage,
-                currentHour: currentHour,
+                currentBatteryLevelKWh: currentBatteryLevel, // Use current level as starting point for overnight sim
+                hourlyConsumptionProfile: hourlyUsage, // Use current profile for tomorrow's base load
+                currentHour: 0, // Overnight planning always starts from hour 0 of "tomorrow"
                 evNeeds: evNeedsInput,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -395,12 +408,34 @@ export default function AdvisoryPage() {
      );
    };
 
-    const batteryMaxInput = isMounted ? (settings?.batteryCapacityKWh ?? DEFAULT_BATTERY_MAX) : DEFAULT_BATTERY_MAX;
-    const sliderMax = isMounted ? Math.max(2, avgHourlyConsumption * 5, 1) : 2;
+    const uiMaxBatteryLevel = useMemo(() => {
+        if (!isMounted) return DEFAULT_BATTERY_MAX;
+        return (settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0) 
+               ? settings.batteryCapacityKWh 
+               : DEFAULT_BATTERY_MAX;
+    }, [isMounted, settings?.batteryCapacityKWh]);
+
+    const handleBatteryLevelChange = (newLevel: number) => {
+        const actualCapacity = settings?.batteryCapacityKWh;
+        let cappedLevel = newLevel;
+
+        if (actualCapacity !== undefined && actualCapacity !== null) {
+            if (actualCapacity <= 0) {
+                cappedLevel = 0;
+            } else {
+                cappedLevel = Math.max(0, Math.min(actualCapacity, newLevel));
+            }
+        } else {
+            cappedLevel = Math.max(0, Math.min(uiMaxBatteryLevel, newLevel));
+        }
+        setCurrentBatteryLevel(cappedLevel);
+    };
+    
     const currentBatteryPercentage = useMemo(() => {
         if (!isMounted || !settings?.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) return 0;
         return Math.round((currentBatteryLevel / settings.batteryCapacityKWh) * 100);
     }, [isMounted, settings?.batteryCapacityKWh, currentBatteryLevel]);
+
 
    const displayGeneration = (forecast: CalculatedForecast | null) => {
         if (!forecast) return 'Calculating...';
@@ -493,26 +528,42 @@ export default function AdvisoryPage() {
          </CardHeader>
          <CardContent className="space-y-4">
            <div className="space-y-2">
-             <Label htmlFor="batteryLevel" className="flex items-center gap-2">
+             <Label htmlFor="batteryLevelSlider" className="flex items-center gap-2">
                <Battery className="h-4 w-4" /> Current Battery Level (kWh)
              </Label>
-             <Input
-               id="batteryLevel"
-               type="number"
-               step="0.01"
-               min="0"
-               max={batteryMaxInput > 0 ? batteryMaxInput : undefined}
-               value={currentBatteryLevel}
-               onChange={(e) => setCurrentBatteryLevel(Math.max(0, Math.min(batteryMaxInput > 0 ? batteryMaxInput : Infinity, parseFloat(e.target.value) || 0)))}
-               placeholder="e.g., 5.20"
-               className="w-full sm:max-w-xs"
-             />
+             <div className="flex items-center gap-2 sm:gap-4 w-full sm:max-w-md">
+               <Slider
+                 id="batteryLevelSlider"
+                 min={0}
+                 max={uiMaxBatteryLevel}
+                 step={0.1} 
+                 value={[currentBatteryLevel]}
+                 onValueChange={(value) => handleBatteryLevelChange(value[0])}
+                 className="flex-grow"
+                 aria-label="Current battery level slider"
+               />
+               <Input
+                 id="batteryLevelInput"
+                 type="number"
+                 step="0.1"
+                 min="0"
+                 max={uiMaxBatteryLevel} 
+                 value={currentBatteryLevel}
+                 onChange={(e) => handleBatteryLevelChange(parseFloat(e.target.value) || 0)}
+                 className="w-24"
+                 placeholder="e.g., 10.0"
+               />
+             </div>
               {isMounted && settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0 ? (
                  <p className="text-xs text-muted-foreground flex items-center gap-1">
                    (<Percent className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh.toFixed(2)} kWh)
                  </p>
               ) : (
-                  <p className="text-xs text-muted-foreground">{isMounted ? '(Set Battery Capacity in Settings to see %)' : ''}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isMounted ? 
+                        (settings?.batteryCapacityKWh === 0 ? '(Battery capacity set to 0 kWh)' : '(Set Battery Capacity in Settings to see %)') 
+                        : ''}
+                  </p>
               )}
            </div>
 
@@ -613,7 +664,7 @@ export default function AdvisoryPage() {
                            <Slider
                              id={`hour-${index}`}
                              min={0}
-                             max={sliderMax}
+                             max={avgHourlyConsumption * 5 > 0 ? avgHourlyConsumption * 5 : 2} // Ensure max is always > 0
                              step={0.01}
                              value={[usage]}
                              onValueChange={(value) => handleSliderChange(index, value)}
