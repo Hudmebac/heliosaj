@@ -186,7 +186,7 @@ export default function SettingsPage() {
   const watchedPanelCount = form.watch('panelCount');
   const watchedPanelWatts = form.watch('panelWatts');
   const watchedSource = form.watch('selectedWeatherSource');
-  const watchedTotalKWp = form.watch('totalKWp');
+  // const watchedTotalKWp = form.watch('totalKWp');
 
 
   useEffect(() => {
@@ -278,7 +278,6 @@ export default function SettingsPage() {
   const onSubmit = (data: UserSettings) => {
     const saveData: UserSettings = { ...data };
 
-    // Ensure totalKWp is set if calculatedKWpFromPanels is available and no totalKWp is directly entered
     if (calculatedKWpFromPanels !== undefined && (saveData.totalKWp === undefined || saveData.totalKWp <= 0)) {
         saveData.totalKWp = calculatedKWpFromPanels;
     }
@@ -569,8 +568,8 @@ export default function SettingsPage() {
 
         const validatedSettings = validationResult.data as UserSettings;
 
-        form.reset(validatedSettings); // Apply to form
-        setStoredSettings(validatedSettings); // Persist to localStorage
+        form.reset(validatedSettings);
+        setStoredSettings(validatedSettings);
 
         toast({
           title: "Settings Imported",
@@ -585,7 +584,7 @@ export default function SettingsPage() {
         });
       } finally {
         if (event.target) {
-          event.target.value = ""; // Reset file input
+          event.target.value = "";
         }
       }
     };
@@ -672,7 +671,7 @@ export default function SettingsPage() {
         });
       } finally {
         if (event.target) {
-          event.target.value = ""; // Reset file input
+          event.target.value = "";
         }
       }
     };
@@ -692,9 +691,22 @@ export default function SettingsPage() {
   return (
     <TooltipProvider>
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-         <h1 className="text-2xl sm:text-3xl font-bold">System Configuration</h1>
-         <HowToInfo pageKey="settings" />
+       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+         <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-0">System Configuration</h1>
+         <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleImportSettingsClick}>
+                <Upload className="mr-2 h-4 w-4" /> Import Settings
+            </Button>
+            <input
+                type="file"
+                ref={settingsFileInputRef}
+                onChange={handleSettingsFileChange}
+                accept=".json"
+                className="hidden"
+                aria-hidden="true"
+            />
+            <HowToInfo pageKey="settings" />
+         </div>
       </div>
 
     <Card>
@@ -1114,17 +1126,7 @@ export default function SettingsPage() {
                 <Button type="button" variant="outline" onClick={handleExportSettings} className="w-full sm:w-auto">
                     <Download className="mr-2 h-4 w-4" /> Export Settings
                 </Button>
-                <Button type="button" variant="outline" onClick={handleImportSettingsClick} className="w-full sm:w-auto">
-                    <Upload className="mr-2 h-4 w-4" /> Import Settings
-                </Button>
-                <input
-                    type="file"
-                    ref={settingsFileInputRef}
-                    onChange={handleSettingsFileChange}
-                    accept=".json"
-                    className="hidden"
-                    aria-hidden="true"
-                />
+
             </div>
           </form>
         </Form>
