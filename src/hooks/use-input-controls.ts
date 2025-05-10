@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
@@ -53,7 +54,15 @@ export const InputControlProvider = ({ children }: { children: ReactNode }) => {
     toggleTooltipVisibility,
     setShowTooltips: setShowTooltipsState,
     isMounted,
-  }), [showSlidersState, toggleSliderVisibility, setShowSlidersState, showTooltipsState, toggleTooltipVisibility, setShowTooltipsState, isMounted]);
+  }), [
+    showSlidersState,
+    toggleSliderVisibility,
+    setShowSlidersState,
+    showTooltipsState,
+    toggleTooltipVisibility,
+    setShowTooltipsState,
+    isMounted
+  ]);
 
   return (
     <InputControlsContext.Provider value={contextValue}>
@@ -69,3 +78,4 @@ export function useInputControls(): InputControlsContextType {
   }
   return context;
 }
+
