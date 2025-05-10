@@ -15,7 +15,7 @@ import { calculateSolarGeneration, type CalculatedForecast} from '@/lib/solar-ca
 import { getChargingAdvice, type ChargingAdviceParams, type ChargingAdvice,  } from '@/lib/charging-advice';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
-import { ForecastInfo } from '@/components/forecast-info';
+// import { ForecastInfo } from '@/components/forecast-info'; // Not directly used on this page anymore
 import { format, parseISO } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { HowToInfo } from '@/components/how-to-info';
@@ -302,7 +302,7 @@ export default function AdvisoryPage() {
         return (
              <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title}</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title} (Auto Forecast)</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex items-center justify-center">
@@ -320,7 +320,7 @@ export default function AdvisoryPage() {
         return (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title}</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title} ({isApiSourceSelected ? 'Auto' : 'Manual'} Forecast)</CardTitle>
               <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
             </CardHeader>
             <CardContent>
@@ -337,7 +337,7 @@ export default function AdvisoryPage() {
        return (
          <Card>
            <CardHeader>
-             <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title}</CardTitle>
+             <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">{icon}{title} ({isApiSourceSelected ? 'Auto' : 'Manual'} Forecast)</CardTitle>
              <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
            </CardHeader>
            <CardContent>
@@ -352,7 +352,7 @@ export default function AdvisoryPage() {
      }
 
      const RecommendationIcon = advice.recommendChargeNow || advice.recommendChargeLater ? BatteryCharging : advice.reason.includes("Sufficient") || advice.reason.includes("Solar") ? Sun : Cloudy;
-     let recommendationTitle = title + ": ";
+     let recommendationTitle = `${title} (${isApiSourceSelected ? 'Auto' : 'Manual'} Forecast): `;
      if (advice.recommendChargeNow) recommendationTitle += `Charge/Utilize Grid Now`;
      else if (advice.recommendChargeLater) recommendationTitle += `Prepare for Grid Charging Later`;
      else recommendationTitle += `Avoid Grid Charging / Rely on Solar/Battery`;
@@ -693,7 +693,7 @@ export default function AdvisoryPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg sm:text-xl">Forecast & Configuration Used</CardTitle>
-             <CardDescription className="text-xs sm:text-sm">Summary of the data used to generate the current advice.</CardDescription>
+             <CardDescription className="text-xs sm:text-sm">Summary of the data used to generate the current advice ({isApiSourceSelected ? 'Auto' : 'Manual'} Forecast).</CardDescription>
           </CardHeader>
           <CardContent className="text-sm space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -735,3 +735,4 @@ export default function AdvisoryPage() {
      </div>
    );
  }
+

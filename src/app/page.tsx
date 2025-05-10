@@ -18,7 +18,7 @@ import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { DailyWeather } from '@/types/weather';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
-import { mapWmoCodeToManualForecastCondition } from '@/types/weather';
+import { WMO_CODE_MAP, mapWmoCodeToManualForecastCondition } from '@/types/weather';
 
 
 type ChartType = 'bar' | 'line' | 'area';
@@ -177,12 +177,13 @@ export default function HomePage() {
     chartDataToDisplay: Array<{ time: string; kWh: number }>,
     maxYValueForChart: number,
     yAxisTicksForChart: number[],
-    chartXTicksForChart: string[] | undefined
+    chartXTicksForChart: string[] | undefined,
+    isApiForecast: boolean // New prop to indicate source
   ) => {
-    if ((isApiSourceSelected && (weatherLoading || weatherRefetching)) || (!isMounted && isApiSourceSelected)) {
+    if ((isApiForecast && (weatherLoading || weatherRefetching)) || (!isMounted && isApiForecast)) {
       return (
         <Card>
-          <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{title} ({isApiForecast ? 'Auto' : 'Manual'}) Forecast</CardTitle></CardHeader>
           <CardContent className="h-[250px] sm:h-[300px] flex justify-center items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /> Loading data...</CardContent>
         </Card>
       );
@@ -191,7 +192,7 @@ export default function HomePage() {
     if (!sourceDayData) {
         return (
             <Card>
-                 <CardHeader><CardTitle>{title} Forecast</CardTitle></CardHeader>
+                 <CardHeader><CardTitle>{title} ({isApiForecast ? 'Auto' : 'Manual'}) Forecast</CardTitle></CardHeader>
                  <CardContent className="h-[250px] sm:h-[300px] flex justify-center items-center text-center">
                      <div>
                         <AlertCircle className="w-8 h-8 text-muted-foreground mb-2 mx-auto" />
@@ -204,7 +205,7 @@ export default function HomePage() {
 
     const weatherConditionString = 'condition' in sourceDayData // ManualDayForecast
         ? sourceDayData.condition.replace(/_/g, ' ')
-        : (sourceDayData as DailyWeather).weatherConditionString; // DailyWeather
+        : (sourceDayData as DailyWeather).weatherConditionString || 'Unknown'; // DailyWeather
 
     const weatherIcon = getWeatherIconFromString(weatherConditionString);
     const generationValue = calculatedDayForecast?.dailyTotalGenerationKWh;
@@ -214,30 +215,38 @@ export default function HomePage() {
 
     const conditionText = weatherConditionString || 'N/A';
 
-    const sunriseTime = sourceDayData.sunrise
-        ? (typeof sourceDayData.sunrise === 'string' && sourceDayData.sunrise.includes('T') ? format(parseISO(sourceDayData.sunrise), 'HH:mm') : sourceDayData.sunrise as string)
-        : 'N/A';
-    const sunsetTime = sourceDayData.sunset
-        ? (typeof sourceDayData.sunset === 'string' && sourceDayData.sunset.includes('T') ? format(parseISO(sourceDayData.sunset), 'HH:mm') : sourceDayData.sunset as string)
-        : 'N/A';
+    const getFormattedTime = (isoOrTimeString: string | undefined): string => {
+        if (!isoOrTimeString) return 'N/A';
+        // Check if it's likely an ISO string (contains 'T')
+        if (isoOrTimeString.includes('T')) {
+            const dateObj = parseISO(isoOrTimeString);
+            return isValid(dateObj) ? format(dateObj, 'HH:mm') : 'N/A';
+        }
+        // Otherwise, assume it's already HH:mm
+        const parsedTime = parse(isoOrTimeString, 'HH:mm', new Date());
+        return isValid(parsedTime) ? isoOrTimeString : 'N/A';
+    };
+
+    const sunriseTime = getFormattedTime(sourceDayData.sunrise);
+    const sunsetTime = getFormattedTime(sourceDayData.sunset);
 
 
     let chartPlaceholderMessage = '';
-    if (!isMounted && (weatherLoading || weatherRefetching)) {
+    if (!isMounted && (weatherLoading || weatherRefetching) && isApiForecast) {
         chartPlaceholderMessage = 'Loading forecast data...';
     } else if (!settings) {
         chartPlaceholderMessage = 'Forecast data unavailable. Please configure your system in Settings first.';
-    } else if (isApiSourceSelected && !locationAvailable) {
+    } else if (isApiForecast && !locationAvailable) {
         chartPlaceholderMessage = 'Location not set. Please configure your location in Settings for Open-Meteo forecast.';
     } else if (calculatedDayForecast?.errorMessage) {
         chartPlaceholderMessage = calculatedDayForecast.errorMessage;
-    } else if (!calculatedDayForecast && !isApiSourceSelected) {
+    } else if (!calculatedDayForecast && !isApiForecast) {
         chartPlaceholderMessage = 'Calculating forecast... Ensure manual forecast inputs are saved.';
-    } else if (!calculatedDayForecast && isApiSourceSelected && !weatherLoading && !weatherRefetching) {
+    } else if (!calculatedDayForecast && isApiForecast && !weatherLoading && !weatherRefetching) {
         chartPlaceholderMessage = 'Could not retrieve forecast data from Open-Meteo.';
     } else {
-        if (!sourceDayData.sunrise || !sourceDayData.sunset || sunriseTime >= sunsetTime) {
-            chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset.";
+        if (!sourceDayData.sunrise || !sourceDayData.sunset || sunriseTime === 'N/A' || sunsetTime === 'N/A' || sunriseTime >= sunsetTime) {
+            chartPlaceholderMessage = "Invalid sunrise/sunset times. Please ensure sunrise is before sunset and times are valid.";
         } else if (!calculatedDayForecast?.hourlyForecast || calculatedDayForecast.hourlyForecast.length === 0) {
             chartPlaceholderMessage = "Hourly forecast data could not be generated. Check system settings (e.g., panel power) and forecast inputs.";
         } else if (chartDataToDisplay.length === 0 || !chartDataToDisplay.some(d => d.kWh > 0.00001)) {
@@ -260,7 +269,7 @@ export default function HomePage() {
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
         tickFormatter: (value: number) => value.toFixed(2),
-        width: isMobile ? 30 : 40, // Adjusted width for mobile
+        width: isMobile ? 30 : 40,
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -335,7 +344,7 @@ export default function HomePage() {
             <CardHeader>
                 <div className="flex justify-between items-start">
                     <div>
-                        <CardTitle className="text-lg sm:text-xl">{title} Forecast</CardTitle>
+                        <CardTitle className="text-lg sm:text-xl">{title} ({isApiForecast ? 'Auto' : 'Manual'}) Forecast</CardTitle>
                         <CardDescription className="text-xs sm:text-sm">
                             Est. Generation: {displayGeneration}
                             {` (${conditionText})`}
@@ -348,7 +357,7 @@ export default function HomePage() {
                 <div className="flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                     <span className="flex items-center gap-1"><Sunrise className="w-3 h-3"/> {sunriseTime}</span>
                     <span className="flex items-center gap-1"><Sunset className="w-3 h-3"/> {sunsetTime}</span>
-                    {isApiSourceSelected && 'temperature_2m_max' in sourceDayData && (sourceDayData as DailyWeather).temperature_2m_max !== undefined && (
+                    {isApiForecast && 'temperature_2m_max' in sourceDayData && (sourceDayData as DailyWeather).temperature_2m_max !== undefined && (
                          <span className="flex items-center gap-1"><Thermometer className="w-3 h-3"/> {((sourceDayData as DailyWeather).temperature_2m_max!).toFixed(0)}°C</span>
                     )}
                 </div>
@@ -372,7 +381,7 @@ export default function HomePage() {
         </Card>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings, selectedChartType, weatherLoading, weatherRefetching, locationAvailable, isApiSourceSelected, isMobile, toast]);
+  }, [isMounted, settings, selectedChartType, weatherLoading, weatherRefetching, locationAvailable, isMobile, toast]); // isApiSourceSelected was removed as it's passed directly
 
   const renderWeeklyForecastItem = (dayData: DailyWeather, index: number) => {
     if (!settings) return null;
@@ -495,13 +504,13 @@ export default function HomePage() {
         {isMounted && settings && (!weatherLoading || !isApiSourceSelected) && (
             <>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {renderForecastCard("Today", todayCalculatedForecast, isApiSourceSelected ? weatherForecastData?.todayForecast || null : manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks)}
-                    {renderForecastCard("Tomorrow", tomorrowCalculatedForecast, isApiSourceSelected ? weatherForecastData?.tomorrowForecast || null : manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks)}
+                    {renderForecastCard("Today", todayCalculatedForecast, isApiSourceSelected ? weatherForecastData?.todayForecast || null : manualForecast.today, todayChartData, todayMaxY, todayYAxisTicks, todayChartXTicks, isApiSourceSelected)}
+                    {renderForecastCard("Tomorrow", tomorrowCalculatedForecast, isApiSourceSelected ? weatherForecastData?.tomorrowForecast || null : manualForecast.tomorrow, tomorrowChartData, tomorrowMaxY, tomorrowYAxisTicks, tomorrowChartXTicks, isApiSourceSelected)}
                 </div>
 
                 {isApiSourceSelected && weatherForecastData?.weeklyForecast && weatherForecastData.weeklyForecast.length > 0 && !weatherLoading && !isMobile && (
                   <div className="mt-8">
-                      <h2 className="text-xl sm:text-2xl font-bold mb-4">Week Ahead</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold mb-4">Week Ahead (Auto Forecast)</h2>
                       <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
                           {weatherForecastData.weeklyForecast.map((forecast, index) => renderWeeklyForecastItem(forecast, index))}
                       </div>

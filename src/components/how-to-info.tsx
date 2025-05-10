@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { HelpCircle } from 'lucide-react';
 
 interface HowToInfoProps {
-  pageKey: 'dashboard' | 'settings' | 'advisory' | 'tariffs'; // Keep 'tariffs' if a specific section help is needed
+  pageKey: 'dashboard' | 'settings' | 'advisory' | 'tariffs';
 }
 
 const pageInfo: Record<HowToInfoProps['pageKey'], { title: string; description: React.ReactNode }> = {
@@ -21,13 +21,14 @@ const pageInfo: Record<HowToInfoProps['pageKey'], { title: string; description: 
           <li><strong>Weather Source Dropdown (Header):</strong> Select "Open-Meteo" for API-driven forecasts or "Manual Input" to enter your own sunrise/sunset and weather conditions. The selected source impacts all forecast-dependent features.</li>
           <li><strong>Refresh/Edit Forecast Button:</strong>
             <ul className="list-disc list-inside space-y-1 pl-6">
-              <li>If "Open-Meteo" is selected, this button refreshes the API data. It's disabled if location details are missing in Settings.</li>
+              <li>If "Open-Meteo" (Auto) is selected, this button refreshes the API data. It's disabled if location details are missing in Settings.</li>
               <li>If "Manual Input" is selected, this button opens a dialog to edit today's and tomorrow's forecast details (sunrise, sunset, condition).</li>
             </ul>
           </li>
           <li><strong>Chart Type Selector:</strong> Choose between Bar, Line, or Area charts to visualize hourly generation.</li>
           <li><strong>Today/Tomorrow Forecast Cards:</strong>
             <ul className="list-disc list-inside space-y-1 pl-6">
+                <li>The card title will indicate if it's an "Auto Forecast" (from Open-Meteo) or a "Manual Forecast".</li>
                 <li>Displays total estimated solar generation (kWh) for the day.</li>
                 <li>Shows the weather condition (e.g., Sunny, Cloudy) from the selected source.</li>
                 <li>Indicates sunrise and sunset times.</li>
@@ -35,7 +36,7 @@ const pageInfo: Record<HowToInfoProps['pageKey'], { title: string; description: 
                 <li>The chart visualizes estimated generation (kWh) per hour. Hover over data points for specific values. X-axis shows hours with generation, Y-axis shows kWh.</li>
             </ul>
           </li>
-          <li><strong>Week Ahead (Open-Meteo Source Only):</strong> Shows a condensed 7-day forecast overview, including estimated daily generation, if using the Open-Meteo source and viewing on a non-mobile device.</li>
+          <li><strong>Week Ahead (Open-Meteo Source Only):</strong> Shows a condensed 7-day forecast overview, including estimated daily generation, if using the Open-Meteo source and viewing on a non-mobile device. If "Manual Input" is selected, this section will indicate that the week ahead view is only available for API sources.</li>
           <li><strong>Alerts:</strong> If critical settings (like location for API or system power) are missing, alerts will guide you to the Settings page.</li>
         </ul>
         <p><strong>Tip:</strong> For accurate forecasts, ensure your system settings (especially location and total system power) are correctly configured. If using "Manual Input", keep your forecast details updated via the "Edit Manual Forecast" button.</p>
@@ -66,7 +67,7 @@ const pageInfo: Record<HowToInfoProps['pageKey'], { title: string; description: 
               <li>Expand "Adjust Hourly Consumption Profile" to fine-tune usage for each hour using sliders. This data is used by the Advisory page.</li>
             </ul>
           </li>
-          <li><strong>System Efficiency Factor (Optional):</strong> Set an overall efficiency (0.1-1.0) for your system. Defaults to 0.85 (85%) if left blank.</li>
+          <li><strong>System Efficiency Factor (Optional):</strong> Set an overall efficiency (0.1-1.0) for your system. Default is 0.85 (85%). Hover the help icon for more details.</li>
         </ul>
         <h3 className="font-semibold text-foreground pt-2">Manage Time of Year Efficiency (Manual Source Only):</h3>
         <ul className="list-disc list-inside space-y-1 pl-4">
@@ -76,6 +77,11 @@ const pageInfo: Record<HowToInfoProps['pageKey'], { title: string; description: 
         <ul className="list-disc list-inside space-y-1 pl-4">
           <li>Define your electricity tariff periods: name, start/end times, rate (optional), and mark if it's a "cheap/off-peak" period. This is crucial for the Smart Charging Advisory.</li>
           <li>Use the "Add New Tariff Period" form to add entries. Existing periods can be removed.</li>
+          <li>You can Export/Import tariff settings using the buttons provided.</li>
+        </ul>
+         <h3 className="font-semibold text-foreground pt-2">Import/Export Settings:</h3>
+         <ul className="list-disc list-inside space-y-1 pl-4">
+            <li>Use the "Import Settings" and "Export Settings" buttons at the top of the General Settings card to save or load your system configuration to/from a JSON file.</li>
         </ul>
         <p><strong>Remember to click "Save General Settings" or "Save Monthly Factors" (if applicable) after making changes in the respective sections. Tariff periods are saved automatically when added/removed.</strong></p>
       </div>
@@ -117,7 +123,7 @@ const pageInfo: Record<HowToInfoProps['pageKey'], { title: string; description: 
       </div>
     ),
   },
-  tariffs: { // This key is used for the HowToInfo trigger within the Tariff Management card in settings.
+  tariffs: { 
     title: "How to Manage Energy Tariffs",
     description: (
       <div className="space-y-2 text-sm text-muted-foreground">
@@ -136,6 +142,7 @@ const pageInfo: Record<HowToInfoProps['pageKey'], { title: string; description: 
           <li><strong>"This is a cheap/off-peak rate period" Switch:</strong> Toggle this ON if this tariff period offers cheaper electricity. This is the primary flag the Advisory page uses for optimization.</li>
           <li><strong>Add Period Button:</strong> Click to save the new tariff period. Periods are saved to local storage automatically.</li>
         </ul>
+        <p><strong>Import/Export Tariffs:</strong> Use the "Export Tariffs" and "Import Tariffs" buttons to save your tariff configurations to a JSON file or load them from a previously saved file. This is useful for backup or transferring settings.</p>
         <p><strong>Tip:</strong> Accurately defining your cheap/off-peak periods is key for the Advisory page to give useful recommendations about grid charging. Ensure start and end times correctly define the period boundaries.</p>
       </div>
     ),
