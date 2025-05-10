@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -20,6 +21,7 @@ import { HowToInfo } from '@/components/how-to-info';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
 import type { DailyWeather } from '@/types/weather';
+import { useSliderVisibility } from '@/hooks/use-slider-visibility'; // Added
 
 
 const HOURS_IN_DAY = 24;
@@ -31,6 +33,7 @@ const MAX_AVG_HOURLY_CONSUMPTION_SLIDER = 5; // Max kWh for avg hourly consumpti
 const MAX_EV_CHARGE_RATE_SLIDER = 22; // Max kW for EV charge rate slider
 
 export default function AdvisoryPage() {
+    const { showSliders } = useSliderVisibility(); // Added
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
     const [manualForecast, setManualForecast, refreshManualForecastDates] = useManualForecast();
@@ -97,23 +100,20 @@ export default function AdvisoryPage() {
         setEvChargeByTime(settings.evChargeByTime ?? '07:00');
         setEvMaxChargeRateKWh(settings.evMaxChargeRateKWh ?? DEFAULT_EV_MAX_CHARGE_RATE);
         
-        const batteryCapacity = settings.batteryCapacityKWh ?? 0; // Default to 0 if not set
+        const batteryCapacity = settings.batteryCapacityKWh ?? 0; 
         const lastKnown = settings.lastKnownBatteryLevelKWh;
 
         if (batteryCapacity <= 0) {
-            setCurrentBatteryLevel(0); // If capacity is 0 or not meaningfully set, level must be 0
+            setCurrentBatteryLevel(0); 
         } else if (lastKnown !== undefined && lastKnown !== null) {
-            // Use last known level, capped by actual capacity
             setCurrentBatteryLevel(Math.max(0, Math.min(batteryCapacity, lastKnown)));
         } else {
-            // No last known level, but capacity > 0. Cap the current state (initial 10 or user input) by capacity.
             setCurrentBatteryLevel(prev => Math.max(0, Math.min(batteryCapacity, prev)));
         }
         setPreferredOvernightBatteryChargePercent(settings.preferredOvernightBatteryChargePercent ?? 100);
 
       } else {
-        // Settings are null, reset relevant states to their defaults
-        setCurrentBatteryLevel(10); // Default to 10 if settings are null
+        setCurrentBatteryLevel(10); 
         setDailyConsumption(10);
         const avg = 0.4;
         setAvgHourlyConsumption(avg);
@@ -145,7 +145,7 @@ export default function AdvisoryPage() {
                    evChargeRequiredKWh: evChargeRequiredKWh,
                    evChargeByTime: evChargeByTime,
                    evMaxChargeRateKWh: evMaxChargeRateKWh,
-                   lastKnownBatteryLevelKWh: currentBatteryLevel, // Persist currentBatteryLevel
+                   lastKnownBatteryLevelKWh: currentBatteryLevel, 
                    dailyConsumptionKWh: dailyConsumption,
                    avgHourlyConsumptionKWh: avgHourlyConsumption,
                    hourlyUsageProfile: hourlyUsage,
@@ -214,8 +214,7 @@ export default function AdvisoryPage() {
          setAdviceError(null);
 
         if (!settings.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) {
-            // If capacity is 0, advice for battery is limited, but EV advice might still be relevant
-             if(evChargeRequiredKWh <= 0 ) { // If no EV charge either, then error out
+             if(evChargeRequiredKWh <= 0 ) { 
                 setAdviceError("Battery capacity not set or is 0. This is required for battery charging advice.");
                 return;
              }
@@ -255,9 +254,9 @@ export default function AdvisoryPage() {
                 forecast: tomorrowForecastCalc,
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel, // Use current level as starting point for overnight sim
-                hourlyConsumptionProfile: hourlyUsage, // Use current profile for tomorrow's base load
-                currentHour: 0, // Overnight planning always starts from hour 0 of "tomorrow"
+                currentBatteryLevelKWh: currentBatteryLevel, 
+                hourlyConsumptionProfile: hourlyUsage, 
+                currentHour: 0, 
                 evNeeds: evNeedsInput,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -534,17 +533,19 @@ export default function AdvisoryPage() {
              <Label htmlFor="batteryLevelSlider" className="flex items-center gap-2">
                <Battery className="h-4 w-4" /> Current Battery Level (kWh)
              </Label>
-             <div className="flex items-center gap-2 sm:gap-4 w-full sm:max-w-md">
-               <Slider
-                 id="batteryLevelSlider"
-                 min={0}
-                 max={uiMaxBatteryLevel}
-                 step={0.1} 
-                 value={[currentBatteryLevel]}
-                 onValueChange={(value) => handleBatteryLevelChange(value[0])}
-                 className="flex-grow"
-                 aria-label="Current battery level slider"
-               />
+             <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:w-24")}>
+               {showSliders && (
+                 <Slider
+                   id="batteryLevelSlider"
+                   min={0}
+                   max={uiMaxBatteryLevel}
+                   step={0.1} 
+                   value={[currentBatteryLevel]}
+                   onValueChange={(value) => handleBatteryLevelChange(value[0])}
+                   className="flex-grow"
+                   aria-label="Current battery level slider"
+                 />
+               )}
                <Input
                  id="batteryLevelInput"
                  type="number"
@@ -553,7 +554,7 @@ export default function AdvisoryPage() {
                  max={uiMaxBatteryLevel} 
                  value={currentBatteryLevel}
                  onChange={(e) => handleBatteryLevelChange(parseFloat(e.target.value) || 0)}
-                 className="w-24"
+                 className={showSliders ? "w-24" : "w-full"}
                  placeholder="e.g., 10.0"
                />
              </div>
@@ -574,24 +575,26 @@ export default function AdvisoryPage() {
               <Label htmlFor="preferredOvernightCharge" className="flex items-center gap-2">
                 <BatteryChargingIcon className="h-4 w-4" /> Preferred Overnight Battery Target
               </Label>
-              <div className="flex items-center gap-2 sm:gap-4 w-full sm:max-w-md">
-                <Slider
-                  id="preferredOvernightCharge"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={[preferredOvernightBatteryChargePercent]}
-                  onValueChange={(value) => setPreferredOvernightBatteryChargePercent(value[0])}
-                  className="flex-grow"
-                  aria-label="Preferred overnight battery charge percentage"
-                />
+              <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:w-auto")}>
+                {showSliders && (
+                  <Slider
+                    id="preferredOvernightCharge"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={[preferredOvernightBatteryChargePercent]}
+                    onValueChange={(value) => setPreferredOvernightBatteryChargePercent(value[0])}
+                    className="flex-grow"
+                    aria-label="Preferred overnight battery charge percentage"
+                  />
+                )}
                 <Input
                   type="number"
                   min={0}
                   max={100}
                   value={preferredOvernightBatteryChargePercent}
                   onChange={(e) => setPreferredOvernightBatteryChargePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                  className="w-20"
+                  className={showSliders ? "w-20" : "w-full max-w-[80px]"}
                 />
                 <span className="text-sm">%</span>
               </div>
@@ -603,17 +606,19 @@ export default function AdvisoryPage() {
                     <Hourglass className="h-4 w-4" /> Estimated Daily Consumption (kWh)
                 </Label>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                    <div className="flex items-center gap-2 sm:gap-4 w-full">
-                        <Slider
-                            id="dailyConsumptionSlider"
-                            min={0}
-                            max={MAX_DAILY_CONSUMPTION_SLIDER}
-                            step={0.5}
-                            value={[dailyConsumption]}
-                            onValueChange={(value) => setDailyConsumption(value[0])}
-                            className="flex-grow"
-                            aria-label="Estimated daily consumption slider"
-                        />
+                    <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "md:w-auto")}>
+                        {showSliders && (
+                            <Slider
+                                id="dailyConsumptionSlider"
+                                min={0}
+                                max={MAX_DAILY_CONSUMPTION_SLIDER}
+                                step={0.5}
+                                value={[dailyConsumption]}
+                                onValueChange={(value) => setDailyConsumption(value[0])}
+                                className="flex-grow"
+                                aria-label="Estimated daily consumption slider"
+                            />
+                        )}
                         <Input
                            id="dailyConsumptionInput"
                            type="number"
@@ -622,7 +627,7 @@ export default function AdvisoryPage() {
                            max={MAX_DAILY_CONSUMPTION_SLIDER}
                            value={dailyConsumption}
                            onChange={(e) => setDailyConsumption(Math.max(0, Math.min(MAX_DAILY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
-                           className="w-24"
+                           className={showSliders ? "w-24" : "w-full max-w-[96px]"}
                            placeholder="e.g., 10.5"
                         />
                     </div>
@@ -637,17 +642,19 @@ export default function AdvisoryPage() {
                      <BarChart className="h-4 w-4" /> Average Hourly Consumption (kWh)
                  </Label>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                     <div className="flex items-center gap-2 sm:gap-4 w-full">
-                         <Slider
-                            id="avgHourlyConsumptionSlider"
-                            min={0}
-                            max={MAX_AVG_HOURLY_CONSUMPTION_SLIDER}
-                            step={0.05}
-                            value={[avgHourlyConsumption]}
-                            onValueChange={(value) => setAvgHourlyConsumption(value[0])}
-                            className="flex-grow"
-                            aria-label="Average hourly consumption slider"
-                         />
+                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "md:w-auto")}>
+                         {showSliders && (
+                             <Slider
+                                id="avgHourlyConsumptionSlider"
+                                min={0}
+                                max={MAX_AVG_HOURLY_CONSUMPTION_SLIDER}
+                                step={0.05}
+                                value={[avgHourlyConsumption]}
+                                onValueChange={(value) => setAvgHourlyConsumption(value[0])}
+                                className="flex-grow"
+                                aria-label="Average hourly consumption slider"
+                             />
+                         )}
                          <Input
                              id="avgHourlyConsumptionInput"
                              type="number"
@@ -656,7 +663,7 @@ export default function AdvisoryPage() {
                              max={MAX_AVG_HOURLY_CONSUMPTION_SLIDER}
                              value={avgHourlyConsumption}
                              onChange={(e) => setAvgHourlyConsumption(Math.max(0, Math.min(MAX_AVG_HOURLY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
-                             className="w-24"
+                             className={showSliders ? "w-24" : "w-full max-w-[96px]"}
                              placeholder="e.g., 0.40"
                          />
                      </div>
@@ -689,17 +696,19 @@ export default function AdvisoryPage() {
                             {`${index.toString().padStart(2, '0')}:00`}
                             {isMounted && index === currentHour ? ' (Now)' : ''}
                           </Label>
-                          <div className="flex items-center gap-2">
-                           <Slider
-                             id={`hour-${index}`}
-                             min={0}
-                             max={avgHourlyConsumption * 5 > 0 ? avgHourlyConsumption * 5 : 2} // Ensure max is always > 0
-                             step={0.01}
-                             value={[usage]}
-                             onValueChange={(value) => handleSliderChange(index, value)}
-                             className="flex-grow"
-                             aria-label={`Hourly consumption slider for hour ${index}`}
-                           />
+                          <div className={cn("flex items-center gap-2", !showSliders && "w-auto")}>
+                           {showSliders && (
+                             <Slider
+                               id={`hour-${index}`}
+                               min={0}
+                               max={avgHourlyConsumption * 5 > 0 ? avgHourlyConsumption * 5 : 2} 
+                               step={0.01}
+                               value={[usage]}
+                               onValueChange={(value) => handleSliderChange(index, value)}
+                               className="flex-grow"
+                               aria-label={`Hourly consumption slider for hour ${index}`}
+                             />
+                           )}
                             <span className="text-xs font-mono w-10 text-right">{usage.toFixed(2)}</span>
                           </div>
                         </div>
@@ -728,17 +737,19 @@ export default function AdvisoryPage() {
                 <Label htmlFor="evChargeRequiredSlider" className="flex items-center gap-2">
                     Charge Required (kWh)
                 </Label>
-                <div className="flex items-center gap-2 sm:gap-4 w-full sm:max-w-md">
-                    <Slider
-                        id="evChargeRequiredSlider"
-                        min={0}
-                        max={MAX_EV_CHARGE_REQUIRED_SLIDER}
-                        step={0.5}
-                        value={[evChargeRequiredKWh]}
-                        onValueChange={(value) => setEvChargeRequiredKWh(value[0])}
-                        className="flex-grow"
-                        aria-label="EV charge required slider"
-                    />
+                <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:w-24")}>
+                    {showSliders && (
+                        <Slider
+                            id="evChargeRequiredSlider"
+                            min={0}
+                            max={MAX_EV_CHARGE_REQUIRED_SLIDER}
+                            step={0.5}
+                            value={[evChargeRequiredKWh]}
+                            onValueChange={(value) => setEvChargeRequiredKWh(value[0])}
+                            className="flex-grow"
+                            aria-label="EV charge required slider"
+                        />
+                    )}
                     <Input
                         id="evChargeRequiredInput"
                         type="number"
@@ -747,7 +758,7 @@ export default function AdvisoryPage() {
                         max={MAX_EV_CHARGE_REQUIRED_SLIDER}
                         value={evChargeRequiredKWh}
                         onChange={(e) => setEvChargeRequiredKWh(Math.max(0, Math.min(MAX_EV_CHARGE_REQUIRED_SLIDER, parseFloat(e.target.value) || 0)))}
-                        className="w-24"
+                        className={showSliders ? "w-24" : "w-full"}
                         placeholder="e.g., 40.0"
                     />
                 </div>
@@ -769,17 +780,19 @@ export default function AdvisoryPage() {
                  </div>
                   <div className="space-y-1">
                      <Label htmlFor="evMaxRateSlider">Max Charge Rate (kW)</Label>
-                     <div className="flex items-center gap-2 sm:gap-4 w-full">
-                         <Slider
-                             id="evMaxRateSlider"
-                             min={0.1}
-                             max={MAX_EV_CHARGE_RATE_SLIDER}
-                             step={0.1}
-                             value={[evMaxChargeRateKWh]}
-                             onValueChange={(value) => setEvMaxChargeRateKWh(value[0])}
-                             className="flex-grow"
-                             aria-label="EV max charge rate slider"
-                         />
+                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "w-24")}>
+                         {showSliders && (
+                             <Slider
+                                 id="evMaxRateSlider"
+                                 min={0.1}
+                                 max={MAX_EV_CHARGE_RATE_SLIDER}
+                                 step={0.1}
+                                 value={[evMaxChargeRateKWh]}
+                                 onValueChange={(value) => setEvMaxChargeRateKWh(value[0])}
+                                 className="flex-grow"
+                                 aria-label="EV max charge rate slider"
+                             />
+                         )}
                          <Input
                              id="evMaxRateInput"
                              type="number"
@@ -789,7 +802,7 @@ export default function AdvisoryPage() {
                              placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE.toFixed(1)}`}
                              value={evMaxChargeRateKWh}
                              onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, Math.min(MAX_EV_CHARGE_RATE_SLIDER, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE)))}
-                             className="w-24"
+                             className={showSliders ? "w-24" : "w-full"}
                          />
                      </div>
                  </div>
@@ -847,3 +860,4 @@ export default function AdvisoryPage() {
      </div>
    );
  }
+

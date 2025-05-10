@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { SliderVisibilityToggle } from '@/components/slider-visibility-toggle'; // Added
 import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3, BarChartHorizontalBig } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
@@ -53,15 +54,15 @@ export default function Header() {
      const defaultSource = 'open-meteo';
      const availableFunctionalSource = weatherSources.find(s => s.id === storedSource && s.isFunctional);
 
-     if (settings === null) { // First time load, no settings yet
+     if (settings === null) { 
        setSelectedWeatherSourceId(defaultSource);
        if (typeof window !== 'undefined') {
             setSettings({ selectedWeatherSource: defaultSource } as UserSettings);
        }
-     } else if (storedSource && availableFunctionalSource) { // Existing setting is valid and functional
+     } else if (storedSource && availableFunctionalSource) { 
        setSelectedWeatherSourceId(storedSource);
-     } else { // Settings exist, but source is invalid, not set, or not functional
-       setSelectedWeatherSourceId(defaultSource); // Fallback to default
+     } else { 
+       setSelectedWeatherSourceId(defaultSource); 
        if (settings.selectedWeatherSource !== defaultSource) {
          setSettings(prev => ({
            ...(prev!),
@@ -70,7 +71,7 @@ export default function Header() {
        }
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [settings?.selectedWeatherSource]);
+   }, [settings?.selectedWeatherSource]); 
 
 
   const navItems = [
@@ -84,7 +85,6 @@ export default function Header() {
   const handleSourceSelect = (sourceId: string) => {
     const selected = weatherSources.find(s => s.id === sourceId);
     if (!selected || !selected.isFunctional) {
-        // If it's not functional, it should have been handled by the link, but as a fallback:
         if (selected && selected.url) {
             window.open(selected.url, '_blank', 'noopener,noreferrer');
         }
@@ -157,13 +157,13 @@ export default function Header() {
                      key={source.id}
                      onSelect={(event) => {
                        if (!source.isFunctional && source.url) {
-                         event.preventDefault(); // Prevent menu from closing
+                         event.preventDefault(); 
                          window.open(source.url, '_blank', 'noopener,noreferrer');
                        } else if (source.isFunctional) {
                          handleSourceSelect(source.id);
                        }
                      }}
-                     disabled={!source.isFunctional && !source.url} // Disable if not functional AND no URL
+                     disabled={!source.isFunctional && !source.url} 
                      className={cn(
                         selectedWeatherSourceId === source.id && source.isFunctional && "bg-accent/50",
                         !source.isFunctional && source.url && "text-blue-600 dark:text-blue-400 hover:underline"
@@ -189,7 +189,8 @@ export default function Header() {
           )}
         </nav>
 
-        <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2">
+        <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2"> {/* Added flex and gap-2 */}
+         <SliderVisibilityToggle /> {/* Added */}
          <ThemeToggle />
         </div>
       </div>
@@ -208,3 +209,4 @@ export default function Header() {
     </>
   );
 }
+
