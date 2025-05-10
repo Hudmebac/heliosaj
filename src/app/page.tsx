@@ -5,7 +5,7 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/compo
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast } from '@/lib/solar-calculations';
-import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, AlertCircle, BarChart2, LineChart as LineChartIcon, AreaChart as AreaChartIcon, RefreshCw, Thermometer } from 'lucide-react';
+import {Loader2, Sun, Cloud, CloudRain, Edit3, Sunrise, Sunset, AlertCircle, BarChart2, LineChart as LineChartIcon, AreaChart as AreaChartIcon, RefreshCw, Thermometer, CloudSun, CloudFog, CloudSnow, CloudLightning } from 'lucide-react';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {ChartContainer} from "@/components/ui/chart";
 import { Button } from '@/components/ui/button';
@@ -26,12 +26,20 @@ type ChartType = 'bar' | 'line' | 'area';
 const getWeatherIconFromString = (conditionString: string | undefined) => {
   if (!conditionString) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" data-ai-hint="sun icon" />;
   const condition = conditionString.toLowerCase();
-  if (condition.includes('sunny') || condition.includes('clear')) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" data-ai-hint="sun weather" />;
-  if (condition.includes('partly cloudy') || condition.includes('mainly sunny')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" data-ai-hint="cloudy sun" />;
-  if (condition.includes('cloudy')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" data-ai-hint="cloud icon" />;
-  if (condition.includes('overcast') || condition.includes('fog')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" data-ai-hint="dark cloud" />;
-  if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('showers')) return <CloudRain className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" data-ai-hint="rain cloud" />;
-  return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" data-ai-hint="weather icon" />;
+
+  // Order matters: more specific checks first
+  if (condition.includes('thunderstorm')) return <CloudLightning className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" data-ai-hint="thunderstorm icon" />;
+  if (condition.includes('snow') || condition.includes('sleet') || condition.includes('snowfall') || condition.includes('snow grains') || condition.includes('snow showers')) return <CloudSnow className="w-5 h-5 sm:w-6 sm:h-6 text-blue-300" data-ai-hint="snow icon" />;
+  if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('showers')) return <CloudRain className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" data-ai-hint="rain icon" />;
+  if (condition.includes('fog') || condition.includes('mist') || condition.includes('haze') || condition.includes('rime fog')) return <CloudFog className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" data-ai-hint="fog icon" />;
+  if (condition.includes('overcast')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" data-ai-hint="overcast icon" />;
+  if (condition.includes('cloudy') && !condition.includes('partly')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" data-ai-hint="cloudy icon" />;
+  if (condition.includes('partly cloudy') || condition.includes('mostly cloudy') || condition.includes('scattered clouds') || condition.includes('broken clouds') || condition.includes('mainly clear')) return <CloudSun className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" data-ai-hint="partly cloudy" />;
+  if (condition.includes('sunny') || condition.includes('clear') || condition.includes('fair')) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" data-ai-hint="sunny icon" />;
+  
+  // Default for unknown
+  console.warn("Unknown weather condition string for icon:", conditionString);
+  return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" data-ai-hint="default weather" />;
 };
 
 
@@ -118,8 +126,8 @@ export default function HomePage() {
   const getMaxYValue = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
     if (!chartData || chartData.length === 0) return 0.5;
     const maxKWh = Math.max(...chartData.map(d => d.kWh), 0);
-    if (maxKWh === 0) return 0.5;
-    return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25;
+    if (maxKWh === 0) return 0.5; // Ensure chart has some height even with no generation
+    return Math.ceil(maxKWh / 0.25) * 0.25 + 0.25; // Ensure the max tick is slightly above max value and aligns to 0.25
   }, []);
 
   const todayMaxY = useMemo(() => getMaxYValue(todayChartData), [todayChartData, getMaxYValue]);
@@ -131,12 +139,13 @@ export default function HomePage() {
     for (let i = 0; i <= maxYValueForChart; i += 0.25) {
         ticks.push(parseFloat(i.toFixed(2)));
     }
+    // Ensure the last tick is present if maxYValueForChart is not a multiple of 0.25
     if (ticks.length > 0 && ticks[ticks.length -1] < maxYValueForChart && maxYValueForChart % 0.25 !== 0) {
         ticks.push(parseFloat((Math.ceil(maxYValueForChart / 0.25) * 0.25).toFixed(2)));
-    } else if (ticks.length === 0 && maxYValueForChart > 0) {
+    } else if (ticks.length === 0 && maxYValueForChart > 0) { // Handle edge case if loop doesn't run
         ticks.push(0, parseFloat(maxYValueForChart.toFixed(2)));
     }
-    return Array.from(new Set(ticks));
+    return Array.from(new Set(ticks)); // Remove duplicates
   }, []);
 
   const todayYAxisTicks = useMemo(() => getYAxisTicks(todayMaxY), [todayMaxY, getYAxisTicks]);
@@ -145,26 +154,29 @@ export default function HomePage() {
   const calculateChartXTicks = useCallback((chartData: Array<{ time: string; kWh: number }>) => {
     if (!chartData || chartData.length === 0) return undefined;
 
+    // Consider only hours with some generation for tick calculation, but display all hours in domain
     const hoursWithGeneration = chartData
-        .filter(d => d.kWh > 0.00001)
+        .filter(d => d.kWh > 0.00001) // Filter out negligible or zero generation
         .map(d => d.time);
 
-    if (hoursWithGeneration.length === 0) return undefined;
+    if (hoursWithGeneration.length === 0) return undefined; // No generation, no specific ticks needed
 
     let uniqueHours = Array.from(new Set(hoursWithGeneration));
-    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0]));
+    uniqueHours.sort((a, b) => parseInt(a.split(':')[0]) - parseInt(b.split(':')[0])); // Sort by hour
 
-    if (uniqueHours.length <= 8) return uniqueHours;
+    if (uniqueHours.length <= 8) return uniqueHours; // If few points, show all
 
-    const step = Math.max(1, Math.floor(uniqueHours.length / (isMobile ? 4 : 7)));
+    // Otherwise, select a subset of ticks
+    const step = Math.max(1, Math.floor(uniqueHours.length / (isMobile ? 4 : 7))); // Dynamic step based on available points and screen size
     const ticksToShow: string[] = [];
     for (let i = 0; i < uniqueHours.length; i += step) {
         ticksToShow.push(uniqueHours[i]);
     }
+    // Ensure the last significant generation hour is included if not already
     if (uniqueHours.length > 0 && !ticksToShow.includes(uniqueHours[uniqueHours.length - 1])) {
         ticksToShow.push(uniqueHours[uniqueHours.length - 1]);
     }
-    return Array.from(new Set(ticksToShow));
+    return Array.from(new Set(ticksToShow)); // Remove duplicates
   }, [isMobile]);
 
   const todayChartXTicks = useMemo(() => calculateChartXTicks(todayChartData), [todayChartData, calculateChartXTicks]);
@@ -178,7 +190,7 @@ export default function HomePage() {
     maxYValueForChart: number,
     yAxisTicksForChart: number[],
     chartXTicksForChart: string[] | undefined,
-    isApiForecast: boolean // New prop to indicate source
+    isApiForecast: boolean
   ) => {
     if ((isApiForecast && (weatherLoading || weatherRefetching)) || (!isMounted && isApiForecast)) {
       return (
@@ -203,7 +215,7 @@ export default function HomePage() {
         )
     }
 
-    const weatherConditionString = 'condition' in sourceDayData // ManualDayForecast
+    const weatherConditionString = ('condition' in sourceDayData) // ManualDayForecast
         ? sourceDayData.condition.replace(/_/g, ' ')
         : (sourceDayData as DailyWeather).weatherConditionString || 'Unknown'; // DailyWeather
 
@@ -217,12 +229,10 @@ export default function HomePage() {
 
     const getFormattedTime = (isoOrTimeString: string | undefined): string => {
         if (!isoOrTimeString) return 'N/A';
-        // Check if it's likely an ISO string (contains 'T')
         if (isoOrTimeString.includes('T')) {
             const dateObj = parseISO(isoOrTimeString);
             return isValid(dateObj) ? format(dateObj, 'HH:mm') : 'N/A';
         }
-        // Otherwise, assume it's already HH:mm
         const parsedTime = parse(isoOrTimeString, 'HH:mm', new Date());
         return isValid(parsedTime) ? isoOrTimeString : 'N/A';
     };
@@ -268,8 +278,8 @@ export default function HomePage() {
         stroke: "hsl(var(--muted-foreground))",
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
-        tickFormatter: (value: number) => value.toFixed(2),
-        width: isMobile ? 30 : 40,
+        tickFormatter: (value: number) => `${value.toFixed(2)}kWh`,
+        width: isMobile ? 35 : 45, // Adjusted width for mobile to accommodate kWh suffix
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -279,7 +289,7 @@ export default function HomePage() {
         stroke: "hsl(var(--muted-foreground))",
         ticks: chartXTicksForChart,
         tickFormatter: (value: string) => value ? `${parseInt(value.split(':')[0]) % 12 || 12}${parseInt(value.split(':')[0]) >= 12 ? 'pm' : 'am'}`: '',
-        interval: 'preserveStartEnd',
+        interval: 'preserveStartEnd' as const,
         angle: -45,
         textAnchor: 'end' as const,
         dx: -5,
@@ -381,7 +391,7 @@ export default function HomePage() {
         </Card>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, settings, selectedChartType, weatherLoading, weatherRefetching, locationAvailable, isMobile, toast]); // isApiSourceSelected was removed as it's passed directly
+  }, [isMounted, settings, selectedChartType, weatherLoading, weatherRefetching, locationAvailable, isMobile, toast]);
 
   const renderWeeklyForecastItem = (dayData: DailyWeather, index: number) => {
     if (!settings) return null;
@@ -489,7 +499,7 @@ export default function HomePage() {
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Location Not Set for API</AlertTitle>
-                 <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in <a href="/settings" className="underline font-medium">Settings</a> to use Auto forecast function or change source to Manual Input</AlertDescription>
+                  <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in <a href="/settings" className="underline font-medium">Settings</a> to use Auto forecast function or change source to Manual Input</AlertDescription>
              </Alert>
         )}
 
