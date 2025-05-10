@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3 } from 'lucide-react'; // Removed BarChart2
+import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3, BarChartHorizontalBig } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
@@ -20,11 +20,29 @@ import {
 import { Button } from '../ui/button';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
 
+interface WeatherSource {
+  id: string;
+  name: string;
+  url?: string;
+  isFunctional: boolean;
+}
+
+const weatherSources: WeatherSource[] = [
+  { id: "open-meteo", name: "Open-Meteo", url: "https://open-meteo.com/", isFunctional: true },
+  { id: "manual", name: "Manual Input", isFunctional: true },
+  { id: "metoffice", name: "Met Office (Info)", url: "https://www.metoffice.gov.uk/", isFunctional: false },
+  { id: "openweathermap", name: "OpenWeatherMap (Info)", url: "https://openweathermap.org/", isFunctional: false },
+  { id: "accuweather", name: "AccuWeather (Info)", url: "https://www.accuweather.com", isFunctional: false },
+  { id: "google", name: "Google Weather (Info)", url: "https://www.google.com/search?q=weather", isFunctional: false },
+  { id: "bbc", name: "BBC Weather (Info)", url: "https://www.bbc.com/weather", isFunctional: false },
+];
+
+
 export default function Header() {
   const pathname = usePathname();
   const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const [isMounted, setIsMounted] = useState(false);
-  const [selectedWeatherSourceId, setSelectedWeatherSourceId] = useState<string>('open-meteo'); 
+  const [selectedWeatherSourceId, setSelectedWeatherSourceId] = useState<string>('open-meteo');
   const [isManualForecastModalOpen, setIsManualForecastModalOpen] = useState(false);
   const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
 
@@ -33,59 +51,53 @@ export default function Header() {
      setIsMounted(true);
      const storedSource = settings?.selectedWeatherSource;
      const defaultSource = 'open-meteo';
+     const availableFunctionalSource = weatherSources.find(s => s.id === storedSource && s.isFunctional);
 
-     if (settings === null) {
+     if (settings === null) { // First time load, no settings yet
        setSelectedWeatherSourceId(defaultSource);
-       if (typeof window !== 'undefined') { // Ensure this runs only on client
+       if (typeof window !== 'undefined') {
             setSettings({ selectedWeatherSource: defaultSource } as UserSettings);
        }
-     } else if (storedSource && weatherSources.some(s => s.id === storedSource && s.isFunctional)) {
+     } else if (storedSource && availableFunctionalSource) { // Existing setting is valid and functional
        setSelectedWeatherSourceId(storedSource);
-     } else {
-       setSelectedWeatherSourceId(defaultSource);
+     } else { // Settings exist, but source is invalid, not set, or not functional
+       setSelectedWeatherSourceId(defaultSource); // Fallback to default
        if (settings.selectedWeatherSource !== defaultSource) {
          setSettings(prev => ({
-           ...(prev!), 
+           ...(prev!),
            selectedWeatherSource: defaultSource,
          }));
        }
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [settings?.selectedWeatherSource]); 
+   }, [settings?.selectedWeatherSource]);
 
 
   const navItems = [
     { href: '/', label: 'Dashboard', icon: Home },
     { href: '/advisory', label: 'Advisory', icon: Zap },
     { href: '/settings', label: 'Settings', icon: Settings },
+    { href: '/tariffs', label: 'Tariffs', icon: BarChartHorizontalBig },
     { href: '/info', label: 'Info', icon: Info },
   ];
 
-  interface WeatherSource {
-    id: string;
-    name: string;
-    url?: string;
-    isFunctional: boolean;
-  }
-
-  const weatherSources: WeatherSource[] = [
-    { id: "open-meteo", name: "Open-Meteo", url: "https://open-meteo.com/", isFunctional: true },
-    { id: "manual", name: "Manual Input", isFunctional: true },
-    { id: "metoffice", name: "Met Office", url: "https://www.metoffice.gov.uk/", isFunctional: false },
-    { id: "openweathermap", name: "OpenWeatherMap", url: "https://openweathermap.org/", isFunctional: false },
-    { id: "accuweather", name: "AccuWeather", url: "https://www.accuweather.com", isFunctional: false },
-    { id: "google", name: "Google Weather", url: "https://www.google.com/search?q=weather", isFunctional: false },
-    { id: "bbc", name: "BBC Weather", url: "https://www.bbc.com/weather", isFunctional: false },
-  ];
-
   const handleSourceSelect = (sourceId: string) => {
-    setSelectedWeatherSourceId(sourceId); 
+    const selected = weatherSources.find(s => s.id === sourceId);
+    if (!selected || !selected.isFunctional) {
+        // If it's not functional, it should have been handled by the link, but as a fallback:
+        if (selected && selected.url) {
+            window.open(selected.url, '_blank', 'noopener,noreferrer');
+        }
+        return;
+    }
+
+    setSelectedWeatherSourceId(sourceId);
     setSettings(prev => ({
-      ...(prev || {} as UserSettings), 
+      ...(prev || {} as UserSettings),
       selectedWeatherSource: sourceId,
     }));
     if (sourceId === 'manual') {
-      refreshForecastDates(); 
+      refreshForecastDates();
       setIsManualForecastModalOpen(true);
     }
   };
@@ -97,26 +109,27 @@ export default function Header() {
     <>
     <header className="bg-secondary text-secondary-foreground shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center">
-        <Link href="/" className="flex items-center gap-2 mb-2 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
+        <Link href="/" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
           <Sun className="h-6 w-6 text-primary" />
           HelioHeggie
         </Link>
 
-        <nav className="flex gap-1 sm:gap-2 items-center flex-wrap justify-center mb-2 sm:mb-0 order-2 sm:order-1">
+        <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-sm transition-colors duration-200 ease-in-out",
+                "flex items-center gap-1 px-2 py-1 rounded-md text-xs sm:text-sm transition-colors duration-200 ease-in-out",
                  "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary",
                  "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent",
                  pathname === item.href ? 'font-semibold text-accent shadow-[0_0_8px_theme(colors.accent)]' : 'font-medium hover:shadow-accent/80 focus:shadow-accent'
               )}
               aria-current={pathname === item.href ? 'page' : undefined}
+              title={item.label}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <item.icon className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">{item.label}</span>
             </Link>
           ))}
           {isMounted && (
@@ -125,33 +138,45 @@ export default function Header() {
                 <Button
                   variant="ghost"
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded-md text-sm transition-colors duration-200 ease-in-out",
+                    "flex items-center gap-1 px-2 py-1 rounded-md text-xs sm:text-sm transition-colors duration-200 ease-in-out",
                     "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary",
                     "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent font-medium hover:shadow-accent/80 focus:shadow-accent"
                   )}
+                  id="weather-source-trigger"
                 >
-                  <CloudSun className="h-4 w-4" />
-                  Source: {currentSource?.name || 'Select...'}
+                  <CloudSun className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Source:&nbsp;</span>
+                  {currentSource?.name || 'Select...'}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" aria-labelledby="weather-source-trigger">
                 <DropdownMenuLabel>Select Weather Source</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {weatherSources.map((source) => (
                    <DropdownMenuItem
                      key={source.id}
-                     onClick={() => handleSourceSelect(source.id)}
-                     disabled={!source.isFunctional} 
-                     className={cn(selectedWeatherSourceId === source.id && "bg-accent/50")}
+                     onSelect={(event) => {
+                       if (!source.isFunctional && source.url) {
+                         event.preventDefault(); // Prevent menu from closing
+                         window.open(source.url, '_blank', 'noopener,noreferrer');
+                       } else if (source.isFunctional) {
+                         handleSourceSelect(source.id);
+                       }
+                     }}
+                     disabled={!source.isFunctional && !source.url} // Disable if not functional AND no URL
+                     className={cn(
+                        selectedWeatherSourceId === source.id && source.isFunctional && "bg-accent/50",
+                        !source.isFunctional && source.url && "text-blue-600 dark:text-blue-400 hover:underline"
+                     )}
                    >
-                     {source.name} {!source.isFunctional && "(Info Only)"}
+                     {source.name}
                    </DropdownMenuItem>
                 ))}
                  {selectedWeatherSourceId === 'manual' && (
                     <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => {
-                          refreshForecastDates(); 
+                          refreshForecastDates();
                           setIsManualForecastModalOpen(true);
                         }}>
                             <Edit3 className="h-4 w-4 mr-2" />
@@ -164,12 +189,12 @@ export default function Header() {
           )}
         </nav>
 
-        <div className="absolute top-3 right-4 sm:relative sm:top-auto sm:right-auto order-1 sm:order-2">
+        <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2">
          <ThemeToggle />
         </div>
       </div>
     </header>
-    {isMounted && ( 
+    {isMounted && (
         <ManualForecastModal
           isOpen={isManualForecastModalOpen}
           onClose={() => setIsManualForecastModalOpen(false)}
@@ -183,4 +208,3 @@ export default function Header() {
     </>
   );
 }
-
