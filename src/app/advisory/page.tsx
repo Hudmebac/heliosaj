@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -26,6 +25,7 @@ import type { DailyWeather } from '@/types/weather';
 const HOURS_IN_DAY = 24;
 const DEFAULT_BATTERY_MAX = 100; // Default max for UI elements if capacity not set
 const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
+const MAX_EV_CHARGE_REQUIRED_SLIDER = 100; // Max kWh for EV charge slider
 
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -695,20 +695,39 @@ export default function AdvisoryPage() {
              </CardDescription>
          </CardHeader>
          <CardContent className="space-y-4">
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 <div className="space-y-1">
-                     <Label htmlFor="evChargeRequired">Charge Required (kWh)</Label>
-                     <Input
-                         id="evChargeRequired"
-                         type="number"
-                         step="0.1"
-                         min="0"
-                         placeholder="e.g., 40.0"
-                         value={evChargeRequiredKWh}
-                         onChange={(e) => setEvChargeRequiredKWh(Math.max(0, parseFloat(e.target.value) || 0))}
-                         className="w-full"
-                     />
-                 </div>
+            <div className="space-y-2">
+                <Label htmlFor="evChargeRequiredSlider" className="flex items-center gap-2">
+                    Charge Required (kWh)
+                </Label>
+                <div className="flex items-center gap-2 sm:gap-4 w-full sm:max-w-md">
+                    <Slider
+                        id="evChargeRequiredSlider"
+                        min={0}
+                        max={MAX_EV_CHARGE_REQUIRED_SLIDER}
+                        step={0.5}
+                        value={[evChargeRequiredKWh]}
+                        onValueChange={(value) => setEvChargeRequiredKWh(value[0])}
+                        className="flex-grow"
+                        aria-label="EV charge required slider"
+                    />
+                    <Input
+                        id="evChargeRequiredInput"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max={MAX_EV_CHARGE_REQUIRED_SLIDER}
+                        value={evChargeRequiredKWh}
+                        onChange={(e) => setEvChargeRequiredKWh(Math.max(0, Math.min(MAX_EV_CHARGE_REQUIRED_SLIDER, parseFloat(e.target.value) || 0)))}
+                        className="w-24"
+                        placeholder="e.g., 40.0"
+                    />
+                </div>
+                 <p className="text-xs text-muted-foreground">
+                    Set how much energy your EV needs. Default is 0 kWh.
+                 </p>
+            </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-1">
                      <Label htmlFor="evChargeBy">Charge By Time (HH:MM)</Label>
                      <Input
@@ -786,4 +805,3 @@ export default function AdvisoryPage() {
      </div>
    );
  }
-
