@@ -31,9 +31,18 @@ const getWeatherIconFromString = (conditionString: string | undefined) => {
   if (condition.includes('thunderstorm')) return <CloudLightning className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" data-ai-hint="thunderstorm icon" />;
   if (condition.includes('snow') || condition.includes('sleet') || condition.includes('snowfall') || condition.includes('snow grains') || condition.includes('snow showers')) return <CloudSnow className="w-5 h-5 sm:w-6 sm:h-6 text-blue-300" data-ai-hint="snow icon" />;
   if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('showers')) return <CloudRain className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" data-ai-hint="rain icon" />;
+  
+  // Handle Cloudy+ (formerly Fog) specifically
+  if (condition.includes('cloudy+')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" data-ai-hint="dense cloud" />; // Similar to overcast
+
+  // Original fog check (might still be useful if some non-WMO strings contain 'fog')
   if (condition.includes('fog') || condition.includes('mist') || condition.includes('haze') || condition.includes('rime fog')) return <CloudFog className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" data-ai-hint="fog icon" />;
+  
   if (condition.includes('overcast')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" data-ai-hint="overcast icon" />;
-  if (condition.includes('cloudy') && !condition.includes('partly')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" data-ai-hint="cloudy icon" />;
+  
+  // Adjusted cloudy check to ensure it doesn't misinterpret "Cloudy+" or "Partly Cloudy"
+  if (condition.includes('cloudy') && !condition.includes('partly') && !condition.includes('+')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" data-ai-hint="cloudy icon" />;
+  
   if (condition.includes('partly cloudy') || condition.includes('mostly cloudy') || condition.includes('scattered clouds') || condition.includes('broken clouds') || condition.includes('mainly clear') || condition.includes('mainly sunny')) return <CloudSun className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" data-ai-hint="partly cloudy" />;
   if (condition.includes('sunny') || condition.includes('clear') || condition.includes('fair')) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" data-ai-hint="sunny icon" />;
   
@@ -542,5 +551,6 @@ export default function HomePage() {
     </div>
   );
 }
+
 
 
