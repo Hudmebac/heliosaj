@@ -1,0 +1,4 @@
+gitmodules
+[submodule "helioheggie"]
+	path = helioheggie
+	url = https://github.com/Hudmebac/helioheggie.git

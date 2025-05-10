@@ -17,22 +17,16 @@ The primary purpose of this application is to empower users with the tools and i
 ## How to Run
 
 1.  **Clone the repository:**
-```
-bash
-    git clone [repository-url]
-    
+```bash
+    git clone https://github.com/Hudmebac/helio.git
 ```
 2.  **Install dependencies:**
-```
-bash
+```bash
     npm install
-    
 ```
 3.  **Start the development server:**
-```
-bash
+```bash
     npm run dev
-    
 ```
 ## Next Steps
 
