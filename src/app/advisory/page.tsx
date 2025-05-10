@@ -26,6 +26,9 @@ const HOURS_IN_DAY = 24;
 const DEFAULT_BATTERY_MAX = 100; // Default max for UI elements if capacity not set
 const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
 const MAX_EV_CHARGE_REQUIRED_SLIDER = 100; // Max kWh for EV charge slider
+const MAX_DAILY_CONSUMPTION_SLIDER = 50; // Max kWh for daily consumption slider
+const MAX_AVG_HOURLY_CONSUMPTION_SLIDER = 5; // Max kWh for avg hourly consumption slider
+const MAX_EV_CHARGE_RATE_SLIDER = 22; // Max kW for EV charge rate slider
 
 export default function AdvisoryPage() {
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
@@ -595,46 +598,72 @@ export default function AdvisoryPage() {
               <p className="text-xs text-muted-foreground">Set how full you want your battery by morning (0-100%). Default is 100%.</p>
             </div>
 
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                <div className="space-y-2">
-                    <Label htmlFor="dailyConsumption" className="flex items-center gap-2">
-                       <Hourglass className="h-4 w-4" /> Estimated Daily Consumption (kWh)
-                    </Label>
-                    <Input
-                       id="dailyConsumption"
-                       type="number"
-                       step="0.01"
-                       min="0"
-                       value={dailyConsumption}
-                       onChange={(e) => setDailyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
-                       placeholder="e.g., 10.50"
-                       className="w-full sm:max-w-xs"
-                    />
+            <div className="space-y-2">
+                <Label htmlFor="dailyConsumptionSlider" className="flex items-center gap-2">
+                    <Hourglass className="h-4 w-4" /> Estimated Daily Consumption (kWh)
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+                    <div className="flex items-center gap-2 sm:gap-4 w-full">
+                        <Slider
+                            id="dailyConsumptionSlider"
+                            min={0}
+                            max={MAX_DAILY_CONSUMPTION_SLIDER}
+                            step={0.5}
+                            value={[dailyConsumption]}
+                            onValueChange={(value) => setDailyConsumption(value[0])}
+                            className="flex-grow"
+                            aria-label="Estimated daily consumption slider"
+                        />
+                        <Input
+                           id="dailyConsumptionInput"
+                           type="number"
+                           step="0.1"
+                           min="0"
+                           max={MAX_DAILY_CONSUMPTION_SLIDER}
+                           value={dailyConsumption}
+                           onChange={(e) => setDailyConsumption(Math.max(0, Math.min(MAX_DAILY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
+                           className="w-24"
+                           placeholder="e.g., 10.5"
+                        />
+                    </div>
+                    <Button variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
+                      Distribute Evenly to Hourly
+                    </Button>
                 </div>
-                <Button variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
-                  Distribute Evenly to Hourly
-                </Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                 <div className="space-y-2">
-                     <Label htmlFor="avgHourlyConsumption" className="flex items-center gap-2">
-                         <BarChart className="h-4 w-4" /> Average Hourly Consumption (kWh)
-                     </Label>
-                     <Input
-                         id="avgHourlyConsumption"
-                         type="number"
-                         step="0.01"
-                         min="0"
-                         value={avgHourlyConsumption}
-                         onChange={(e) => setAvgHourlyConsumption(Math.max(0, parseFloat(e.target.value) || 0))}
-                         placeholder="e.g., 0.40"
-                         className="w-full sm:max-w-xs"
-                     />
-                 </div>
-                  <Button variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
-                     Apply Average to All Hours
-                  </Button>
+
+            <div className="space-y-2">
+                 <Label htmlFor="avgHourlyConsumptionSlider" className="flex items-center gap-2">
+                     <BarChart className="h-4 w-4" /> Average Hourly Consumption (kWh)
+                 </Label>
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+                     <div className="flex items-center gap-2 sm:gap-4 w-full">
+                         <Slider
+                            id="avgHourlyConsumptionSlider"
+                            min={0}
+                            max={MAX_AVG_HOURLY_CONSUMPTION_SLIDER}
+                            step={0.05}
+                            value={[avgHourlyConsumption]}
+                            onValueChange={(value) => setAvgHourlyConsumption(value[0])}
+                            className="flex-grow"
+                            aria-label="Average hourly consumption slider"
+                         />
+                         <Input
+                             id="avgHourlyConsumptionInput"
+                             type="number"
+                             step="0.01"
+                             min="0"
+                             max={MAX_AVG_HOURLY_CONSUMPTION_SLIDER}
+                             value={avgHourlyConsumption}
+                             onChange={(e) => setAvgHourlyConsumption(Math.max(0, Math.min(MAX_AVG_HOURLY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
+                             className="w-24"
+                             placeholder="e.g., 0.40"
+                         />
+                     </div>
+                      <Button variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
+                         Apply Average to All Hours
+                      </Button>
+                </div>
             </div>
 
             <Accordion type="single" collapsible className="w-full">
@@ -739,17 +768,30 @@ export default function AdvisoryPage() {
                      />
                  </div>
                   <div className="space-y-1">
-                     <Label htmlFor="evMaxRate">Max Charge Rate (kW)</Label>
-                     <Input
-                         id="evMaxRate"
-                         type="number"
-                         step="0.1"
-                         min="0.1"
-                         placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE.toFixed(1)}`}
-                         value={evMaxChargeRateKWh}
-                         onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE))}
-                         className="w-full"
-                     />
+                     <Label htmlFor="evMaxRateSlider">Max Charge Rate (kW)</Label>
+                     <div className="flex items-center gap-2 sm:gap-4 w-full">
+                         <Slider
+                             id="evMaxRateSlider"
+                             min={0.1}
+                             max={MAX_EV_CHARGE_RATE_SLIDER}
+                             step={0.1}
+                             value={[evMaxChargeRateKWh]}
+                             onValueChange={(value) => setEvMaxChargeRateKWh(value[0])}
+                             className="flex-grow"
+                             aria-label="EV max charge rate slider"
+                         />
+                         <Input
+                             id="evMaxRateInput"
+                             type="number"
+                             step="0.1"
+                             min="0.1"
+                             max={MAX_EV_CHARGE_RATE_SLIDER}
+                             placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE.toFixed(1)}`}
+                             value={evMaxChargeRateKWh}
+                             onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, Math.min(MAX_EV_CHARGE_RATE_SLIDER, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE)))}
+                             className="w-24"
+                         />
+                     </div>
                  </div>
              </div>
              <p className="text-xs text-muted-foreground">

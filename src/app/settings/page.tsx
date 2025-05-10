@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -427,7 +426,7 @@ export default function SettingsPage() {
   };
 
   const watchedAvgHourlyConsumption = form.watch('avgHourlyConsumptionKWh') || 0.4;
-  const sliderMax = Math.max(1, watchedAvgHourlyConsumption * 3, 0.5);
+  const consumptionSliderMax = Math.max(1, watchedAvgHourlyConsumption * 3, 0.5);
 
 
   const isValidTime = (time: string) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
@@ -883,30 +882,44 @@ export default function SettingsPage() {
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
-                    control={form.control}
-                    name="panelCount"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Number of Panels</FormLabel>
-                        <FormControl>
-                            <Input type="number" placeholder="e.g., 18" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
+                        control={form.control}
+                        name="panelCount"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Number of Panels</FormLabel>
+                                <div className="flex items-center gap-2">
+                                    <Slider
+                                        id="panelCountSlider"
+                                        min={0} max={50} step={1}
+                                        value={[field.value ?? 0]}
+                                        onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                                        className="flex-grow"
+                                    />
+                                    <Input type="number" placeholder="e.g., 18" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                                </div>
+                            <FormMessage />
+                            </FormItem>
+                        )}
                     />
                     <FormField
-                    control={form.control}
-                    name="panelWatts"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Max Power per Panel (Watts)</FormLabel>
-                        <FormControl>
-                            <Input type="number" placeholder="e.g., 405" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
+                        control={form.control}
+                        name="panelWatts"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Max Power per Panel (Watts)</FormLabel>
+                             <div className="flex items-center gap-2">
+                                <Slider
+                                    id="panelWattsSlider"
+                                    min={0} max={600} step={5}
+                                    value={[field.value ?? 0]}
+                                    onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                                    className="flex-grow"
+                                />
+                                <Input type="number" placeholder="e.g., 405" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                            </div>
+                            <FormMessage />
+                            </FormItem>
+                        )}
                     />
                 </div>
                 {calculatedKWpFromPanels !== undefined && (
@@ -942,16 +955,24 @@ export default function SettingsPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Total System Power (kWp)</FormLabel>
-                  <FormControl>
+                  <div className="flex items-center gap-2">
+                    <Slider
+                        id="totalKWpSlider"
+                        min={0} max={30} step={0.01}
+                        value={[field.value ?? 0]}
+                        onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                        className="flex-grow"
+                    />
                     <Input
                       type="number"
                       step="0.01"
                       placeholder="e.g., 7.20"
                       {...field}
+                      className="w-24"
                       value={field.value ?? ''}
                       onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}
                     />
-                  </FormControl>
+                  </div>
                    <FormDescription>
                      Enter the Kilowatt-peak (kWp) rating of your entire solar array (e.g., from your installation documents). This is the primary value used for forecasts.
                    </FormDescription>
@@ -968,9 +989,16 @@ export default function SettingsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-1"><BatteryChargingIcon className="h-4 w-4"/>Battery Capacity (kWh)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" placeholder="e.g., 19.00" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
-                      </FormControl>
+                      <div className="flex items-center gap-2">
+                        <Slider
+                            id="batteryCapacitySlider"
+                            min={0} max={100} step={0.1}
+                            value={[field.value ?? 0]}
+                            onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                            className="flex-grow"
+                        />
+                        <Input type="number" step="0.01" placeholder="e.g., 19.00" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                      </div>
                       <FormDescription>Total usable capacity. Leave blank if no battery.</FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -982,9 +1010,16 @@ export default function SettingsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-1"><Zap className="h-4 w-4"/>Battery Max Charge Rate (kW)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.1" placeholder="e.g., 5.0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
-                      </FormControl>
+                       <div className="flex items-center gap-2">
+                        <Slider
+                            id="batteryMaxChargeRateSlider"
+                            min={0} max={20} step={0.1}
+                            value={[field.value ?? 0]}
+                            onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                            className="flex-grow"
+                        />
+                        <Input type="number" step="0.1" placeholder="e.g., 5.0" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                       </div>
                       <FormDescription>Max power battery can charge at. Default 5kW.</FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -996,9 +1031,16 @@ export default function SettingsPage() {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Overnight Battery Target (%)</FormLabel>
-                            <FormControl>
-                                <Input type="number" step="1" min="0" max="100" placeholder="e.g., 90" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
-                            </FormControl>
+                            <div className="flex items-center gap-2">
+                                <Slider
+                                    id="overnightTargetSlider"
+                                    min={0} max={100} step={1}
+                                    value={[field.value ?? 100]}
+                                    onValueChange={(val) => field.onChange(val[0])}
+                                    className="flex-grow"
+                                />
+                                <Input type="number" step="1" min="0" max="100" placeholder="e.g., 90" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                            </div>
                             <FormDescription>Target charge level for overnight (0-100%). Default 100%.</FormDescription>
                             <FormMessage />
                         </FormItem>
@@ -1009,42 +1051,56 @@ export default function SettingsPage() {
 
             <div className="space-y-4 p-4 border rounded-md bg-muted/50">
                 <h3 className="text-lg font-medium">Consumption Estimates (Optional)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <FormField
-                      control={form.control}
-                      name="dailyConsumptionKWh"
-                      render={({ field }) => (
+                <FormField
+                    control={form.control}
+                    name="dailyConsumptionKWh"
+                    render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" placeholder="e.g., 10.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs" />
-                          </FormControl>
-                          <FormMessage />
+                        <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+                            <div className="flex items-center gap-2">
+                                <Slider
+                                    id="dailyConsumptionSettingsSlider"
+                                    min={0} max={50} step={0.1}
+                                    value={[field.value ?? 0]}
+                                    onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                                    className="flex-grow"
+                                />
+                                <Input type="number" step="0.01" placeholder="e.g., 10.50" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                            </div>
+                            <Button type="button" variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
+                                Distribute Evenly to Hourly
+                            </Button>
+                        </div>
+                        <FormMessage />
                         </FormItem>
-                      )}
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
-                        Distribute Evenly to Hourly
-                    </Button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <FormField
-                      control={form.control}
-                      name="avgHourlyConsumptionKWh"
-                      render={({ field }) => (
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="avgHourlyConsumptionKWh"
+                    render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" placeholder="e.g., 0.40" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} className="max-w-xs"/>
-                          </FormControl>
-                          <FormMessage />
+                        <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+                            <div className="flex items-center gap-2">
+                                <Slider
+                                    id="avgHourlyConsumptionSettingsSlider"
+                                    min={0} max={5} step={0.01}
+                                    value={[field.value ?? 0]}
+                                    onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                                    className="flex-grow"
+                                />
+                                <Input type="number" step="0.01" placeholder="e.g., 0.40" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                            </div>
+                            <Button type="button" variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
+                                Apply Average to All Hours
+                            </Button>
+                        </div>
+                        <FormMessage />
                         </FormItem>
-                      )}
-                    />
-                     <Button type="button" variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
-                        Apply Average to All Hours
-                    </Button>
-                </div>
+                    )}
+                />
 
                 <Accordion type="single" collapsible className="w-full">
                   <AccordionItem value="hourly-consumption-profile">
@@ -1073,7 +1129,7 @@ export default function SettingsPage() {
                                 <Slider
                                   id={`hour-profile-${index}`}
                                   min={0}
-                                  max={sliderMax}
+                                  max={consumptionSliderMax}
                                   step={0.01}
                                   value={[usage]}
                                   onValueChange={(value) => handleHourlySliderChange(index, value)}
@@ -1113,9 +1169,16 @@ export default function SettingsPage() {
                         </TooltipContent>
                         </Tooltip>
                     </div>
-                  <FormControl>
-                     <Input type="number" step="0.01" min="0.1" max="1" placeholder="e.g., 0.85 for 85%" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
-                  </FormControl>
+                    <div className="flex items-center gap-2">
+                        <Slider
+                            id="systemEfficiencySlider"
+                            min={0.1} max={1} step={0.01}
+                            value={[field.value ?? 0.85]}
+                            onValueChange={(val) => field.onChange(val[0])}
+                            className="flex-grow"
+                        />
+                        <Input type="number" step="0.01" min="0.1" max="1" placeholder="e.g., 0.85" {...field} className="w-24" value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                    </div>
                   <FormDescription>Adjust if observed generation differs from estimates. Default: 0.85.</FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -1163,7 +1226,14 @@ export default function SettingsPage() {
                               <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
                                 {monthName} Factor
                               </FormLabel>
-                              <FormControl>
+                              <div className="flex items-center gap-2">
+                                <Slider
+                                    id={`monthFactorSlider-${index}`}
+                                    min={0} max={2} step={0.01}
+                                    value={[field.value ?? 1.0]}
+                                    onValueChange={(val) => field.onChange(val[0])}
+                                    className="flex-grow"
+                                />
                                 <Input
                                   type="number"
                                   step="0.01"
@@ -1171,10 +1241,11 @@ export default function SettingsPage() {
                                   max="2"
                                   placeholder="e.g., 1.00"
                                   {...field}
+                                  className="w-24"
                                   value={field.value ?? ''}
                                   onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                                 />
-                              </FormControl>
+                               </div>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -1226,7 +1297,7 @@ export default function SettingsPage() {
                     <p className="font-semibold">{period.name}</p>
                     <p className="text-xs sm:text-sm text-muted-foreground">
                       {period.startTime} - {period.endTime}
-                      {period.rate !== undefined && ` (${period.rate} p/kWh)`}
+                      {period.rate !== undefined && ` (${period.rate.toFixed(2)} p/kWh)`}
                       {period.isCheap && <span className="ml-2 text-green-600 dark:text-green-400">(Cheap Rate)</span>}
                     </p>
                   </div>
@@ -1246,8 +1317,17 @@ export default function SettingsPage() {
                 <Input id="periodName" placeholder="e.g., Night Saver, Peak" value={newPeriodName} onChange={(e) => setNewPeriodName(e.target.value)} />
               </div>
                <div className="space-y-1">
-                 <Label htmlFor="rate">Rate (pence/kWh, Optional)</Label>
-                 <Input id="rate" type="number" step="0.01" placeholder="e.g., 7.5" value={newRate ?? ''} onChange={(e) => setNewRate(e.target.value ? parseFloat(e.target.value) : undefined)} />
+                 <Label htmlFor="rateSlider">Rate (pence/kWh, Optional)</Label>
+                 <div className="flex items-center gap-2">
+                    <Slider
+                        id="rateSlider"
+                        min={0} max={100} step={0.01}
+                        value={[newRate ?? 0]}
+                        onValueChange={(val) => setNewRate(val[0] === 0 ? undefined : val[0])}
+                        className="flex-grow"
+                    />
+                    <Input id="rateInput" type="number" step="0.01" placeholder="e.g., 7.50" className="w-24" value={newRate ?? ''} onChange={(e) => setNewRate(e.target.value ? parseFloat(e.target.value) : undefined)} />
+                 </div>
                </div>
             </div>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1290,4 +1370,3 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
-
