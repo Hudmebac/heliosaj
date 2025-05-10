@@ -14,7 +14,7 @@ export interface InputControlsContextType {
   showTooltips: boolean;
   toggleTooltipVisibility: () => void;
   setShowTooltips: (value: boolean | ((val: boolean) => boolean)) => void;
-  isMounted: boolean; 
+  isMounted: boolean;
 }
 
 const InputControlsContext = createContext<InputControlsContextType | undefined>(undefined);
@@ -28,32 +28,35 @@ export const InputControlProvider = ({ children }: { children: ReactNode }) => {
     setIsMounted(true);
   }, []);
 
-  const setShowSliders = (value: boolean | ((val: boolean) => boolean)) => {
+  const setShowSlidersDirectly = (value: boolean | ((val: boolean) => boolean)) => {
     setShowSlidersState(value);
   };
 
-  const setShowTooltips = (value: boolean | ((val: boolean) => boolean)) => {
+  const setShowTooltipsDirectly = (value: boolean | ((val: boolean) => boolean)) => {
     setShowTooltipsState(value);
   };
 
   const toggleSliderVisibility = () => {
-    setShowSliders(prev => !prev);
+    setShowSlidersState(prev => !prev);
   };
 
   const toggleTooltipVisibility = () => {
-    setShowTooltips(prev => !prev);
+    setShowTooltipsState(prev => !prev);
+  };
+
+  // Define the context value as a separate object
+  const contextValue: InputControlsContextType = {
+    showSliders,
+    toggleSliderVisibility,
+    setShowSliders: setShowSlidersDirectly,
+    showTooltips,
+    toggleTooltipVisibility,
+    setShowTooltips: setShowTooltipsDirectly,
+    isMounted
   };
 
   return (
-    <InputControlsContext.Provider value={{
-      showSliders,
-      toggleSliderVisibility,
-      setShowSliders,
-      showTooltips,
-      toggleTooltipVisibility,
-      setShowTooltips,
-      isMounted
-    }}>
+    <InputControlsContext.Provider value={contextValue}>
       {children}
     </InputControlsContext.Provider>
   );
