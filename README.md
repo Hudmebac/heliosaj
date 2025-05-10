@@ -55,3 +55,4 @@ The primary purpose of this application is to empower users with the tools and i
   - OpenWeatherMap (API to get weather data).
 - **AI:**
   - Ollama (Run llms locally).
+# helio
