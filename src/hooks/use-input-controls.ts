@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
@@ -19,11 +18,11 @@ export interface InputControlsContextType {
 
 const defaultContextValue: InputControlsContextType = {
   showSliders: true,
-  toggleSliderVisibility: () => {},
-  setShowSliders: () => {},
+  toggleSliderVisibility: () => console.warn('toggleSliderVisibility called before provider mounted'),
+  setShowSliders: () => console.warn('setShowSliders called before provider mounted'),
   showTooltips: true,
-  toggleTooltipVisibility: () => {},
-  setShowTooltips: () => {},
+  toggleTooltipVisibility: () => console.warn('toggleTooltipVisibility called before provider mounted'),
+  setShowTooltips: () => console.warn('setShowTooltips called before provider mounted'),
   isMounted: false,
 };
 
@@ -78,4 +77,3 @@ export function useInputControls(): InputControlsContextType {
   }
   return context;
 }
-
