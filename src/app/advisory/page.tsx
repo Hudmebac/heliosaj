@@ -21,19 +21,19 @@ import { HowToInfo } from '@/components/how-to-info';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
 import type { DailyWeather } from '@/types/weather';
-import { useSliderVisibility } from '@/hooks/use-slider-visibility'; // Added
+import { useSliderVisibility } from '@/hooks/use-slider-visibility';
 
 
 const HOURS_IN_DAY = 24;
-const DEFAULT_BATTERY_MAX = 100; // Default max for UI elements if capacity not set
+const DEFAULT_BATTERY_MAX = 100; 
 const DEFAULT_EV_MAX_CHARGE_RATE = 7.5;
-const MAX_EV_CHARGE_REQUIRED_SLIDER = 100; // Max kWh for EV charge slider
-const MAX_DAILY_CONSUMPTION_SLIDER = 50; // Max kWh for daily consumption slider
-const MAX_AVG_HOURLY_CONSUMPTION_SLIDER = 5; // Max kWh for avg hourly consumption slider
-const MAX_EV_CHARGE_RATE_SLIDER = 22; // Max kW for EV charge rate slider
+const MAX_EV_CHARGE_REQUIRED_SLIDER = 100; 
+const MAX_DAILY_CONSUMPTION_SLIDER = 50; 
+const MAX_AVG_HOURLY_CONSUMPTION_SLIDER = 5; 
+const MAX_EV_CHARGE_RATE_SLIDER = 22; 
 
 export default function AdvisoryPage() {
-    const { showSliders } = useSliderVisibility(); // Added
+    const { showSliders } = useSliderVisibility(); 
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
     const [manualForecast, setManualForecast, refreshManualForecastDates] = useManualForecast();
@@ -49,7 +49,7 @@ export default function AdvisoryPage() {
     const [currentHour, setCurrentHour] = useState<number | null>(null);
     const { toast } = useToast();
 
-    const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(10); // Default to 10
+    const [currentBatteryLevel, setCurrentBatteryLevel] = useState<number>(10); 
     const [hourlyUsage, setHourlyUsage] = useState<number[]>(() => Array(HOURS_IN_DAY).fill(0.4));
     const [dailyConsumption, setDailyConsumption] = useState<number>(10);
     const [avgHourlyConsumption, setAvgHourlyConsumption] = useState<number>(0.4);
@@ -533,7 +533,7 @@ export default function AdvisoryPage() {
              <Label htmlFor="batteryLevelSlider" className="flex items-center gap-2">
                <Battery className="h-4 w-4" /> Current Battery Level (kWh)
              </Label>
-             <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:w-24")}>
+             <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
                {showSliders && (
                  <Slider
                    id="batteryLevelSlider"
@@ -554,7 +554,7 @@ export default function AdvisoryPage() {
                  max={uiMaxBatteryLevel} 
                  value={currentBatteryLevel}
                  onChange={(e) => handleBatteryLevelChange(parseFloat(e.target.value) || 0)}
-                 className={showSliders ? "w-24" : "w-full"}
+                 className={cn(showSliders ? "w-24" : "w-full")}
                  placeholder="e.g., 10.0"
                />
              </div>
@@ -575,7 +575,7 @@ export default function AdvisoryPage() {
               <Label htmlFor="preferredOvernightCharge" className="flex items-center gap-2">
                 <BatteryChargingIcon className="h-4 w-4" /> Preferred Overnight Battery Target
               </Label>
-              <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:w-auto")}>
+              <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
                 {showSliders && (
                   <Slider
                     id="preferredOvernightCharge"
@@ -594,7 +594,7 @@ export default function AdvisoryPage() {
                   max={100}
                   value={preferredOvernightBatteryChargePercent}
                   onChange={(e) => setPreferredOvernightBatteryChargePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                  className={showSliders ? "w-20" : "w-full max-w-[80px]"}
+                  className={cn(showSliders ? "w-20" : "flex-grow")}
                 />
                 <span className="text-sm">%</span>
               </div>
@@ -606,7 +606,7 @@ export default function AdvisoryPage() {
                     <Hourglass className="h-4 w-4" /> Estimated Daily Consumption (kWh)
                 </Label>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                    <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "md:w-auto")}>
+                    <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
                         {showSliders && (
                             <Slider
                                 id="dailyConsumptionSlider"
@@ -627,7 +627,7 @@ export default function AdvisoryPage() {
                            max={MAX_DAILY_CONSUMPTION_SLIDER}
                            value={dailyConsumption}
                            onChange={(e) => setDailyConsumption(Math.max(0, Math.min(MAX_DAILY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
-                           className={showSliders ? "w-24" : "w-full max-w-[96px]"}
+                           className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
                            placeholder="e.g., 10.5"
                         />
                     </div>
@@ -642,7 +642,7 @@ export default function AdvisoryPage() {
                      <BarChart className="h-4 w-4" /> Average Hourly Consumption (kWh)
                  </Label>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "md:w-auto")}>
+                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
                          {showSliders && (
                              <Slider
                                 id="avgHourlyConsumptionSlider"
@@ -663,7 +663,7 @@ export default function AdvisoryPage() {
                              max={MAX_AVG_HOURLY_CONSUMPTION_SLIDER}
                              value={avgHourlyConsumption}
                              onChange={(e) => setAvgHourlyConsumption(Math.max(0, Math.min(MAX_AVG_HOURLY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
-                             className={showSliders ? "w-24" : "w-full max-w-[96px]"}
+                             className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
                              placeholder="e.g., 0.40"
                          />
                      </div>
@@ -696,7 +696,7 @@ export default function AdvisoryPage() {
                             {`${index.toString().padStart(2, '0')}:00`}
                             {isMounted && index === currentHour ? ' (Now)' : ''}
                           </Label>
-                          <div className={cn("flex items-center gap-2", !showSliders && "w-auto")}>
+                          <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                            {showSliders && (
                              <Slider
                                id={`hour-${index}`}
@@ -737,7 +737,7 @@ export default function AdvisoryPage() {
                 <Label htmlFor="evChargeRequiredSlider" className="flex items-center gap-2">
                     Charge Required (kWh)
                 </Label>
-                <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:w-24")}>
+                <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
                     {showSliders && (
                         <Slider
                             id="evChargeRequiredSlider"
@@ -758,7 +758,7 @@ export default function AdvisoryPage() {
                         max={MAX_EV_CHARGE_REQUIRED_SLIDER}
                         value={evChargeRequiredKWh}
                         onChange={(e) => setEvChargeRequiredKWh(Math.max(0, Math.min(MAX_EV_CHARGE_REQUIRED_SLIDER, parseFloat(e.target.value) || 0)))}
-                        className={showSliders ? "w-24" : "w-full"}
+                        className={cn(showSliders ? "w-24" : "w-full")}
                         placeholder="e.g., 40.0"
                     />
                 </div>
@@ -780,7 +780,7 @@ export default function AdvisoryPage() {
                  </div>
                   <div className="space-y-1">
                      <Label htmlFor="evMaxRateSlider">Max Charge Rate (kW)</Label>
-                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "w-24")}>
+                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
                          {showSliders && (
                              <Slider
                                  id="evMaxRateSlider"
@@ -802,7 +802,7 @@ export default function AdvisoryPage() {
                              placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE.toFixed(1)}`}
                              value={evMaxChargeRateKWh}
                              onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, Math.min(MAX_EV_CHARGE_RATE_SLIDER, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE)))}
-                             className={showSliders ? "w-24" : "w-full"}
+                             className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
                          />
                      </div>
                  </div>

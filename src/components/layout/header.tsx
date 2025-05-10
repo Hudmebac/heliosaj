@@ -189,8 +189,8 @@ export default function Header() {
           )}
         </nav>
 
-        <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2"> {/* Added flex and gap-2 */}
-         <SliderVisibilityToggle /> {/* Added */}
+        <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2">
+         <SliderVisibilityToggle />
          <ThemeToggle />
         </div>
       </div>

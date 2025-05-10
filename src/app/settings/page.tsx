@@ -30,7 +30,7 @@ import { HowToInfo } from '@/components/how-to-info';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import { useSliderVisibility } from '@/hooks/use-slider-visibility'; // Added
+import { useSliderVisibility } from '@/hooks/use-slider-visibility';
 
 interface NominatimResult {
   place_id: number;
@@ -136,7 +136,7 @@ const HOURS_IN_DAY = 24;
 
 
 export default function SettingsPage() {
-  const { showSliders } = useSliderVisibility(); // Added
+  const { showSliders } = useSliderVisibility();
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const { toast } = useToast();
   const [postcode, setPostcode] = useState<string>('');
@@ -188,7 +188,6 @@ export default function SettingsPage() {
   const watchedPanelCount = form.watch('panelCount');
   const watchedPanelWatts = form.watch('panelWatts');
   const watchedSource = form.watch('selectedWeatherSource');
-  // const watchedTotalKWp = form.watch('totalKWp');
 
 
   useEffect(() => {
@@ -885,46 +884,50 @@ export default function SettingsPage() {
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
-                        control={form.control}
-                        name="panelCount"
+                        control={form.control} name="panelCount"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Number of Panels</FormLabel>
-                                <div className={cn("flex items-center gap-2", !showSliders && "w-24")}> {/* Adjust width if sliders hidden */}
+                                <FormLabel>Number of Panels</FormLabel>
+                                <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                     {showSliders && (
-                                        <Slider
-                                            id="panelCountSlider"
-                                            min={0} max={50} step={1}
-                                            value={[field.value ?? 0]}
+                                        <Slider id="panelCountSlider" min={0} max={50} step={1}
+                                            value={[typeof field.value === 'number' ? field.value : 0]}
                                             onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
                                             className="flex-grow"
                                         />
                                     )}
-                                    <Input type="number" placeholder="e.g., 18" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                                    <FormControl>
+                                        <Input type="number" placeholder="e.g., 18" {...field}
+                                            className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                            value={field.value ?? ''}
+                                            onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseInt(e.target.value)) ? undefined : parseInt(e.target.value)))} />
+                                    </FormControl>
                                 </div>
-                            <FormMessage />
+                                <FormMessage />
                             </FormItem>
                         )}
                     />
                     <FormField
-                        control={form.control}
-                        name="panelWatts"
+                        control={form.control} name="panelWatts"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Max Power per Panel (Watts)</FormLabel>
-                             <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
-                                {showSliders && (
-                                    <Slider
-                                        id="panelWattsSlider"
-                                        min={0} max={600} step={5}
-                                        value={[field.value ?? 0]}
-                                        onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
-                                        className="flex-grow"
-                                    />
-                                )}
-                                <Input type="number" placeholder="e.g., 405" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
-                            </div>
-                            <FormMessage />
+                                <FormLabel>Max Power per Panel (Watts)</FormLabel>
+                                 <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
+                                    {showSliders && (
+                                        <Slider id="panelWattsSlider" min={0} max={600} step={5}
+                                            value={[typeof field.value === 'number' ? field.value : 0]}
+                                            onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
+                                            className="flex-grow"
+                                        />
+                                    )}
+                                    <FormControl>
+                                        <Input type="number" placeholder="e.g., 405" {...field}
+                                            className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                            value={field.value ?? ''}
+                                            onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseInt(e.target.value)) ? undefined : parseInt(e.target.value)))}/>
+                                    </FormControl>
+                                </div>
+                                <FormMessage />
                             </FormItem>
                         )}
                     />
@@ -957,30 +960,25 @@ export default function SettingsPage() {
             </div>
 
             <FormField
-              control={form.control}
-              name="totalKWp"
+              control={form.control} name="totalKWp"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Total System Power (kWp)</FormLabel>
-                  <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
+                  <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                     {showSliders && (
-                        <Slider
-                            id="totalKWpSlider"
-                            min={0} max={30} step={0.01}
-                            value={[field.value ?? 0]}
+                        <Slider id="totalKWpSlider" min={0} max={30} step={0.01}
+                            value={[typeof field.value === 'number' ? field.value : 0]}
                             onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
                             className="flex-grow"
                         />
                     )}
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g., 7.20"
-                      {...field}
-                      className={showSliders ? "w-24" : "w-full"}
-                      value={field.value ?? ''}
-                      onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}
-                    />
+                    <FormControl>
+                        <Input type="number" step="0.01" placeholder="e.g., 7.20" {...field}
+                            className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                            value={field.value ?? ''}
+                            onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}
+                        />
+                    </FormControl>
                   </div>
                    <FormDescription>
                      Enter the Kilowatt-peak (kWp) rating of your entire solar array (e.g., from your installation documents). This is the primary value used for forecasts.
@@ -993,22 +991,24 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
-                  control={form.control}
-                  name="batteryCapacityKWh"
+                  control={form.control} name="batteryCapacityKWh"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-1"><BatteryChargingIcon className="h-4 w-4"/>Battery Capacity (kWh)</FormLabel>
-                      <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
+                      <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                         {showSliders && (
-                            <Slider
-                                id="batteryCapacitySlider"
-                                min={0} max={100} step={0.1}
-                                value={[field.value ?? 0]}
+                            <Slider id="batteryCapacitySlider" min={0} max={100} step={0.1}
+                                value={[typeof field.value === 'number' ? field.value : 0]}
                                 onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
                                 className="flex-grow"
                             />
                         )}
-                        <Input type="number" step="0.01" placeholder="e.g., 19.00" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                        <FormControl>
+                           <Input type="number" step="0.01" placeholder="e.g., 19.00" {...field}
+                                className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}/>
+                        </FormControl>
                       </div>
                       <FormDescription>Total usable capacity. Leave blank if no battery.</FormDescription>
                       <FormMessage />
@@ -1016,22 +1016,24 @@ export default function SettingsPage() {
                   )}
                 />
                 <FormField
-                  control={form.control}
-                  name="batteryMaxChargeRateKWh"
+                  control={form.control} name="batteryMaxChargeRateKWh"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-1"><Zap className="h-4 w-4"/>Battery Max Charge Rate (kW)</FormLabel>
-                       <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
+                       <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                         {showSliders && (
-                            <Slider
-                                id="batteryMaxChargeRateSlider"
-                                min={0} max={20} step={0.1}
-                                value={[field.value ?? 0]}
+                            <Slider id="batteryMaxChargeRateSlider" min={0} max={20} step={0.1}
+                                value={[typeof field.value === 'number' ? field.value : 0]}
                                 onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
                                 className="flex-grow"
                             />
                         )}
-                        <Input type="number" step="0.1" placeholder="e.g., 5.0" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)}/>
+                        <FormControl>
+                           <Input type="number" step="0.1" placeholder="e.g., 5.0" {...field}
+                                className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}/>
+                        </FormControl>
                        </div>
                       <FormDescription>Max power battery can charge at. Default 5kW.</FormDescription>
                       <FormMessage />
@@ -1039,22 +1041,24 @@ export default function SettingsPage() {
                   )}
                 />
                  <FormField
-                    control={form.control}
-                    name="preferredOvernightBatteryChargePercent"
+                    control={form.control} name="preferredOvernightBatteryChargePercent"
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Overnight Battery Target (%)</FormLabel>
-                            <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
+                            <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
-                                    <Slider
-                                        id="overnightTargetSlider"
-                                        min={0} max={100} step={1}
-                                        value={[field.value ?? 100]}
+                                    <Slider id="overnightTargetSlider" min={0} max={100} step={1}
+                                        value={[typeof field.value === 'number' ? field.value : 100]}
                                         onValueChange={(val) => field.onChange(val[0])}
                                         className="flex-grow"
                                     />
                                 )}
-                                <Input type="number" step="1" min="0" max="100" placeholder="e.g., 90" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                                <FormControl>
+                                   <Input type="number" step="1" min="0" max="100" placeholder="e.g., 90" {...field}
+                                        className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                        value={field.value ?? ''}
+                                        onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseInt(e.target.value)) ? undefined : parseInt(e.target.value)))} />
+                                </FormControl>
                             </div>
                             <FormDescription>Target charge level for overnight (0-100%). Default 100%.</FormDescription>
                             <FormMessage />
@@ -1067,23 +1071,26 @@ export default function SettingsPage() {
             <div className="space-y-4 p-4 border rounded-md bg-muted/50">
                 <h3 className="text-lg font-medium">Consumption Estimates (Optional)</h3>
                 <FormField
-                    control={form.control}
-                    name="dailyConsumptionKWh"
+                    control={form.control} name="dailyConsumptionKWh"
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                            <div className={cn("flex items-center gap-2", !showSliders && "w-24 md:w-full")}>
+                            <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
                                     <Slider
-                                        id="dailyConsumptionSettingsSlider"
-                                        min={0} max={50} step={0.1}
-                                        value={[field.value ?? 0]}
+                                        id="dailyConsumptionSettingsSlider" min={0} max={50} step={0.1}
+                                        value={[typeof field.value === 'number' ? field.value : 0]}
                                         onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
                                         className="flex-grow"
                                     />
                                 )}
-                                <Input type="number" step="0.01" placeholder="e.g., 10.50" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                                <FormControl>
+                                    <Input type="number" step="0.01" placeholder="e.g., 10.50" {...field}
+                                        className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                        value={field.value ?? ''}
+                                        onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))} />
+                                </FormControl>
                             </div>
                             <Button type="button" variant="outline" size="sm" onClick={distributeDailyConsumption} className="w-full md:w-auto">
                                 Distribute Evenly to Hourly
@@ -1094,23 +1101,26 @@ export default function SettingsPage() {
                     )}
                 />
                 <FormField
-                    control={form.control}
-                    name="avgHourlyConsumptionKWh"
+                    control={form.control} name="avgHourlyConsumptionKWh"
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                             <div className={cn("flex items-center gap-2", !showSliders && "w-24 md:w-full")}>
+                             <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
                                     <Slider
-                                        id="avgHourlyConsumptionSettingsSlider"
-                                        min={0} max={5} step={0.01}
-                                        value={[field.value ?? 0]}
+                                        id="avgHourlyConsumptionSettingsSlider" min={0} max={5} step={0.01}
+                                        value={[typeof field.value === 'number' ? field.value : 0]}
                                         onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
                                         className="flex-grow"
                                     />
                                 )}
-                                <Input type="number" step="0.01" placeholder="e.g., 0.40" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                                <FormControl>
+                                  <Input type="number" step="0.01" placeholder="e.g., 0.40" {...field}
+                                      className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                      value={field.value ?? ''}
+                                      onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))} />
+                                </FormControl>
                             </div>
                             <Button type="button" variant="outline" size="sm" onClick={applyAverageConsumption} className="w-full md:w-auto">
                                 Apply Average to All Hours
@@ -1144,7 +1154,7 @@ export default function SettingsPage() {
                                 {`${index.toString().padStart(2, '0')}:00`}
                                 {currentHour === index ? ' (Now)' : ''}
                               </Label>
-                              <div className={cn("flex items-center gap-2", !showSliders && "w-auto")}>
+                              <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
                                     <Slider
                                     id={`hour-profile-${index}`}
@@ -1173,8 +1183,7 @@ export default function SettingsPage() {
 
 
             <FormField
-              control={form.control}
-              name="systemEfficiency"
+              control={form.control} name="systemEfficiency"
               render={({ field }) => (
                 <FormItem>
                     <div className="flex items-center gap-2">
@@ -1190,17 +1199,20 @@ export default function SettingsPage() {
                         </TooltipContent>
                         </Tooltip>
                     </div>
-                    <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
+                    <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                         {showSliders && (
-                            <Slider
-                                id="systemEfficiencySlider"
-                                min={0.1} max={1} step={0.01}
-                                value={[field.value ?? 0.85]}
+                            <Slider id="systemEfficiencySlider" min={0.1} max={1} step={0.01}
+                                value={[typeof field.value === 'number' ? field.value : 0.85]}
                                 onValueChange={(val) => field.onChange(val[0])}
                                 className="flex-grow"
                             />
                         )}
-                        <Input type="number" step="0.01" min="0.1" max="1" placeholder="e.g., 0.85" {...field} className={showSliders ? "w-24" : "w-full"} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                        <FormControl>
+                            <Input type="number" step="0.01" min="0.1" max="1" placeholder="e.g., 0.85" {...field}
+                                className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                value={field.value ?? ''}
+                                onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))} />
+                        </FormControl>
                     </div>
                   <FormDescription>Adjust if observed generation differs from estimates. Default: 0.85.</FormDescription>
                   <FormMessage />
@@ -1249,27 +1261,23 @@ export default function SettingsPage() {
                               <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
                                 {monthName} Factor
                               </FormLabel>
-                              <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
+                              <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
                                     <Slider
-                                        id={`monthFactorSlider-${index}`}
-                                        min={0} max={2} step={0.01}
-                                        value={[field.value ?? 1.0]}
+                                        id={`monthFactorSlider-${index}`} min={0} max={2} step={0.01}
+                                        value={[typeof field.value === 'number' ? field.value : 1.0]}
                                         onValueChange={(val) => field.onChange(val[0])}
                                         className="flex-grow"
                                     />
                                 )}
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  max="2"
-                                  placeholder="e.g., 1.00"
-                                  {...field}
-                                  className={showSliders ? "w-24" : "w-full"}
-                                  value={field.value ?? ''}
-                                  onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                                />
+                                <FormControl>
+                                    <Input
+                                    type="number" step="0.01" min="0" max="2" placeholder="e.g., 1.00" {...field}
+                                    className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                    value={field.value ?? ''}
+                                    onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}
+                                    />
+                                </FormControl>
                                </div>
                               <FormMessage />
                             </FormItem>
@@ -1343,17 +1351,19 @@ export default function SettingsPage() {
               </div>
                <div className="space-y-1">
                  <Label htmlFor="rateSlider">Rate (pence/kWh, Optional)</Label>
-                 <div className={cn("flex items-center gap-2", !showSliders && "w-24")}>
+                 <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                     {showSliders && (
                         <Slider
-                            id="rateSlider"
-                            min={0} max={100} step={0.01}
+                            id="rateSlider" min={0} max={100} step={0.01}
                             value={[newRate ?? 0]}
                             onValueChange={(val) => setNewRate(val[0] === 0 ? undefined : val[0])}
                             className="flex-grow"
                         />
                     )}
-                    <Input id="rateInput" type="number" step="0.01" placeholder="e.g., 7.50" className={showSliders ? "w-24" : "w-full"} value={newRate ?? ''} onChange={(e) => setNewRate(e.target.value ? parseFloat(e.target.value) : undefined)} />
+                    <Input id="rateInput" type="number" step="0.01" placeholder="e.g., 7.50"
+                           className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                           value={newRate ?? ''}
+                           onChange={(e) => setNewRate(e.target.value ? parseFloat(e.target.value) : undefined)} />
                  </div>
                </div>
             </div>
