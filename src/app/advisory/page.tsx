@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, Edit3, HelpCircle, BatteryCharging as BatteryChargingIcon, Percent, RefreshCw } from 'lucide-react';
+import { Loader2, Zap, BatteryCharging, Cloudy, Sun, AlertCircle, Settings as SettingsIcon, BarChart, Battery, Hourglass, Clock, Car, Edit3, HelpCircle as HelpCircleIcon, BatteryCharging as BatteryChargingIcon, Percent, RefreshCw } from 'lucide-react';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings, TariffPeriod, ManualDayForecast, ManualForecastInput } from '@/types/settings';
 import { calculateSolarGeneration, type CalculatedForecast} from '@/lib/solar-calculations';
@@ -21,7 +21,8 @@ import { HowToInfo } from '@/components/how-to-info';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
 import type { DailyWeather } from '@/types/weather';
-import { useSliderVisibility } from '@/hooks/use-slider-visibility';
+import { useInputControls } from '@/hooks/use-input-controls'; // Changed
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 const HOURS_IN_DAY = 24;
@@ -33,7 +34,7 @@ const MAX_AVG_HOURLY_CONSUMPTION_SLIDER = 5;
 const MAX_EV_CHARGE_RATE_SLIDER = 22; 
 
 export default function AdvisoryPage() {
-    const { showSliders } = useSliderVisibility(); 
+    const { showSliders, showTooltips } = useInputControls(); // Changed
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
     const [manualForecast, setManualForecast, refreshManualForecastDates] = useManualForecast();
@@ -450,6 +451,7 @@ export default function AdvisoryPage() {
     };
 
    return (
+    <TooltipProvider>
      <div className="space-y-6">
        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
             <div className="mb-2 sm:mb-0">
@@ -530,9 +532,17 @@ export default function AdvisoryPage() {
          </CardHeader>
          <CardContent className="space-y-4">
            <div className="space-y-2">
-             <Label htmlFor="batteryLevelSlider" className="flex items-center gap-2">
-               <Battery className="h-4 w-4" /> Current Battery Level (kWh)
-             </Label>
+            <div className="flex items-center gap-1">
+                <Label htmlFor="batteryLevelSlider" className="flex items-center gap-2">
+                    <Battery className="h-4 w-4" /> Current Battery Level (kWh)
+                </Label>
+                {showTooltips && (
+                    <Tooltip>
+                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                        <TooltipContent><p>Enter your battery's current charge in kWh. This is crucial for advice accuracy.</p></TooltipContent>
+                    </Tooltip>
+                )}
+            </div>
              <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
                {showSliders && (
                  <Slider
@@ -572,9 +582,17 @@ export default function AdvisoryPage() {
            </div>
 
             <div className="space-y-2">
-              <Label htmlFor="preferredOvernightCharge" className="flex items-center gap-2">
-                <BatteryChargingIcon className="h-4 w-4" /> Preferred Overnight Battery Target
-              </Label>
+                <div className="flex items-center gap-1">
+                    <Label htmlFor="preferredOvernightCharge" className="flex items-center gap-2">
+                        <BatteryChargingIcon className="h-4 w-4" /> Preferred Overnight Battery Target
+                    </Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>Set your desired battery charge level (0-100%) by the next morning. Default is 100%.</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                </div>
               <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
                 {showSliders && (
                   <Slider
@@ -602,9 +620,17 @@ export default function AdvisoryPage() {
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="dailyConsumptionSlider" className="flex items-center gap-2">
-                    <Hourglass className="h-4 w-4" /> Estimated Daily Consumption (kWh)
-                </Label>
+                <div className="flex items-center gap-1">
+                    <Label htmlFor="dailyConsumptionSlider" className="flex items-center gap-2">
+                        <Hourglass className="h-4 w-4" /> Estimated Daily Consumption (kWh)
+                    </Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>Your typical total daily household energy usage in kWh.</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
                         {showSliders && (
@@ -638,9 +664,17 @@ export default function AdvisoryPage() {
             </div>
 
             <div className="space-y-2">
-                 <Label htmlFor="avgHourlyConsumptionSlider" className="flex items-center gap-2">
-                     <BarChart className="h-4 w-4" /> Average Hourly Consumption (kWh)
-                 </Label>
+                <div className="flex items-center gap-1">
+                     <Label htmlFor="avgHourlyConsumptionSlider" className="flex items-center gap-2">
+                         <BarChart className="h-4 w-4" /> Average Hourly Consumption (kWh)
+                     </Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>Your typical average hourly household energy usage in kWh. This is used if the hourly profile below isn't detailed.</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
                      <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
                          {showSliders && (
@@ -678,6 +712,12 @@ export default function AdvisoryPage() {
                 <AccordionTrigger>
                   <Label className="flex items-center gap-2 text-base font-semibold cursor-pointer">
                     Adjust Hourly Consumption Profile (kWh)
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>Fine-tune your expected energy usage for each hour of the day. This provides more accurate advice.</p></TooltipContent>
+                        </Tooltip>
+                    )}
                   </Label>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -734,9 +774,17 @@ export default function AdvisoryPage() {
          </CardHeader>
          <CardContent className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="evChargeRequiredSlider" className="flex items-center gap-2">
-                    Charge Required (kWh)
-                </Label>
+                <div className="flex items-center gap-1">
+                    <Label htmlFor="evChargeRequiredSlider" className="flex items-center gap-2">
+                        Charge Required (kWh)
+                    </Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>The amount of energy (in kWh) your Electric Vehicle needs. Set to 0 if no EV charge is needed.</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                </div>
                 <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
                     {showSliders && (
                         <Slider
@@ -769,7 +817,15 @@ export default function AdvisoryPage() {
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-1">
-                     <Label htmlFor="evChargeBy">Charge By Time (HH:MM)</Label>
+                    <div className="flex items-center gap-1">
+                        <Label htmlFor="evChargeBy">Charge By Time (HH:MM)</Label>
+                        {showTooltips && (
+                            <Tooltip>
+                                <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                <TooltipContent><p>The time by which your EV needs to be fully charged (e.g., 07:00 for 7 AM).</p></TooltipContent>
+                            </Tooltip>
+                        )}
+                    </div>
                      <Input
                          id="evChargeBy"
                          type="time"
@@ -779,7 +835,15 @@ export default function AdvisoryPage() {
                      />
                  </div>
                   <div className="space-y-1">
-                     <Label htmlFor="evMaxRateSlider">Max Charge Rate (kW)</Label>
+                    <div className="flex items-center gap-1">
+                        <Label htmlFor="evMaxRateSlider">Max Charge Rate (kW)</Label>
+                         {showTooltips && (
+                            <Tooltip>
+                                <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                <TooltipContent><p>The maximum power (in kW) your EV charger can deliver. Default is 7.5kW.</p></TooltipContent>
+                            </Tooltip>
+                        )}
+                    </div>
                      <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
                          {showSliders && (
                              <Slider
@@ -858,6 +922,6 @@ export default function AdvisoryPage() {
         </Card>
         )}
      </div>
+    </TooltipProvider>
    );
  }
-

@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { SliderVisibilityToggle } from '@/components/slider-visibility-toggle'; // Added
+import { InputControlToggle } from '@/components/input-control-toggle'; // Changed
 import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3, BarChartHorizontalBig } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
@@ -84,11 +84,13 @@ export default function Header() {
 
   const handleSourceSelect = (sourceId: string) => {
     const selected = weatherSources.find(s => s.id === sourceId);
-    if (!selected || !selected.isFunctional) {
-        if (selected && selected.url) {
+    if (!selected) return;
+
+    if (!selected.isFunctional) {
+        if (selected.url) {
             window.open(selected.url, '_blank', 'noopener,noreferrer');
         }
-        return;
+        return; // Don't change selectedWeatherSourceId if it's info only
     }
 
     setSelectedWeatherSourceId(sourceId);
@@ -190,7 +192,7 @@ export default function Header() {
         </nav>
 
         <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2">
-         <SliderVisibilityToggle />
+         <InputControlToggle /> {/* Changed */}
          <ThemeToggle />
         </div>
       </div>
@@ -209,4 +211,3 @@ export default function Header() {
     </>
   );
 }
-

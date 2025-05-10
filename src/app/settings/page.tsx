@@ -30,7 +30,7 @@ import { HowToInfo } from '@/components/how-to-info';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import { useSliderVisibility } from '@/hooks/use-slider-visibility';
+import { useInputControls } from '@/hooks/use-input-controls'; // Changed
 
 interface NominatimResult {
   place_id: number;
@@ -136,7 +136,7 @@ const HOURS_IN_DAY = 24;
 
 
 export default function SettingsPage() {
-  const { showSliders } = useSliderVisibility();
+  const { showSliders, showTooltips } = useInputControls(); // Changed
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const { toast } = useToast();
   const [postcode, setPostcode] = useState<string>('');
@@ -723,7 +723,15 @@ export default function SettingsPage() {
                <h3 className="text-lg font-medium mb-2">Location Lookup</h3>
                  <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2">
                    <div className="flex-grow space-y-1 w-full sm:w-auto">
-                     <Label htmlFor="postcode">Enter Postcode (UK)</Label>
+                      <div className="flex items-center gap-1">
+                        <Label htmlFor="postcode">Enter Postcode (UK)</Label>
+                        {showTooltips && (
+                          <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>Enter your UK postcode to find your address and automatically populate latitude and longitude.</p></TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
                      <Input
                        id="postcode"
                        placeholder="e.g., KY4 0BD or SW1A 0AA"
@@ -787,11 +795,19 @@ export default function SettingsPage() {
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Selected Location / Manual Entry</FormLabel>
+                  <div className="flex items-center gap-1">
+                    <FormLabel>Selected Location / Manual Entry</FormLabel>
+                    {showTooltips && (
+                      <Tooltip>
+                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                        <TooltipContent><p>Displays the address selected from lookup or allows manual entry (e.g., city name). Used for display and as a fallback if coordinates are not available.</p></TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                   <FormControl>
                     <Input placeholder="Select address above or enter location manually (e.g., city)" {...field} />
                   </FormControl>
-                  <FormDescription>Your selected address or a manual location entry (used for display and as fallback if no coords).</FormDescription>
+                  <FormDescription>Your selected address or a manual location entry.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -803,7 +819,15 @@ export default function SettingsPage() {
                   name="latitude"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Latitude (Decimal)</FormLabel>
+                      <div className="flex items-center gap-1">
+                        <FormLabel>Latitude (Decimal)</FormLabel>
+                        {showTooltips && (
+                          <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>Geographical latitude. Populated by address lookup or enter manually. Crucial for accurate solar forecasts with Open-Meteo.</p></TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
                       <FormControl>
                         <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                       </FormControl>
@@ -816,7 +840,15 @@ export default function SettingsPage() {
                   name="longitude"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Longitude (Decimal)</FormLabel>
+                      <div className="flex items-center gap-1">
+                        <FormLabel>Longitude (Decimal)</FormLabel>
+                        {showTooltips && (
+                          <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>Geographical longitude. Populated by address lookup or enter manually. Crucial for accurate solar forecasts with Open-Meteo.</p></TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
                       <FormControl>
                         <Input type="number" step="any" placeholder="Filled by lookup or enter manually" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                       </FormControl>
@@ -835,6 +867,7 @@ export default function SettingsPage() {
                 <FormItem>
                   <div className="flex items-center gap-2">
                     <FormLabel>Property/Panel Direction</FormLabel>
+                    {/* Existing Tooltip for directions can stay, or be integrated if logic for showTooltips is added here too */}
                     <Tooltip>
                       <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}>
                          <HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -887,7 +920,15 @@ export default function SettingsPage() {
                         control={form.control} name="panelCount"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Number of Panels</FormLabel>
+                                <div className="flex items-center gap-1">
+                                    <FormLabel>Number of Panels</FormLabel>
+                                    {showTooltips && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                        <TooltipContent><p>The total number of solar panels in your system.</p></TooltipContent>
+                                    </Tooltip>
+                                    )}
+                                </div>
                                 <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                     {showSliders && (
                                         <Slider id="panelCountSlider" min={0} max={50} step={1}
@@ -911,7 +952,15 @@ export default function SettingsPage() {
                         control={form.control} name="panelWatts"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Max Power per Panel (Watts)</FormLabel>
+                                 <div className="flex items-center gap-1">
+                                    <FormLabel>Max Power per Panel (Watts)</FormLabel>
+                                    {showTooltips && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                        <TooltipContent><p>The maximum power rating (in Watts) of a single solar panel in your system (check panel specifications).</p></TooltipContent>
+                                    </Tooltip>
+                                    )}
+                                </div>
                                  <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                     {showSliders && (
                                         <Slider id="panelWattsSlider" min={0} max={600} step={5}
@@ -963,7 +1012,15 @@ export default function SettingsPage() {
               control={form.control} name="totalKWp"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Total System Power (kWp)</FormLabel>
+                  <div className="flex items-center gap-1">
+                    <FormLabel>Total System Power (kWp)</FormLabel>
+                    {showTooltips && (
+                      <Tooltip>
+                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                        <TooltipContent><p>The total Kilowatt-peak (kWp) rating of your entire solar array. This is a key value for forecasts. Enter directly or apply from panel calculation above.</p></TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                   <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                     {showSliders && (
                         <Slider id="totalKWpSlider" min={0} max={30} step={0.01}
@@ -994,7 +1051,15 @@ export default function SettingsPage() {
                   control={form.control} name="batteryCapacityKWh"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center gap-1"><BatteryChargingIcon className="h-4 w-4"/>Battery Capacity (kWh)</FormLabel>
+                      <div className="flex items-center gap-1">
+                        <FormLabel className="flex items-center gap-1"><BatteryChargingIcon className="h-4 w-4"/>Battery Capacity (kWh)</FormLabel>
+                         {showTooltips && (
+                            <Tooltip>
+                                <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                <TooltipContent><p>The total usable energy capacity of your battery system in kilowatt-hours (kWh). Leave blank or 0 if no battery.</p></TooltipContent>
+                            </Tooltip>
+                        )}
+                      </div>
                       <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                         {showSliders && (
                             <Slider id="batteryCapacitySlider" min={0} max={100} step={0.1}
@@ -1019,7 +1084,15 @@ export default function SettingsPage() {
                   control={form.control} name="batteryMaxChargeRateKWh"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center gap-1"><Zap className="h-4 w-4"/>Battery Max Charge Rate (kW)</FormLabel>
+                      <div className="flex items-center gap-1">
+                        <FormLabel className="flex items-center gap-1"><Zap className="h-4 w-4"/>Battery Max Charge Rate (kW)</FormLabel>
+                        {showTooltips && (
+                            <Tooltip>
+                                <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                <TooltipContent><p>The maximum power (in kilowatts, kW) at which your battery can be charged. Default is 5kW.</p></TooltipContent>
+                            </Tooltip>
+                        )}
+                      </div>
                        <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                         {showSliders && (
                             <Slider id="batteryMaxChargeRateSlider" min={0} max={20} step={0.1}
@@ -1044,7 +1117,15 @@ export default function SettingsPage() {
                     control={form.control} name="preferredOvernightBatteryChargePercent"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Overnight Battery Target (%)</FormLabel>
+                            <div className="flex items-center gap-1">
+                                <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Overnight Battery Target (%)</FormLabel>
+                                {showTooltips && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                        <TooltipContent><p>Your desired battery charge level (0-100%) by the next morning. Used in charging advice. Default is 100%.</p></TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </div>
                             <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
                                     <Slider id="overnightTargetSlider" min={0} max={100} step={1}
@@ -1074,7 +1155,15 @@ export default function SettingsPage() {
                     control={form.control} name="dailyConsumptionKWh"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
+                        <div className="flex items-center gap-1">
+                            <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
+                            {showTooltips && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                    <TooltipContent><p>Your household's typical total daily energy consumption in kWh. Used for charging advice.</p></TooltipContent>
+                                </Tooltip>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
                             <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
@@ -1104,7 +1193,15 @@ export default function SettingsPage() {
                     control={form.control} name="avgHourlyConsumptionKWh"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
+                        <div className="flex items-center gap-1">
+                           <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
+                            {showTooltips && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                    <TooltipContent><p>Your household's average hourly energy consumption in kWh. Used for charging advice if hourly profile is not detailed.</p></TooltipContent>
+                                </Tooltip>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
                              <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
@@ -1188,16 +1285,21 @@ export default function SettingsPage() {
                 <FormItem>
                     <div className="flex items-center gap-2">
                         <FormLabel>System Efficiency Factor (Optional)</FormLabel>
-                        <Tooltip>
-                        <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}>
-                            <HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">
-                            <p className="text-sm">
-                            Overall efficiency including inverter, wiring, panel degradation etc. (0.1 to 1.0). Affects generation estimates. Default is 0.85 if left blank. If you consistently have less generation than advised, try reducing this factor (e.g., to 0.80 or 0.75).
-                            </p>
-                        </TooltipContent>
-                        </Tooltip>
+                        {showTooltips ? (
+                             <Tooltip>
+                                <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-xs">
+                                    <p className="text-sm">Overall efficiency including inverter, wiring, panel degradation etc. (0.1 to 1.0). Affects generation estimates. Default is 0.85 if left blank. If you consistently have less generation than advised, try reducing this factor (e.g., to 0.80 or 0.75).</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        ) : (
+                            <Tooltip> 
+                                <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-xs">
+                                    <p className="text-sm">Overall efficiency including inverter, wiring, panel degradation etc. (0.1 to 1.0). Affects generation estimates. Default is 0.85 if left blank. If you consistently have less generation than advised, try reducing this factor (e.g., to 0.80 or 0.75).</p>
+                                </TooltipContent>
+                             </Tooltip>
+                        )}
                     </div>
                     <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                         {showSliders && (
@@ -1258,9 +1360,17 @@ export default function SettingsPage() {
                           name={`monthlyGenerationFactors.${index}` as `monthlyGenerationFactors.${number}`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
-                                {monthName} Factor
-                              </FormLabel>
+                               <div className="flex items-center gap-1">
+                                <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
+                                    {monthName} Factor
+                                </FormLabel>
+                                {showTooltips && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                        <TooltipContent><p>Adjusts generation for {monthName}. 1.0 is average, 0.5 is half, 1.2 is 20% more. Only for 'Manual Input' source.</p></TooltipContent>
+                                    </Tooltip>
+                                )}
+                               </div>
                               <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                                 {showSliders && (
                                     <Slider
@@ -1346,11 +1456,27 @@ export default function SettingsPage() {
             <h3 className="text-lg font-medium">Add New Tariff Period</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label htmlFor="periodName">Period Name</Label>
+                <div className="flex items-center gap-1">
+                    <Label htmlFor="periodName">Period Name</Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>A descriptive name for the tariff period (e.g., "Night Saver", "Peak Hours").</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                </div>
                 <Input id="periodName" placeholder="e.g., Night Saver, Peak" value={newPeriodName} onChange={(e) => setNewPeriodName(e.target.value)} />
               </div>
                <div className="space-y-1">
-                 <Label htmlFor="rateSlider">Rate (pence/kWh, Optional)</Label>
+                 <div className="flex items-center gap-1">
+                    <Label htmlFor="rateSlider">Rate (pence/kWh, Optional)</Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>The cost of electricity per kilowatt-hour during this period (e.g., 7.5 for 7.5p). Leave blank if unknown.</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                 </div>
                  <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
                     {showSliders && (
                         <Slider
@@ -1369,17 +1495,40 @@ export default function SettingsPage() {
             </div>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                <div className="space-y-1">
-                 <Label htmlFor="startTime">Start Time (HH:MM)</Label>
+                 <div className="flex items-center gap-1">
+                    <Label htmlFor="startTime">Start Time (HH:MM)</Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>The time this tariff period begins, in 24-hour format (e.g., 00:30 for 12:30 AM).</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                 </div>
                  <Input id="startTime" type="time" value={newStartTime} onChange={(e) => setNewStartTime(e.target.value)} />
                </div>
                <div className="space-y-1">
-                 <Label htmlFor="endTime">End Time (HH:MM)</Label>
+                 <div className="flex items-center gap-1">
+                    <Label htmlFor="endTime">End Time (HH:MM)</Label>
+                    {showTooltips && (
+                        <Tooltip>
+                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                            <TooltipContent><p>The time this tariff period ends, in 24-hour format (e.g., 05:30 for 5:30 AM).</p></TooltipContent>
+                        </Tooltip>
+                    )}
+                 </div>
                  <Input id="endTime" type="time" value={newEndTime} onChange={(e) => setNewEndTime(e.target.value)} />
                </div>
              </div>
               <div className="flex items-center space-x-2 pt-2">
                 <Switch id="isCheap" checked={newIsCheap} onCheckedChange={setNewIsCheap} />
-                <Label htmlFor="isCheap">This is a cheap/off-peak rate period</Label>
+                <Label htmlFor="isCheap" className="flex items-center gap-1">This is a cheap/off-peak rate period
+                  {showTooltips && (
+                      <Tooltip>
+                          <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                          <TooltipContent><p>Toggle on if this period offers a cheaper electricity rate. This is used for charging advice.</p></TooltipContent>
+                      </Tooltip>
+                  )}
+                </Label>
               </div>
              <div className="flex flex-col sm:flex-row gap-2 mt-4">
                 <Button onClick={handleAddPeriod} className="btn-silver w-full sm:w-auto">
@@ -1407,4 +1556,3 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
-
