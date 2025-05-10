@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -17,24 +16,26 @@ export interface InputControlsContextType {
   isMounted: boolean;
 }
 
-const InputControlsContext = createContext<InputControlsContextType | undefined>(undefined);
+const defaultContextValue: InputControlsContextType = {
+  showSliders: true,
+  toggleSliderVisibility: () => {},
+  setShowSliders: () => {},
+  showTooltips: true,
+  toggleTooltipVisibility: () => {},
+  setShowTooltips: () => {},
+  isMounted: false,
+};
+
+const InputControlsContext = createContext<InputControlsContextType>(defaultContextValue);
 
 export const InputControlProvider = ({ children }: { children: ReactNode }) => {
-  const [showSliders, setShowSlidersState] = useLocalStorage<boolean>(SHOW_SLIDERS_KEY, true);
-  const [showTooltips, setShowTooltipsState] = useLocalStorage<boolean>(SHOW_TOOLTIPS_KEY, true);
+  const [showSlidersState, setShowSlidersState] = useLocalStorage<boolean>(SHOW_SLIDERS_KEY, true);
+  const [showTooltipsState, setShowTooltipsState] = useLocalStorage<boolean>(SHOW_TOOLTIPS_KEY, true);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  const setShowSlidersDirectly = (value: boolean | ((val: boolean) => boolean)) => {
-    setShowSlidersState(value);
-  };
-
-  const setShowTooltipsDirectly = (value: boolean | ((val: boolean) => boolean)) => {
-    setShowTooltipsState(value);
-  };
 
   const toggleSliderVisibility = () => {
     setShowSlidersState(prev => !prev);
@@ -44,15 +45,14 @@ export const InputControlProvider = ({ children }: { children: ReactNode }) => {
     setShowTooltipsState(prev => !prev);
   };
 
-  // Define the context value as a separate object
   const contextValue: InputControlsContextType = {
-    showSliders,
+    showSliders: showSlidersState,
     toggleSliderVisibility,
-    setShowSliders: setShowSlidersDirectly,
-    showTooltips,
+    setShowSliders: setShowSlidersState,
+    showTooltips: showTooltipsState,
     toggleTooltipVisibility,
-    setShowTooltips: setShowTooltipsDirectly,
-    isMounted
+    setShowTooltips: setShowTooltipsState,
+    isMounted,
   };
 
   return (
