@@ -6,11 +6,11 @@ import { ThemeProvider } from '@/components/theme-provider';
 import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
 import { Toaster } from '@/components/ui/toaster';
-import { QueryProvider } from '@/components/query-provider'; // Import QueryProvider
+import { QueryProvider } from '@/components/query-provider';
 import { InputControlProvider } from '@/hooks/use-input-controls'; // Ensure this is correctly named if it's a provider
 
 const inter = Inter({
-  variable: '--font-inter', // Assign a CSS variable
+  variable: '--font-inter',
   subsets: ['latin'],
 });
 
@@ -37,11 +37,11 @@ export default function RootLayout({
         className={`${inter.variable} antialiased flex flex-col min-h-screen`}
         suppressHydrationWarning 
         >
-        <InputControlProvider> {/** Ensure InputControlProvider wraps ThemeProvider if it also uses localStorage or causes hydration issues **/}
+        <InputControlProvider>
           <ThemeProvider
             attribute="class"
-            defaultTheme="system" // Changed from "dark" to "system"
-            enableSystem={true}    // Explicitly true, or can be omitted as it's default
+            defaultTheme="dark" 
+            enableSystem={true}    
             disableTransitionOnChange
             themes={['light', 'dark', 'system', 'high-contrast']}
           >

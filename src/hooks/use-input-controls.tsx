@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
@@ -9,10 +10,10 @@ const SHOW_TOOLTIPS_KEY = 'inputControls_showTooltips';
 export interface InputControlsContextType {
   showSliders: boolean;
   toggleSliderVisibility: () => void;
-  setShowSliders: (value: boolean | ((val: boolean) => boolean)) => void;
+  setShowSliders: (value: boolean | ((val: boolean) => boolean)) => void; // Added for completeness
   showTooltips: boolean;
   toggleTooltipVisibility: () => void;
-  setShowTooltips: (value: boolean | ((val: boolean) => boolean)) => void;
+  setShowTooltips: (value: boolean | ((val: boolean) => boolean)) => void; // Added for completeness
   isMounted: boolean;
 }
 
@@ -29,8 +30,8 @@ const defaultContextValue: InputControlsContextType = {
 const InputControlsContext = createContext<InputControlsContextType>(defaultContextValue);
 
 export const InputControlProvider = ({ children }: { children: ReactNode }) => {
-  const [showSlidersState, setShowSlidersState] = useLocalStorage<boolean>(SHOW_SLIDERS_KEY, true);
-  const [showTooltipsState, setShowTooltipsState] = useLocalStorage<boolean>(SHOW_TOOLTIPS_KEY, true);
+  const [showSlidersStored, setShowSlidersStored] = useLocalStorage<boolean>(SHOW_SLIDERS_KEY, true);
+  const [showTooltipsStored, setShowTooltipsStored] = useLocalStorage<boolean>(SHOW_TOOLTIPS_KEY, true);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -38,28 +39,32 @@ export const InputControlProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const toggleSliderVisibility = useCallback(() => {
-    setShowSlidersState(prev => !prev);
-  }, [setShowSlidersState]);
+    if(isMounted) setShowSlidersStored(prev => !prev);
+  }, [isMounted, setShowSlidersStored]);
 
   const toggleTooltipVisibility = useCallback(() => {
-    setShowTooltipsState(prev => !prev);
-  }, [setShowTooltipsState]);
+    if(isMounted) setShowTooltipsStored(prev => !prev);
+  }, [isMounted, setShowTooltipsStored]);
+  
+  // Use stored values only after mount to avoid hydration mismatch
+  const showSliders = isMounted ? showSlidersStored : true;
+  const showTooltips = isMounted ? showTooltipsStored : true;
 
   const contextValue = useMemo<InputControlsContextType>(() => ({
-    showSliders: showSlidersState,
+    showSliders,
     toggleSliderVisibility,
-    setShowSliders: setShowSlidersState,
-    showTooltips: showTooltipsState,
+    setShowSliders: setShowSlidersStored, // Pass the setter from useLocalStorage
+    showTooltips,
     toggleTooltipVisibility,
-    setShowTooltips: setShowTooltipsState,
+    setShowTooltips: setShowTooltipsStored, // Pass the setter from useLocalStorage
     isMounted,
   }), [
-    showSlidersState,
-    toggleSliderVisibility,
-    setShowSlidersState,
-    showTooltipsState,
+    showSliders, 
+    toggleSliderVisibility, 
+    setShowSlidersStored,
+    showTooltips, 
     toggleTooltipVisibility,
-    setShowTooltipsState,
+    setShowTooltipsStored,
     isMounted
   ]);
 
@@ -73,7 +78,12 @@ export const InputControlProvider = ({ children }: { children: ReactNode }) => {
 export function useInputControls(): InputControlsContextType {
   const context = useContext(InputControlsContext);
   if (context === undefined) {
-    throw new Error('useInputControls must be used within an InputControlProvider');
+    // This typically means useInputControls is used outside of InputControlProvider
+    // For client components, this should ideally not happen if setup is correct.
+    // Returning default or throwing error are options. For now, let's return default to avoid crashing,
+    // but log a warning.
+    console.warn('useInputControls must be used within an InputControlProvider. Using default values.');
+    return defaultContextValue; 
   }
   return context;
 }

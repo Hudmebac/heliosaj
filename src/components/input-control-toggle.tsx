@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -27,30 +28,30 @@ export function InputControlToggle() {
   
   const [settingsChangedSinceLoad, setSettingsChangedSinceLoad] = React.useState(false);
 
-  // Track if settings have changed since the component was initially loaded on the client
-  // This avoids showing the "reload" message immediately on load if localStorage values differ from defaults
-  const initialSliders = React.useRef(showSliders);
-  const initialTooltips = React.useRef(showTooltips);
+  // Refs to store initial values after mount
+  const initialSlidersRef = React.useRef(showSliders);
+  const initialTooltipsRef = React.useRef(showTooltips);
 
   React.useEffect(() => {
-    if (isMounted) { // Only after initial mount and context values are potentially from localStorage
-        initialSliders.current = showSliders;
-        initialTooltips.current = showTooltips;
+    if (isMounted) {
+      initialSlidersRef.current = showSliders;
+      initialTooltipsRef.current = showTooltips;
     }
   }, [isMounted, showSliders, showTooltips]);
 
-
   const handleSliderToggle = () => {
     toggleSliderVisibility();
-    if (isMounted && showSliders !== !initialSliders.current) { // Check against the toggled state
-        setSettingsChangedSinceLoad(true);
+    // Check against the value *before* toggle, to see if it's different from initial
+    if (isMounted && showSliders !== initialSlidersRef.current) {
+      setSettingsChangedSinceLoad(true);
     }
   };
 
   const handleTooltipToggle = () => {
     toggleTooltipVisibility();
-     if (isMounted && showTooltips !== !initialTooltips.current) {
-        setSettingsChangedSinceLoad(true);
+    // Check against the value *before* toggle
+    if (isMounted && showTooltips !== initialTooltipsRef.current) {
+      setSettingsChangedSinceLoad(true);
     }
   };
 
@@ -58,7 +59,7 @@ export function InputControlToggle() {
     window.location.reload();
   };
 
-  if (!isMounted) { // Render placeholder if not mounted
+  if (!isMounted) {
     return (
       <Button variant="outline" size="icon" disabled>
         <SlidersHorizontal className="h-[1.2rem] w-[1.2rem]" />
@@ -77,6 +78,7 @@ export function InputControlToggle() {
         <DropdownMenuLabel>Input Controls</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent cursor-default">
+          {/* Removed focus:bg-transparent to allow default hover/focus styles */}
           <div className="flex items-center justify-between w-full gap-2">
             <Label htmlFor="slider-visibility-switch" className="flex items-center gap-2 cursor-pointer flex-grow">
               {showSliders ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -91,6 +93,7 @@ export function InputControlToggle() {
           </div>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent cursor-default">
+          {/* Removed focus:bg-transparent to allow default hover/focus styles */}
           <div className="flex items-center justify-between w-full gap-2">
             <Label htmlFor="tooltip-visibility-switch" className="flex items-center gap-2 cursor-pointer flex-grow">
               {showTooltips ? <MessageSquareText className="h-4 w-4" /> : <MessageSquareOff className="h-4 w-4" />}
@@ -107,10 +110,16 @@ export function InputControlToggle() {
         {settingsChangedSinceLoad && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent cursor-default text-xs text-muted-foreground p-2">
+            <DropdownMenuItem 
+              onSelect={(e) => e.preventDefault()} 
+              className="focus:bg-transparent cursor-default text-xs text-muted-foreground p-2"
+              // Make this item non-focusable or visually distinct as non-interactive
+              role="presentation" 
+              aria-hidden="true"
+            >
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                <span>For changes to fully apply across all components, a page reload may be needed.</span>
+                <span>For changes to fully apply, a page reload may be needed.</span>
               </div>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleRefresh} className="cursor-pointer">

@@ -30,7 +30,7 @@ import { HowToInfo } from '@/components/how-to-info';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import { useInputControls } from '@/hooks/use-input-controls'; // Changed
+import { useInputControls } from '@/hooks/use-input-controls'; 
 
 interface NominatimResult {
   place_id: number;
@@ -136,7 +136,7 @@ const HOURS_IN_DAY = 24;
 
 
 export default function SettingsPage() {
-  const { showSliders, showTooltips } = useInputControls(); // Changed
+  const { showSliders, showTooltips, isMounted: inputControlsMounted } = useInputControls(); 
   const [storedSettings, setStoredSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
   const { toast } = useToast();
   const [postcode, setPostcode] = useState<string>('');
@@ -144,7 +144,7 @@ export default function SettingsPage() {
   const [lookupLoading, setLookupLoading] = useState<boolean>(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [selectedAddressValue, setSelectedAddressValue] = useState<string | undefined>(undefined);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isMounted, setIsMounted] = useState(false); // General page mount
   const [selectedDirectionInfo, setSelectedDirectionInfo] = useState<PropertyDirectionInfo | null>(SOUTH_DIRECTION_INFO);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
   const [calculatedKWpFromPanels, setCalculatedKWpFromPanels] = useState<number | undefined>(undefined);
@@ -200,7 +200,7 @@ export default function SettingsPage() {
   }, [watchedPanelCount, watchedPanelWatts]);
 
   useEffect(() => {
-    setIsMounted(true);
+    setIsMounted(true); // General page mount
     setCurrentHour(new Date().getHours());
     const timer = setInterval(() => {
         setCurrentHour(new Date().getHours());
@@ -209,7 +209,7 @@ export default function SettingsPage() {
   }, []);
 
    useEffect(() => {
-     if(isMounted && storedSettings) {
+     if(inputControlsMounted && storedSettings) { // Use inputControlsMounted
       const factorsToSet = storedSettings.monthlyGenerationFactors && storedSettings.monthlyGenerationFactors.length === 12
         ? storedSettings.monthlyGenerationFactors
         : [...defaultMonthlyFactors];
@@ -240,7 +240,7 @@ export default function SettingsPage() {
         const currentDirection = propertyDirectionOptions.find(opt => opt.value === (storedSettings.propertyDirection || SOUTH_DIRECTION_INFO.value));
         setSelectedDirectionInfo(currentDirection || SOUTH_DIRECTION_INFO);
 
-     } else if (isMounted) {
+     } else if (inputControlsMounted) { // Use inputControlsMounted
         form.reset({
          location: '',
          latitude: undefined,
@@ -267,7 +267,7 @@ export default function SettingsPage() {
        setSelectedDirectionInfo(SOUTH_DIRECTION_INFO);
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [storedSettings, form, isMounted]);
+   }, [storedSettings, form, inputControlsMounted]); // Use inputControlsMounted
 
 
    useEffect(() => {
@@ -680,7 +680,7 @@ export default function SettingsPage() {
   };
 
 
-  if (!isMounted) {
+  if (!inputControlsMounted) { // Use inputControlsMounted
     return (
       <div className="flex justify-center items-center py-10">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -725,7 +725,7 @@ export default function SettingsPage() {
                    <div className="flex-grow space-y-1 w-full sm:w-auto">
                       <div className="flex items-center gap-1">
                         <Label htmlFor="postcode">Enter Postcode (UK)</Label>
-                        {showTooltips && (
+                        {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                           <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>Enter your UK postcode to find your address and automatically populate latitude and longitude.</p></TooltipContent>
@@ -797,7 +797,7 @@ export default function SettingsPage() {
                 <FormItem>
                   <div className="flex items-center gap-1">
                     <FormLabel>Selected Location / Manual Entry</FormLabel>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                       <Tooltip>
                         <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                         <TooltipContent><p>Displays the address selected from lookup or allows manual entry (e.g., city name). Used for display and as a fallback if coordinates are not available.</p></TooltipContent>
@@ -821,7 +821,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <div className="flex items-center gap-1">
                         <FormLabel>Latitude (Decimal)</FormLabel>
-                        {showTooltips && (
+                        {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                           <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>Geographical latitude. Populated by address lookup or enter manually. Crucial for accurate solar forecasts with Open-Meteo.</p></TooltipContent>
@@ -842,7 +842,7 @@ export default function SettingsPage() {
                     <FormItem>
                       <div className="flex items-center gap-1">
                         <FormLabel>Longitude (Decimal)</FormLabel>
-                        {showTooltips && (
+                        {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                           <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>Geographical longitude. Populated by address lookup or enter manually. Crucial for accurate solar forecasts with Open-Meteo.</p></TooltipContent>
@@ -867,7 +867,6 @@ export default function SettingsPage() {
                 <FormItem>
                   <div className="flex items-center gap-2">
                     <FormLabel>Property/Panel Direction</FormLabel>
-                    {/* Existing Tooltip for directions can stay, or be integrated if logic for showTooltips is added here too */}
                     <Tooltip>
                       <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}>
                          <HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -922,15 +921,15 @@ export default function SettingsPage() {
                             <FormItem>
                                 <div className="flex items-center gap-1">
                                     <FormLabel>Number of Panels</FormLabel>
-                                    {showTooltips && (
+                                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                                     <Tooltip>
                                         <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                         <TooltipContent><p>The total number of solar panels in your system.</p></TooltipContent>
                                     </Tooltip>
                                     )}
                                 </div>
-                                <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                                    {showSliders && (
+                                <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                                    {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                                         <Slider id="panelCountSlider" min={0} max={50} step={1}
                                             value={[typeof field.value === 'number' ? field.value : 0]}
                                             onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
@@ -939,7 +938,7 @@ export default function SettingsPage() {
                                     )}
                                     <FormControl>
                                         <Input type="number" placeholder="e.g., 18" {...field}
-                                            className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                            className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                             value={field.value ?? ''}
                                             onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseInt(e.target.value)) ? undefined : parseInt(e.target.value)))} />
                                     </FormControl>
@@ -954,15 +953,15 @@ export default function SettingsPage() {
                             <FormItem>
                                  <div className="flex items-center gap-1">
                                     <FormLabel>Max Power per Panel (Watts)</FormLabel>
-                                    {showTooltips && (
+                                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                                     <Tooltip>
                                         <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                         <TooltipContent><p>The maximum power rating (in Watts) of a single solar panel in your system (check panel specifications).</p></TooltipContent>
                                     </Tooltip>
                                     )}
                                 </div>
-                                 <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                                    {showSliders && (
+                                 <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                                    {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                                         <Slider id="panelWattsSlider" min={0} max={600} step={5}
                                             value={[typeof field.value === 'number' ? field.value : 0]}
                                             onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
@@ -971,7 +970,7 @@ export default function SettingsPage() {
                                     )}
                                     <FormControl>
                                         <Input type="number" placeholder="e.g., 405" {...field}
-                                            className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                            className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                             value={field.value ?? ''}
                                             onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseInt(e.target.value)) ? undefined : parseInt(e.target.value)))}/>
                                     </FormControl>
@@ -1014,15 +1013,15 @@ export default function SettingsPage() {
                 <FormItem>
                   <div className="flex items-center gap-1">
                     <FormLabel>Total System Power (kWp)</FormLabel>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                       <Tooltip>
                         <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                         <TooltipContent><p>The total Kilowatt-peak (kWp) rating of your entire solar array. This is a key value for forecasts. Enter directly or apply from panel calculation above.</p></TooltipContent>
                       </Tooltip>
                     )}
                   </div>
-                  <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                    {showSliders && (
+                  <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                    {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                         <Slider id="totalKWpSlider" min={0} max={30} step={0.01}
                             value={[typeof field.value === 'number' ? field.value : 0]}
                             onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
@@ -1031,7 +1030,7 @@ export default function SettingsPage() {
                     )}
                     <FormControl>
                         <Input type="number" step="0.01" placeholder="e.g., 7.20" {...field}
-                            className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                            className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                             value={field.value ?? ''}
                             onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}
                         />
@@ -1053,15 +1052,15 @@ export default function SettingsPage() {
                     <FormItem>
                       <div className="flex items-center gap-1">
                         <FormLabel className="flex items-center gap-1"><BatteryChargingIcon className="h-4 w-4"/>Battery Capacity (kWh)</FormLabel>
-                         {showTooltips && (
+                         {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                             <Tooltip>
                                 <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                 <TooltipContent><p>The total usable energy capacity of your battery system in kilowatt-hours (kWh). Leave blank or 0 if no battery.</p></TooltipContent>
                             </Tooltip>
                         )}
                       </div>
-                      <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                        {showSliders && (
+                      <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                        {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                             <Slider id="batteryCapacitySlider" min={0} max={100} step={0.1}
                                 value={[typeof field.value === 'number' ? field.value : 0]}
                                 onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
@@ -1070,7 +1069,7 @@ export default function SettingsPage() {
                         )}
                         <FormControl>
                            <Input type="number" step="0.01" placeholder="e.g., 19.00" {...field}
-                                className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                 value={field.value ?? ''}
                                 onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}/>
                         </FormControl>
@@ -1086,15 +1085,15 @@ export default function SettingsPage() {
                     <FormItem>
                       <div className="flex items-center gap-1">
                         <FormLabel className="flex items-center gap-1"><Zap className="h-4 w-4"/>Battery Max Charge Rate (kW)</FormLabel>
-                        {showTooltips && (
+                        {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                             <Tooltip>
                                 <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                 <TooltipContent><p>The maximum power (in kilowatts, kW) at which your battery can be charged. Default is 5kW.</p></TooltipContent>
                             </Tooltip>
                         )}
                       </div>
-                       <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                        {showSliders && (
+                       <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                        {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                             <Slider id="batteryMaxChargeRateSlider" min={0} max={20} step={0.1}
                                 value={[typeof field.value === 'number' ? field.value : 0]}
                                 onValueChange={(val) => field.onChange(val[0] === 0 ? undefined : val[0])}
@@ -1103,7 +1102,7 @@ export default function SettingsPage() {
                         )}
                         <FormControl>
                            <Input type="number" step="0.1" placeholder="e.g., 5.0" {...field}
-                                className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                 value={field.value ?? ''}
                                 onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}/>
                         </FormControl>
@@ -1119,15 +1118,15 @@ export default function SettingsPage() {
                         <FormItem>
                             <div className="flex items-center gap-1">
                                 <FormLabel className="flex items-center gap-1"><Percent className="h-4 w-4" />Overnight Battery Target (%)</FormLabel>
-                                {showTooltips && (
+                                {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                                     <Tooltip>
                                         <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                         <TooltipContent><p>Your desired battery charge level (0-100%) by the next morning. Used in charging advice. Default is 100%.</p></TooltipContent>
                                     </Tooltip>
                                 )}
                             </div>
-                            <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                                {showSliders && (
+                            <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                                {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                                     <Slider id="overnightTargetSlider" min={0} max={100} step={1}
                                         value={[typeof field.value === 'number' ? field.value : 100]}
                                         onValueChange={(val) => field.onChange(val[0])}
@@ -1136,7 +1135,7 @@ export default function SettingsPage() {
                                 )}
                                 <FormControl>
                                    <Input type="number" step="1" min="0" max="100" placeholder="e.g., 90" {...field}
-                                        className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                        className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                         value={field.value ?? ''}
                                         onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseInt(e.target.value)) ? undefined : parseInt(e.target.value)))} />
                                 </FormControl>
@@ -1157,7 +1156,7 @@ export default function SettingsPage() {
                         <FormItem>
                         <div className="flex items-center gap-1">
                             <FormLabel className="flex items-center gap-2"><Hourglass className="h-4 w-4" />Daily Consumption (kWh)</FormLabel>
-                            {showTooltips && (
+                            {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                                 <Tooltip>
                                     <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                     <TooltipContent><p>Your household's typical total daily energy consumption in kWh. Used for charging advice.</p></TooltipContent>
@@ -1165,8 +1164,8 @@ export default function SettingsPage() {
                             )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                            <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                                {showSliders && (
+                            <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                                {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                                     <Slider
                                         id="dailyConsumptionSettingsSlider" min={0} max={50} step={0.1}
                                         value={[typeof field.value === 'number' ? field.value : 0]}
@@ -1176,7 +1175,7 @@ export default function SettingsPage() {
                                 )}
                                 <FormControl>
                                     <Input type="number" step="0.01" placeholder="e.g., 10.50" {...field}
-                                        className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                        className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                         value={field.value ?? ''}
                                         onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))} />
                                 </FormControl>
@@ -1195,7 +1194,7 @@ export default function SettingsPage() {
                         <FormItem>
                         <div className="flex items-center gap-1">
                            <FormLabel className="flex items-center gap-2"><BarChart className="h-4 w-4" />Avg. Hourly Consumption (kWh)</FormLabel>
-                            {showTooltips && (
+                            {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                                 <Tooltip>
                                     <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                     <TooltipContent><p>Your household's average hourly energy consumption in kWh. Used for charging advice if hourly profile is not detailed.</p></TooltipContent>
@@ -1203,8 +1202,8 @@ export default function SettingsPage() {
                             )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                             <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                                {showSliders && (
+                             <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                                {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                                     <Slider
                                         id="avgHourlyConsumptionSettingsSlider" min={0} max={5} step={0.01}
                                         value={[typeof field.value === 'number' ? field.value : 0]}
@@ -1214,7 +1213,7 @@ export default function SettingsPage() {
                                 )}
                                 <FormControl>
                                   <Input type="number" step="0.01" placeholder="e.g., 0.40" {...field}
-                                      className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                      className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                       value={field.value ?? ''}
                                       onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))} />
                                 </FormControl>
@@ -1251,8 +1250,8 @@ export default function SettingsPage() {
                                 {`${index.toString().padStart(2, '0')}:00`}
                                 {currentHour === index ? ' (Now)' : ''}
                               </Label>
-                              <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                                {showSliders && (
+                              <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                                {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                                     <Slider
                                     id={`hour-profile-${index}`}
                                     min={0}
@@ -1285,7 +1284,7 @@ export default function SettingsPage() {
                 <FormItem>
                     <div className="flex items-center gap-2">
                         <FormLabel>System Efficiency Factor (Optional)</FormLabel>
-                        {showTooltips ? (
+                        {inputControlsMounted && showTooltips ? ( // Use inputControlsMounted
                              <Tooltip>
                                 <TooltipTrigger type="button" onClick={(e) => e.preventDefault()}><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                 <TooltipContent side="right" className="max-w-xs">
@@ -1301,8 +1300,8 @@ export default function SettingsPage() {
                              </Tooltip>
                         )}
                     </div>
-                    <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                        {showSliders && (
+                    <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                        {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                             <Slider id="systemEfficiencySlider" min={0.1} max={1} step={0.01}
                                 value={[typeof field.value === 'number' ? field.value : 0.85]}
                                 onValueChange={(val) => field.onChange(val[0])}
@@ -1311,12 +1310,12 @@ export default function SettingsPage() {
                         )}
                         <FormControl>
                             <Input type="number" step="0.01" min="0.1" max="1" placeholder="e.g., 0.85" {...field}
-                                className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                 value={field.value ?? ''}
                                 onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))} />
                         </FormControl>
                     </div>
-                  <FormDescription>Adjust if observed generation differs from estimates. Default: 0.85.</FormDescription>
+                  <FormDescription>Adjust if observed generation differs from estimates. Default: 0.85. If you consistently have less generation advised edit this efficiency factor</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -1343,7 +1342,7 @@ export default function SettingsPage() {
               </CardTitle>
               <CardDescription className="text-left mt-1 text-xs sm:text-sm">
                 Adjust the relative generation factor for each month if using 'Manual Input' source.
-                Current month: {isMounted ? format(new Date(), "MMMM") : ""}.
+                Current month: {inputControlsMounted ? format(new Date(), "MMMM") : ""}. {/* Use inputControlsMounted */}
               </CardDescription>
             </div>
           </AccordionTrigger>
@@ -1361,18 +1360,18 @@ export default function SettingsPage() {
                           render={({ field }) => (
                             <FormItem>
                                <div className="flex items-center gap-1">
-                                <FormLabel className={isMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}>
+                                <FormLabel className={inputControlsMounted && index === new Date().getMonth() ? 'text-primary font-semibold' : ''}> {/* Use inputControlsMounted */}
                                     {monthName} Factor
                                 </FormLabel>
-                                {showTooltips && (
+                                {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                                     <Tooltip>
                                         <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                         <TooltipContent><p>Adjusts generation for {monthName}. 1.0 is average, 0.5 is half, 1.2 is 20% more. Only for 'Manual Input' source.</p></TooltipContent>
                                     </Tooltip>
                                 )}
                                </div>
-                              <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                                {showSliders && (
+                              <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                                {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                                     <Slider
                                         id={`monthFactorSlider-${index}`} min={0} max={2} step={0.01}
                                         value={[typeof field.value === 'number' ? field.value : 1.0]}
@@ -1383,7 +1382,7 @@ export default function SettingsPage() {
                                 <FormControl>
                                     <Input
                                     type="number" step="0.01" min="0" max="2" placeholder="e.g., 1.00" {...field}
-                                    className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                                    className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                                     value={field.value ?? ''}
                                     onChange={e => field.onChange(e.target.value === '' ? undefined : (isNaN(parseFloat(e.target.value)) ? undefined : parseFloat(e.target.value)))}
                                     />
@@ -1425,7 +1424,7 @@ export default function SettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-           {!isMounted ? (
+           {!inputControlsMounted ? ( // Use inputControlsMounted
               <div className="flex items-center justify-center p-4">
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 <span>Loading tariff periods...</span>
@@ -1458,7 +1457,7 @@ export default function SettingsPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-1">
                     <Label htmlFor="periodName">Period Name</Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>A descriptive name for the tariff period (e.g., "Night Saver", "Peak Hours").</p></TooltipContent>
@@ -1470,15 +1469,15 @@ export default function SettingsPage() {
                <div className="space-y-1">
                  <div className="flex items-center gap-1">
                     <Label htmlFor="rateSlider">Rate (pence/kWh, Optional)</Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>The cost of electricity per kilowatt-hour during this period (e.g., 7.5 for 7.5p). Leave blank if unknown.</p></TooltipContent>
                         </Tooltip>
                     )}
                  </div>
-                 <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                    {showSliders && (
+                 <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                    {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                         <Slider
                             id="rateSlider" min={0} max={100} step={0.01}
                             value={[newRate ?? 0]}
@@ -1487,7 +1486,7 @@ export default function SettingsPage() {
                         />
                     )}
                     <Input id="rateInput" type="number" step="0.01" placeholder="e.g., 7.50"
-                           className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                           className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                            value={newRate ?? ''}
                            onChange={(e) => setNewRate(e.target.value ? parseFloat(e.target.value) : undefined)} />
                  </div>
@@ -1497,7 +1496,7 @@ export default function SettingsPage() {
                <div className="space-y-1">
                  <div className="flex items-center gap-1">
                     <Label htmlFor="startTime">Start Time (HH:MM)</Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>The time this tariff period begins, in 24-hour format (e.g., 00:30 for 12:30 AM).</p></TooltipContent>
@@ -1509,7 +1508,7 @@ export default function SettingsPage() {
                <div className="space-y-1">
                  <div className="flex items-center gap-1">
                     <Label htmlFor="endTime">End Time (HH:MM)</Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>The time this tariff period ends, in 24-hour format (e.g., 05:30 for 5:30 AM).</p></TooltipContent>
@@ -1522,7 +1521,7 @@ export default function SettingsPage() {
               <div className="flex items-center space-x-2 pt-2">
                 <Switch id="isCheap" checked={newIsCheap} onCheckedChange={setNewIsCheap} />
                 <Label htmlFor="isCheap" className="flex items-center gap-1">This is a cheap/off-peak rate period
-                  {showTooltips && (
+                  {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                       <Tooltip>
                           <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                           <TooltipContent><p>Toggle on if this period offers a cheaper electricity rate. This is used for charging advice.</p></TooltipContent>
@@ -1556,3 +1555,4 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
+

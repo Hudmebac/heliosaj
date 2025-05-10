@@ -44,7 +44,7 @@ const weatherSources: WeatherSource[] = [
 export default function Header() {
   const pathname = usePathname();
   const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const { isMounted: inputControlsMounted } = useInputControls(); // Use isMounted from context
+  const { isMounted } = useInputControls(); 
 
   const [selectedWeatherSourceId, setSelectedWeatherSourceId] = useState<string>('open-meteo');
   const [isManualForecastModalOpen, setIsManualForecastModalOpen] = useState(false);
@@ -52,20 +52,17 @@ export default function Header() {
 
 
    useEffect(() => {
-     if (!inputControlsMounted) return; // Wait for context to be mounted
+     if (!isMounted) return; 
 
      const storedSourceId = settings?.selectedWeatherSource;
      const defaultSource = 'open-meteo';
      
-     // Find if the stored source is valid and functional
      const activeSource = weatherSources.find(s => s.id === storedSourceId && s.isFunctional);
 
      if (activeSource) {
        setSelectedWeatherSourceId(activeSource.id);
      } else {
-       // If no settings, stored source is invalid, or not functional, set to default
        setSelectedWeatherSourceId(defaultSource);
-       // Update settings in localStorage if it's different or null
        if (!settings || settings.selectedWeatherSource !== defaultSource) {
          setSettings(prev => ({
            ...(prev || {} as UserSettings),
@@ -74,7 +71,7 @@ export default function Header() {
        }
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [settings?.selectedWeatherSource, inputControlsMounted, setSettings]); // Include setSettings
+   }, [settings?.selectedWeatherSource, isMounted, setSettings]); 
 
 
   const navItems = [
@@ -136,7 +133,7 @@ export default function Header() {
               <span className="hidden sm:inline">{item.label}</span>
             </Link>
           ))}
-          {inputControlsMounted && ( // Use isMounted from context
+          {isMounted && ( 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -167,7 +164,7 @@ export default function Header() {
                          handleSourceSelect(source.id);
                        }
                      }}
-                     disabled={!source.isFunctional && !source.url} // Disable if not functional AND no URL
+                     disabled={!source.isFunctional && !source.url} 
                      className={cn(
                         selectedWeatherSourceId === source.id && source.isFunctional && "bg-accent/50",
                         !source.isFunctional && source.url && "text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
@@ -199,7 +196,7 @@ export default function Header() {
         </div>
       </div>
     </header>
-    {inputControlsMounted && ( // Use isMounted from context
+    {isMounted && ( 
         <ManualForecastModal
           isOpen={isManualForecastModalOpen}
           onClose={() => setIsManualForecastModalOpen(false)}

@@ -21,7 +21,7 @@ import { HowToInfo } from '@/components/how-to-info';
 import { useWeatherForecast } from '@/hooks/use-weather-forecast';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
 import type { DailyWeather } from '@/types/weather';
-import { useInputControls } from '@/hooks/use-input-controls'; // Changed
+import { useInputControls } from '@/hooks/use-input-controls'; 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
@@ -34,7 +34,7 @@ const MAX_AVG_HOURLY_CONSUMPTION_SLIDER = 5;
 const MAX_EV_CHARGE_RATE_SLIDER = 22; 
 
 export default function AdvisoryPage() {
-    const { showSliders, showTooltips } = useInputControls(); // Changed
+    const { showSliders, showTooltips, isMounted: inputControlsMounted } = useInputControls(); 
     const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
     const [tariffPeriods] = useLocalStorage<TariffPeriod[]>('tariffPeriods', []);
     const [manualForecast, setManualForecast, refreshManualForecastDates] = useManualForecast();
@@ -74,7 +74,7 @@ export default function AdvisoryPage() {
 
 
     useEffect(() => {
-      setIsMounted(true);
+      setIsMounted(true); // General mount state for the page
       const now = new Date();
       setCurrentHour(now.getHours());
 
@@ -109,12 +109,15 @@ export default function AdvisoryPage() {
         } else if (lastKnown !== undefined && lastKnown !== null) {
             setCurrentBatteryLevel(Math.max(0, Math.min(batteryCapacity, lastKnown)));
         } else {
-            setCurrentBatteryLevel(prev => Math.max(0, Math.min(batteryCapacity, prev)));
+            // If lastKnown is not set, maintain current level but cap it by new capacity
+            // This handles the case where capacity might have changed in settings
+             setCurrentBatteryLevel(prev => Math.max(0, Math.min(batteryCapacity, prev)));
         }
         setPreferredOvernightBatteryChargePercent(settings.preferredOvernightBatteryChargePercent ?? 100);
 
       } else {
-        setCurrentBatteryLevel(10); 
+        // Default values if no settings found
+        setCurrentBatteryLevel(10); // Keep a default value that can be used with sliders
         setDailyConsumption(10);
         const avg = 0.4;
         setAvgHourlyConsumption(avg);
@@ -125,11 +128,11 @@ export default function AdvisoryPage() {
         setPreferredOvernightBatteryChargePercent(100);
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [settings, isMounted]);
+    }, [settings, isMounted]); // isMounted ensures this runs client-side after initial render
 
 
     useEffect(() => {
-       if (isMounted && settings) {
+       if (isMounted && settings) { // General page mount
            const timer = setInterval(() => {
              setCurrentHour(new Date().getHours());
            }, 60 * 1000);
@@ -138,7 +141,7 @@ export default function AdvisoryPage() {
    }, [isMounted, settings]);
 
      useEffect(() => {
-       if (isMounted && settings) {
+       if (isMounted && settings) { // General page mount
            const handler = setTimeout(() => {
                setSettings(prev => {
                 const newSettings = {
@@ -165,7 +168,7 @@ export default function AdvisoryPage() {
 
 
     useEffect(() => {
-        if (!isMounted || !settings) {
+        if (!isMounted || !settings) { // General page mount
             setTodayForecastCalc(null);
             setTomorrowForecastCalc(null);
             return;
@@ -198,16 +201,16 @@ export default function AdvisoryPage() {
 
 
     const generateAdvice = useCallback(() => {
-        if (!isMounted || !settings || currentHour === null || !todayForecastCalc || !tomorrowForecastCalc) {
+        if (!inputControlsMounted || !settings || currentHour === null || !todayForecastCalc || !tomorrowForecastCalc) { // Use inputControlsMounted
              setTodayAdvice(null);
              setTomorrowAdvice(null);
              setAdviceError(null);
-             if (isMounted && !settings) setAdviceError("Please configure your system in Settings first.");
-             if (isMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && (isApiSourceSelected && (weatherLoading || weatherRefetching))) {
+             if (inputControlsMounted && !settings) setAdviceError("Please configure your system in Settings first.");
+             if (inputControlsMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && (isApiSourceSelected && (weatherLoading || weatherRefetching))) {
                  setAdviceError("Fetching forecast data for advice...");
-             } else if (isMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && !isApiSourceSelected) {
+             } else if (inputControlsMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && !isApiSourceSelected) {
                   setAdviceError("Manual forecast data incomplete for advice.");
-             } else if (isMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && isApiSourceSelected && !weatherLoading && !weatherRefetching) {
+             } else if (inputControlsMounted && settings && (!todayForecastCalc || !tomorrowForecastCalc) && isApiSourceSelected && !weatherLoading && !weatherRefetching) {
                   setAdviceError("Could not load API forecast data for advice. Check location settings.");
              }
             return;
@@ -215,9 +218,10 @@ export default function AdvisoryPage() {
          setAdviceError(null);
 
         if (!settings.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) {
+             // Allow EV advice even if no battery
              if(evChargeRequiredKWh <= 0 ) { 
                 setAdviceError("Battery capacity not set or is 0. This is required for battery charging advice.");
-                return;
+                // Don't return if EV advice might still be possible
              }
         }
 
@@ -252,12 +256,12 @@ export default function AdvisoryPage() {
         try {
              if (!tomorrowForecastCalc || tomorrowForecastCalc.errorMessage || !tomorrowForecastCalc.hourlyForecast) throw new Error(tomorrowForecastCalc?.errorMessage || "Tomorrow's solar forecast could not be calculated or hourly data missing.");
             const overnightParams: ChargingAdviceParams = {
-                forecast: tomorrowForecastCalc,
+                forecast: tomorrowForecastCalc, // Tomorrow's forecast for overnight decisions
                 settings: settings,
                 tariffPeriods: tariffPeriods,
-                currentBatteryLevelKWh: currentBatteryLevel, 
-                hourlyConsumptionProfile: hourlyUsage, 
-                currentHour: 0, 
+                currentBatteryLevelKWh: currentBatteryLevel, // Current battery level to plan from
+                hourlyConsumptionProfile: hourlyUsage, // Use general profile, or could have an overnight specific one
+                currentHour: 0, // For overnight, decisions are made "from" the start of the night (or relative to it)
                 evNeeds: evNeedsInput,
                 adviceType: 'overnight',
                 preferredOvernightBatteryChargePercent: preferredOvernightBatteryChargePercent,
@@ -271,7 +275,7 @@ export default function AdvisoryPage() {
              setTomorrowAdvice(null);
         }
     }, [
-        isMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
+        inputControlsMounted, settings, tariffPeriods, currentBatteryLevel, hourlyUsage, currentHour,
         todayForecastCalc, tomorrowForecastCalc,
         evChargeRequiredKWh, evChargeByTime, evMaxChargeRateKWh, preferredOvernightBatteryChargePercent,
         weatherLoading, weatherRefetching, isApiSourceSelected
@@ -310,7 +314,7 @@ export default function AdvisoryPage() {
     };
 
    const renderAdviceCard = (advice: ChargingAdvice | null, title: string, description: string, icon?: React.ReactNode) => {
-     if (!isMounted) return <Loader2 className="h-6 w-6 animate-spin text-primary" />;
+     if (!inputControlsMounted) return <Loader2 className="h-6 w-6 animate-spin text-primary" />; // Use inputControlsMounted
      if (!settings) return null;
 
      let displayError = adviceError;
@@ -412,11 +416,11 @@ export default function AdvisoryPage() {
    };
 
     const uiMaxBatteryLevel = useMemo(() => {
-        if (!isMounted) return DEFAULT_BATTERY_MAX;
+        if (!inputControlsMounted) return DEFAULT_BATTERY_MAX; // Use inputControlsMounted
         return (settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0) 
                ? settings.batteryCapacityKWh 
                : DEFAULT_BATTERY_MAX;
-    }, [isMounted, settings?.batteryCapacityKWh]);
+    }, [inputControlsMounted, settings?.batteryCapacityKWh]);
 
     const handleBatteryLevelChange = (newLevel: number) => {
         const actualCapacity = settings?.batteryCapacityKWh;
@@ -429,15 +433,16 @@ export default function AdvisoryPage() {
                 cappedLevel = Math.max(0, Math.min(actualCapacity, newLevel));
             }
         } else {
+            // If capacity is not set, cap at the UI max (which defaults to DEFAULT_BATTERY_MAX)
             cappedLevel = Math.max(0, Math.min(uiMaxBatteryLevel, newLevel));
         }
         setCurrentBatteryLevel(cappedLevel);
     };
     
     const currentBatteryPercentage = useMemo(() => {
-        if (!isMounted || !settings?.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) return 0;
+        if (!inputControlsMounted || !settings?.batteryCapacityKWh || settings.batteryCapacityKWh <= 0) return 0; // Use inputControlsMounted
         return Math.round((currentBatteryLevel / settings.batteryCapacityKWh) * 100);
-    }, [isMounted, settings?.batteryCapacityKWh, currentBatteryLevel]);
+    }, [inputControlsMounted, settings?.batteryCapacityKWh, currentBatteryLevel]);
 
 
    const displayGeneration = (forecast: CalculatedForecast | null) => {
@@ -463,7 +468,7 @@ export default function AdvisoryPage() {
                   {isApiSourceSelected && (
                     <Button
                         onClick={() => refetchWeather()}
-                        disabled={weatherLoading || weatherRefetching || !isMounted || !settings || !locationAvailable }
+                        disabled={weatherLoading || weatherRefetching || !inputControlsMounted || !settings || !locationAvailable } // Use inputControlsMounted
                         variant="outline"
                         size="sm"
                     >
@@ -472,19 +477,19 @@ export default function AdvisoryPage() {
                     </Button>
                 )}
                 {!isApiSourceSelected && (
-                    <Button variant="outline" onClick={() => setIsManualModalOpen(true)} disabled={!isMounted || !settings}>
+                    <Button variant="outline" onClick={() => setIsManualModalOpen(true)} disabled={!inputControlsMounted || !settings}> {/* Use inputControlsMounted */}
                         <Edit3 className="h-4 w-4 mr-2" />
                         Edit Manual Forecast
                     </Button>
                 )}
             </div>
        </div>
-        {isMounted && !isApiSourceSelected && (
+        {inputControlsMounted && !isApiSourceSelected && ( // Use inputControlsMounted
             <ManualForecastModal
                 isOpen={isManualModalOpen}
                 onClose={() => setIsManualModalOpen(false)}
                 currentForecast={manualForecast}
-                onSave={(updatedForecast) => {
+                onSave={(updatedForecast: ManualForecastInput) => { // Ensure type safety
                     setManualForecast(updatedForecast);
                     setIsManualModalOpen(false);
                 }}
@@ -492,7 +497,7 @@ export default function AdvisoryPage() {
         )}
 
 
-        {isMounted && !settings && (
+        {inputControlsMounted && !settings && ( // Use inputControlsMounted
              <Alert>
                  <SettingsIcon className="h-4 w-4" />
                  <AlertTitle>Configuration Needed</AlertTitle>
@@ -500,14 +505,14 @@ export default function AdvisoryPage() {
              </Alert>
         )}
 
-         {isMounted && settings && isApiSourceSelected && !locationAvailable && (
+         {inputControlsMounted && settings && isApiSourceSelected && !locationAvailable && ( // Use inputControlsMounted
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Location Not Set for API</AlertTitle>
                  <AlertDescription>Location Not Set to source forecast for your address. Please set your address details in <a href="/settings" className="underline font-medium">Settings</a> to use Auto forecast function or change source to Manual Input</AlertDescription>
              </Alert>
         )}
-         {isMounted && settings && weatherError && isApiSourceSelected && (
+         {inputControlsMounted && settings && weatherError && isApiSourceSelected && ( // Use inputControlsMounted
             <Alert variant="destructive">
                  <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Error Loading API Forecast</AlertTitle>
@@ -516,7 +521,7 @@ export default function AdvisoryPage() {
         )}
 
 
-      {isMounted && settings && (
+      {inputControlsMounted && settings && ( // Use inputControlsMounted
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
            {renderAdviceCard(todayAdvice, "Today's Recommendation", "Based on current conditions and forecast.", <Sun className="h-5 w-5" />)}
            {renderAdviceCard(tomorrowAdvice, "Overnight Charging (for Tomorrow)", "Recommendation based on tomorrow's forecast and overnight tariffs.", <BatteryCharging className="h-5 w-5" />)}
@@ -524,7 +529,7 @@ export default function AdvisoryPage() {
       )}
 
 
-       {isMounted && settings && (
+       {inputControlsMounted && settings && ( // Use inputControlsMounted
        <Card>
          <CardHeader>
            <CardTitle>Your Energy Inputs</CardTitle>
@@ -536,15 +541,15 @@ export default function AdvisoryPage() {
                 <Label htmlFor="batteryLevelSlider" className="flex items-center gap-2">
                     <Battery className="h-4 w-4" /> Current Battery Level (kWh)
                 </Label>
-                {showTooltips && (
+                {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                     <Tooltip>
                         <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                         <TooltipContent><p>Enter your battery's current charge in kWh. This is crucial for advice accuracy.</p></TooltipContent>
                     </Tooltip>
                 )}
             </div>
-             <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
-               {showSliders && (
+             <div className={cn("flex items-center gap-2 sm:gap-4 w-full", inputControlsMounted && showSliders ? "sm:max-w-md" : "sm:max-w-xs")}> {/* Use inputControlsMounted */}
+               {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                  <Slider
                    id="batteryLevelSlider"
                    min={0}
@@ -564,17 +569,17 @@ export default function AdvisoryPage() {
                  max={uiMaxBatteryLevel} 
                  value={currentBatteryLevel}
                  onChange={(e) => handleBatteryLevelChange(parseFloat(e.target.value) || 0)}
-                 className={cn(showSliders ? "w-24" : "w-full")}
+                 className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full")} // Use inputControlsMounted
                  placeholder="e.g., 10.0"
                />
              </div>
-              {isMounted && settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0 ? (
+              {inputControlsMounted && settings?.batteryCapacityKWh && settings.batteryCapacityKWh > 0 ? ( // Use inputControlsMounted
                  <p className="text-xs text-muted-foreground flex items-center gap-1">
                    (<Percent className="h-3 w-3 inline" /> {currentBatteryPercentage}%) (Capacity: {settings.batteryCapacityKWh.toFixed(2)} kWh)
                  </p>
               ) : (
                   <p className="text-xs text-muted-foreground">
-                    {isMounted ? 
+                    {inputControlsMounted ? // Use inputControlsMounted
                         (settings?.batteryCapacityKWh === 0 ? '(Battery capacity set to 0 kWh)' : '(Set Battery Capacity in Settings to see %)') 
                         : ''}
                   </p>
@@ -586,15 +591,15 @@ export default function AdvisoryPage() {
                     <Label htmlFor="preferredOvernightCharge" className="flex items-center gap-2">
                         <BatteryChargingIcon className="h-4 w-4" /> Preferred Overnight Battery Target
                     </Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>Set your desired battery charge level (0-100%) by the next morning. Default is 100%.</p></TooltipContent>
                         </Tooltip>
                     )}
                 </div>
-              <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
-                {showSliders && (
+              <div className={cn("flex items-center gap-2 sm:gap-4 w-full", inputControlsMounted && showSliders ? "sm:max-w-md" : "sm:max-w-xs")}> {/* Use inputControlsMounted */}
+                {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                   <Slider
                     id="preferredOvernightCharge"
                     min={0}
@@ -612,7 +617,7 @@ export default function AdvisoryPage() {
                   max={100}
                   value={preferredOvernightBatteryChargePercent}
                   onChange={(e) => setPreferredOvernightBatteryChargePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                  className={cn(showSliders ? "w-20" : "flex-grow")}
+                  className={cn(inputControlsMounted && showSliders ? "w-20" : "flex-grow")} // Use inputControlsMounted
                 />
                 <span className="text-sm">%</span>
               </div>
@@ -624,7 +629,7 @@ export default function AdvisoryPage() {
                     <Label htmlFor="dailyConsumptionSlider" className="flex items-center gap-2">
                         <Hourglass className="h-4 w-4" /> Estimated Daily Consumption (kWh)
                     </Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>Your typical total daily household energy usage in kWh.</p></TooltipContent>
@@ -632,8 +637,8 @@ export default function AdvisoryPage() {
                     )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                    <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
-                        {showSliders && (
+                    <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !(inputControlsMounted && showSliders) && "block w-full")}> {/* Use inputControlsMounted */}
+                        {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                             <Slider
                                 id="dailyConsumptionSlider"
                                 min={0}
@@ -653,7 +658,7 @@ export default function AdvisoryPage() {
                            max={MAX_DAILY_CONSUMPTION_SLIDER}
                            value={dailyConsumption}
                            onChange={(e) => setDailyConsumption(Math.max(0, Math.min(MAX_DAILY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
-                           className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                           className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                            placeholder="e.g., 10.5"
                         />
                     </div>
@@ -668,7 +673,7 @@ export default function AdvisoryPage() {
                      <Label htmlFor="avgHourlyConsumptionSlider" className="flex items-center gap-2">
                          <BarChart className="h-4 w-4" /> Average Hourly Consumption (kWh)
                      </Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>Your typical average hourly household energy usage in kWh. This is used if the hourly profile below isn't detailed.</p></TooltipContent>
@@ -676,8 +681,8 @@ export default function AdvisoryPage() {
                     )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
-                         {showSliders && (
+                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !(inputControlsMounted && showSliders) && "block w-full")}> {/* Use inputControlsMounted */}
+                         {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                              <Slider
                                 id="avgHourlyConsumptionSlider"
                                 min={0}
@@ -697,7 +702,7 @@ export default function AdvisoryPage() {
                              max={MAX_AVG_HOURLY_CONSUMPTION_SLIDER}
                              value={avgHourlyConsumption}
                              onChange={(e) => setAvgHourlyConsumption(Math.max(0, Math.min(MAX_AVG_HOURLY_CONSUMPTION_SLIDER, parseFloat(e.target.value) || 0)))}
-                             className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                             className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                              placeholder="e.g., 0.40"
                          />
                      </div>
@@ -712,7 +717,7 @@ export default function AdvisoryPage() {
                 <AccordionTrigger>
                   <Label className="flex items-center gap-2 text-base font-semibold cursor-pointer">
                     Adjust Hourly Consumption Profile (kWh)
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>Fine-tune your expected energy usage for each hour of the day. This provides more accurate advice.</p></TooltipContent>
@@ -730,14 +735,14 @@ export default function AdvisoryPage() {
                             htmlFor={`hour-${index}`}
                             className={cn(
                               "text-xs",
-                              isMounted && index === currentHour ? 'text-primary font-semibold' : 'text-muted-foreground'
+                              inputControlsMounted && index === currentHour ? 'text-primary font-semibold' : 'text-muted-foreground' // Use inputControlsMounted
                             )}
                           >
                             {`${index.toString().padStart(2, '0')}:00`}
-                            {isMounted && index === currentHour ? ' (Now)' : ''}
+                            {inputControlsMounted && index === currentHour ? ' (Now)' : ''} {/* Use inputControlsMounted */}
                           </Label>
-                          <div className={cn(showSliders ? "flex items-center gap-2" : "block")}>
-                           {showSliders && (
+                          <div className={cn(inputControlsMounted && showSliders ? "flex items-center gap-2" : "block")}> {/* Use inputControlsMounted */}
+                           {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                              <Slider
                                id={`hour-${index}`}
                                min={0}
@@ -762,7 +767,7 @@ export default function AdvisoryPage() {
        </Card>
        )}
 
-        {isMounted && settings && (
+        {inputControlsMounted && settings && ( // Use inputControlsMounted
        <Card>
          <CardHeader>
              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
@@ -778,15 +783,15 @@ export default function AdvisoryPage() {
                     <Label htmlFor="evChargeRequiredSlider" className="flex items-center gap-2">
                         Charge Required (kWh)
                     </Label>
-                    {showTooltips && (
+                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                         <Tooltip>
                             <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                             <TooltipContent><p>The amount of energy (in kWh) your Electric Vehicle needs. Set to 0 if no EV charge is needed.</p></TooltipContent>
                         </Tooltip>
                     )}
                 </div>
-                <div className={cn("flex items-center gap-2 sm:gap-4 w-full", showSliders ? "sm:max-w-md" : "sm:max-w-xs")}>
-                    {showSliders && (
+                <div className={cn("flex items-center gap-2 sm:gap-4 w-full", inputControlsMounted && showSliders ? "sm:max-w-md" : "sm:max-w-xs")}> {/* Use inputControlsMounted */}
+                    {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                         <Slider
                             id="evChargeRequiredSlider"
                             min={0}
@@ -806,7 +811,7 @@ export default function AdvisoryPage() {
                         max={MAX_EV_CHARGE_REQUIRED_SLIDER}
                         value={evChargeRequiredKWh}
                         onChange={(e) => setEvChargeRequiredKWh(Math.max(0, Math.min(MAX_EV_CHARGE_REQUIRED_SLIDER, parseFloat(e.target.value) || 0)))}
-                        className={cn(showSliders ? "w-24" : "w-full")}
+                        className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full")} // Use inputControlsMounted
                         placeholder="e.g., 40.0"
                     />
                 </div>
@@ -819,7 +824,7 @@ export default function AdvisoryPage() {
                  <div className="space-y-1">
                     <div className="flex items-center gap-1">
                         <Label htmlFor="evChargeBy">Charge By Time (HH:MM)</Label>
-                        {showTooltips && (
+                        {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                             <Tooltip>
                                 <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                 <TooltipContent><p>The time by which your EV needs to be fully charged (e.g., 07:00 for 7 AM).</p></TooltipContent>
@@ -837,15 +842,15 @@ export default function AdvisoryPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
                         <Label htmlFor="evMaxRateSlider">Max Charge Rate (kW)</Label>
-                         {showTooltips && (
+                         {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                             <Tooltip>
                                 <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
                                 <TooltipContent><p>The maximum power (in kW) your EV charger can deliver. Default is 7.5kW.</p></TooltipContent>
                             </Tooltip>
                         )}
                     </div>
-                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !showSliders && "block w-full")}>
-                         {showSliders && (
+                     <div className={cn("flex items-center gap-2 sm:gap-4 w-full", !(inputControlsMounted && showSliders) && "block w-full")}> {/* Use inputControlsMounted */}
+                         {inputControlsMounted && showSliders && ( // Use inputControlsMounted
                              <Slider
                                  id="evMaxRateSlider"
                                  min={0.1}
@@ -866,7 +871,7 @@ export default function AdvisoryPage() {
                              placeholder={`e.g., ${DEFAULT_EV_MAX_CHARGE_RATE.toFixed(1)}`}
                              value={evMaxChargeRateKWh}
                              onChange={(e) => setEvMaxChargeRateKWh(Math.max(0.1, Math.min(MAX_EV_CHARGE_RATE_SLIDER, parseFloat(e.target.value) || DEFAULT_EV_MAX_CHARGE_RATE)))}
-                             className={cn(showSliders ? "w-24" : "w-full max-w-xs")}
+                             className={cn(inputControlsMounted && showSliders ? "w-24" : "w-full max-w-xs")} // Use inputControlsMounted
                          />
                      </div>
                  </div>
@@ -878,7 +883,7 @@ export default function AdvisoryPage() {
        </Card>
        )}
 
-       {isMounted && settings && (
+       {inputControlsMounted && settings && ( // Use inputControlsMounted
         <Card>
           <CardHeader>
             <CardTitle className="text-lg sm:text-xl">Forecast & Configuration Used</CardTitle>
@@ -916,7 +921,7 @@ export default function AdvisoryPage() {
               <p className="text-xs text-muted-foreground pt-2">Advice accuracy depends on your forecast inputs, system settings, tariff periods, and current consumption inputs. Recommendations are estimates.</p>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                  <Clock className="h-3 w-3"/>
-                 Current Hour (for Today's advice): {isMounted && currentHour !== null ? `${currentHour.toString().padStart(2,'0')}:00` : 'Loading...'}
+                 Current Hour (for Today's advice): {inputControlsMounted && currentHour !== null ? `${currentHour.toString().padStart(2,'0')}:00` : 'Loading...'} {/* Use inputControlsMounted */}
              </p>
           </CardContent>
         </Card>
