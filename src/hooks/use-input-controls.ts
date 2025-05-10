@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { useLocalStorage } from './use-local-storage';
 
 const SHOW_SLIDERS_KEY = 'inputControls_showSliders';
@@ -37,15 +37,15 @@ export const InputControlProvider = ({ children }: { children: ReactNode }) => {
     setIsMounted(true);
   }, []);
 
-  const toggleSliderVisibility = () => {
+  const toggleSliderVisibility = useCallback(() => {
     setShowSlidersState(prev => !prev);
-  };
+  }, [setShowSlidersState]);
 
-  const toggleTooltipVisibility = () => {
+  const toggleTooltipVisibility = useCallback(() => {
     setShowTooltipsState(prev => !prev);
-  };
+  }, [setShowTooltipsState]);
 
-  const contextValue: InputControlsContextType = {
+  const contextValue = useMemo<InputControlsContextType>(() => ({
     showSliders: showSlidersState,
     toggleSliderVisibility,
     setShowSliders: setShowSlidersState,
@@ -53,7 +53,7 @@ export const InputControlProvider = ({ children }: { children: ReactNode }) => {
     toggleTooltipVisibility,
     setShowTooltips: setShowTooltipsState,
     isMounted,
-  };
+  }), [showSlidersState, toggleSliderVisibility, setShowSlidersState, showTooltipsState, toggleTooltipVisibility, setShowTooltipsState, isMounted]);
 
   return (
     <InputControlsContext.Provider value={contextValue}>
