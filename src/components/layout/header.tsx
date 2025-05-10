@@ -4,8 +4,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { InputControlToggle } from '@/components/input-control-toggle'; // Changed
-import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3, BarChartHorizontalBig } from 'lucide-react';
+import { InputControlToggle } from '@/components/input-control-toggle';
+import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from '../ui/button';
 import { ManualForecastModal } from '@/components/manual-forecast-modal';
+import { useInputControls } from '@/hooks/use-input-controls';
+
 
 interface WeatherSource {
   id: string;
@@ -42,43 +44,43 @@ const weatherSources: WeatherSource[] = [
 export default function Header() {
   const pathname = usePathname();
   const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
-  const [isMounted, setIsMounted] = useState(false);
+  const { isMounted: inputControlsMounted } = useInputControls(); // Use isMounted from context
+
   const [selectedWeatherSourceId, setSelectedWeatherSourceId] = useState<string>('open-meteo');
   const [isManualForecastModalOpen, setIsManualForecastModalOpen] = useState(false);
   const [manualForecast, setManualForecast, refreshForecastDates] = useManualForecast();
 
 
    useEffect(() => {
-     setIsMounted(true);
-     const storedSource = settings?.selectedWeatherSource;
-     const defaultSource = 'open-meteo';
-     const availableFunctionalSource = weatherSources.find(s => s.id === storedSource && s.isFunctional);
+     if (!inputControlsMounted) return; // Wait for context to be mounted
 
-     if (settings === null) { 
+     const storedSourceId = settings?.selectedWeatherSource;
+     const defaultSource = 'open-meteo';
+     
+     // Find if the stored source is valid and functional
+     const activeSource = weatherSources.find(s => s.id === storedSourceId && s.isFunctional);
+
+     if (activeSource) {
+       setSelectedWeatherSourceId(activeSource.id);
+     } else {
+       // If no settings, stored source is invalid, or not functional, set to default
        setSelectedWeatherSourceId(defaultSource);
-       if (typeof window !== 'undefined') {
-            setSettings({ selectedWeatherSource: defaultSource } as UserSettings);
-       }
-     } else if (storedSource && availableFunctionalSource) { 
-       setSelectedWeatherSourceId(storedSource);
-     } else { 
-       setSelectedWeatherSourceId(defaultSource); 
-       if (settings.selectedWeatherSource !== defaultSource) {
+       // Update settings in localStorage if it's different or null
+       if (!settings || settings.selectedWeatherSource !== defaultSource) {
          setSettings(prev => ({
-           ...(prev!),
+           ...(prev || {} as UserSettings),
            selectedWeatherSource: defaultSource,
          }));
        }
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [settings?.selectedWeatherSource]); 
+   }, [settings?.selectedWeatherSource, inputControlsMounted, setSettings]); // Include setSettings
 
 
   const navItems = [
     { href: '/', label: 'Dashboard', icon: Home },
     { href: '/advisory', label: 'Advisory', icon: Zap },
     { href: '/settings', label: 'Settings', icon: Settings },
-    { href: '/tariffs', label: 'Tariffs', icon: BarChartHorizontalBig },
     { href: '/info', label: 'Info', icon: Info },
   ];
 
@@ -90,7 +92,7 @@ export default function Header() {
         if (selected.url) {
             window.open(selected.url, '_blank', 'noopener,noreferrer');
         }
-        return; // Don't change selectedWeatherSourceId if it's info only
+        return; 
     }
 
     setSelectedWeatherSourceId(sourceId);
@@ -134,7 +136,7 @@ export default function Header() {
               <span className="hidden sm:inline">{item.label}</span>
             </Link>
           ))}
-          {isMounted && (
+          {inputControlsMounted && ( // Use isMounted from context
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -159,16 +161,16 @@ export default function Header() {
                      key={source.id}
                      onSelect={(event) => {
                        if (!source.isFunctional && source.url) {
-                         event.preventDefault(); 
+                         event.preventDefault();
                          window.open(source.url, '_blank', 'noopener,noreferrer');
                        } else if (source.isFunctional) {
                          handleSourceSelect(source.id);
                        }
                      }}
-                     disabled={!source.isFunctional && !source.url} 
+                     disabled={!source.isFunctional && !source.url} // Disable if not functional AND no URL
                      className={cn(
                         selectedWeatherSourceId === source.id && source.isFunctional && "bg-accent/50",
-                        !source.isFunctional && source.url && "text-blue-600 dark:text-blue-400 hover:underline"
+                        !source.isFunctional && source.url && "text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                      )}
                    >
                      {source.name}
@@ -192,12 +194,12 @@ export default function Header() {
         </nav>
 
         <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2">
-         <InputControlToggle /> {/* Changed */}
+         <InputControlToggle />
          <ThemeToggle />
         </div>
       </div>
     </header>
-    {isMounted && (
+    {inputControlsMounted && ( // Use isMounted from context
         <ManualForecastModal
           isOpen={isManualForecastModalOpen}
           onClose={() => setIsManualForecastModalOpen(false)}
