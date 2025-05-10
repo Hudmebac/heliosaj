@@ -11,6 +11,8 @@ import type { ManualForecastInput, ManualDayForecast } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
 import { ForecastInfo, sunriseSunsetData, getApproximateSunriseSunset } from '@/components/forecast-info';
 import { addDays, format, parseISO } from 'date-fns';
+import { InfoIcon, Upload } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface ManualForecastModalProps {
   isOpen: boolean;
@@ -23,25 +25,23 @@ export function ManualForecastModal({ isOpen, onClose, currentForecast, onSave }
   const [editableForecast, setEditableForecast] = useState<ManualForecastInput>(currentForecast);
   const [selectedCityForTimesModal, setSelectedCityForTimesModal] = useState<string>("");
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
-    // Ensure dates are current when modal opens or currentForecast changes
-    // And sync editableForecast with currentForecast prop when it changes or modal opens
     const todayDateStr = format(new Date(), 'yyyy-MM-dd');
     const tomorrowDateStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
     setEditableForecast(prev => ({
         today: {
-            ...currentForecast.today, // Base on incoming prop
-            date: todayDateStr, // Always ensure date is current
-            // If prop's date is today, use its values, else use defaults from prop but with today's date
+            ...currentForecast.today,
+            date: todayDateStr,
             sunrise: currentForecast.today.date === todayDateStr ? currentForecast.today.sunrise : prev.today.sunrise,
             sunset: currentForecast.today.date === todayDateStr ? currentForecast.today.sunset : prev.today.sunset,
             condition: currentForecast.today.date === todayDateStr ? currentForecast.today.condition : prev.today.condition,
         },
         tomorrow: {
-            ...currentForecast.tomorrow, // Base on incoming prop
-            date: tomorrowDateStr, // Always ensure date is current
+            ...currentForecast.tomorrow,
+            date: tomorrowDateStr,
             sunrise: currentForecast.tomorrow.date === tomorrowDateStr ? currentForecast.tomorrow.sunrise : prev.tomorrow.sunrise,
             sunset: currentForecast.tomorrow.date === tomorrowDateStr ? currentForecast.tomorrow.sunset : prev.tomorrow.sunset,
             condition: currentForecast.tomorrow.date === tomorrowDateStr ? currentForecast.tomorrow.condition : prev.tomorrow.condition,
@@ -99,10 +99,15 @@ export function ManualForecastModal({ isOpen, onClose, currentForecast, onSave }
     }));
   };
 
+  const handleGoToSettings = () => {
+    router.push('/settings');
+    onClose();
+  };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Edit Manual Weather Forecast</DialogTitle>
           <DialogDescription>
@@ -131,12 +136,12 @@ export function ManualForecastModal({ isOpen, onClose, currentForecast, onSave }
             <div key={dayKey} className="space-y-3 p-3 border rounded-md">
                 <div className="text-center mb-2">
                   <h3 className="font-bold text-lg capitalize">{dayKey === 'today' ? 'Today' : 'Tomorrow'}</h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     {format(parseISO(editableForecast[dayKey].date), 'EEEE')}
                   </p>
-                  <p className="text-muted-foreground">{format(parseISO(editableForecast[dayKey].date), 'dd/MM/yyyy')}</p>
+                  <p className="text-muted-foreground text-sm">{format(parseISO(editableForecast[dayKey].date), 'dd/MM/yyyy')}</p>
                 </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor={`${dayKey}-sunrise-modal`}>Sunrise (HH:MM)</Label>
                   <Input
@@ -180,11 +185,21 @@ export function ManualForecastModal({ isOpen, onClose, currentForecast, onSave }
             <ForecastInfo />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave}>Save Forecast</Button>
+        <div className="text-xs text-muted-foreground flex items-center gap-1.5 mb-4 p-2 border border-dashed rounded-md">
+          <InfoIcon className="h-4 w-4 text-primary flex-shrink-0" />
+          <span>Ensure your System Settings are accurate for best results. You can import settings on the Settings page.</span>
+        </div>
+        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+            <div className="flex gap-2">
+                <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cancel</Button>
+                <Button onClick={handleSave} className="w-full sm:w-auto">Save Forecast</Button>
+            </div>
+            <Button variant="outline" onClick={handleGoToSettings} className="w-full sm:w-auto">
+                <Upload className="mr-2 h-4 w-4" /> Import System Settings
+            </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
