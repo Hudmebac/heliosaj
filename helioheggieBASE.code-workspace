@@ -6,6 +6,14 @@
 	],
 	"settings": {
 		"IDX.aI.enableInlineCompletion": true,
-		"IDX.aI.enableCodebaseIndexing": true
+		"IDX.aI.enableCodebaseIndexing": true,
+		"window.density.editorTabHeight": "compact",
+		"terminal.integrated.commandsToSkipShell": [
+			""
+		],
+		"workbench.editor.defaultBinaryEditor": "default",
+		"workbench.editor.enablePreviewFromCodeNavigation": true,
+		"workbench.editor.enablePreviewFromQuickOpen": true,
+		"workbench.editor.highlightModifiedTabs": true
 	}
 }

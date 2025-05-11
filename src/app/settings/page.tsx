@@ -26,6 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { HowToInfo } from '@/components/how-to-info';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Slider } from '@/components/ui/slider';
@@ -159,6 +160,8 @@ export default function SettingsPage() {
   const settingsFileInputRef = React.useRef<HTMLInputElement>(null);
   const tariffsFileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [isPicklistModalOpen, setIsPicklistModalOpen] = useState(false);
+  const [selectedPicklistTariffs, setSelectedPicklistTariffs] = useState<TariffPeriod[]>([]);
 
   const form = useForm<UserSettings>({
     resolver: zodResolver(settingsSchema),
@@ -206,6 +209,11 @@ export default function SettingsPage() {
         setCurrentHour(new Date().getHours());
     }, 60 * 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Load selected tariffs from local storage when mounted
+  useEffect(() => {
+    setSelectedPicklistTariffs(tariffPeriods);
   }, []);
 
    useEffect(() => {
@@ -490,6 +498,13 @@ export default function SettingsPage() {
       description: `"${newPeriod.name}" has been saved.`,
     });
   };
+  const [editingPeriod, setEditingPeriod] = useState<TariffPeriod | null>(null);
+  const [editPeriodName, setEditPeriodName] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
+  const [editIsCheap, setEditIsCheap] = useState(false);
+  const [editRate, setEditRate] = useState<number | undefined>(undefined);
+
 
   const handleRemovePeriod = (id: string) => {
     setTariffPeriods(tariffPeriods.filter(p => p.id !== id));
@@ -498,6 +513,62 @@ export default function SettingsPage() {
       description: "The selected period has been deleted.",
     });
   };
+
+  const handleEditPeriodClick = (period: TariffPeriod) => {
+    setEditingPeriod(period);
+    setEditPeriodName(period.name);
+    setEditStartTime(period.startTime);
+    setEditEndTime(period.endTime);
+    setEditIsCheap(period.isCheap);
+    setEditRate(period.rate);
+  };
+
+  const handleSaveEditedPeriod = () => {
+    if (!editingPeriod) return;
+
+    if (!editPeriodName || !editStartTime || !editEndTime) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a name, start time, and end time for the tariff period.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isValidTime(editStartTime) || !isValidTime(editEndTime)) {
+      toast({
+        title: "Invalid Time Format",
+        description: "Please use HH:MM format for tariff times (e.g., 00:00, 14:30).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedPeriod: TariffPeriod = {
+      ...editingPeriod,
+      name: editPeriodName,
+      startTime: editStartTime,
+      endTime: editEndTime,
+      isCheap: editIsCheap,
+      rate: editRate,
+    };
+
+    setTariffPeriods(tariffPeriods.map(p =>
+      p.id === updatedPeriod.id ? updatedPeriod : p
+    ));
+
+    setEditingPeriod(null); // Close edit modal/form
+    toast({
+      title: "Tariff Period Updated",
+      description: `"${updatedPeriod.name}" has been updated.`,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPeriod(null); // Close edit modal/form
+  };
+
+
 
   const handleExportSettings = () => {
     if (!storedSettings) {
@@ -679,6 +750,16 @@ export default function SettingsPage() {
     reader.readAsText(file);
   };
 
+  const handleApplyPicklistTariffs = () => {
+    setTariffPeriods(selectedPicklistTariffs);
+    setIsPicklistModalOpen(false);
+    toast({
+      title: "Tariffs Applied",
+      description: "Selected tariffs from the picklist have been applied.",
+    });
+  };
+
+
 
   if (!inputControlsMounted) { // Use inputControlsMounted
     return (
@@ -698,6 +779,45 @@ export default function SettingsPage() {
             <Button type="button" variant="outline" size="sm" onClick={handleImportSettingsClick}>
                 <Upload className="mr-2 h-4 w-4" /> Import Settings
             </Button>
+             {/* Picklist Tariffs Button - Always visible */}
+            <Dialog open={isPicklistModalOpen} onOpenChange={setIsPicklistModalOpen}>
+                <DialogTrigger asChild>
+                    <Button type="button" variant="outline" size="sm">
+                        Picklist Tariffs
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto"> {/* Added max-h and overflow-y-auto */}
+                    <DialogHeader>
+                        <DialogTitle>Select Tariffs</DialogTitle>
+                        <DialogDescription>Choose from a list of common tariff periods to pre-fill your tariff settings.</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-3">
+                        {tariffsPicklistData.map((tariff) => (
+                            <div key={tariff.id} className="flex items-center justify-between border-b pb-2">
+                                <div className="flex-grow">
+                                    <p className="font-medium">{tariff.name}</p>
+                                    <p className="text-sm text-muted-foreground">{tariff.supplier}</p>
+                                    <p className="text-xs text-muted-foreground">{tariff.startTime} - {tariff.endTime}{tariff.rate !== undefined && ` (${tariff.rate.toFixed(2)} p/kWh)`}{tariff.isCheap && <span className="ml-1 text-green-600 dark:text-green-400">(Cheap)</span>}</p>
+                                </div>
+                                <Switch
+                                    checked={selectedPicklistTariffs.some(t => t.id === tariff.id)}
+                                    onCheckedChange={(checked) => {
+                                        setSelectedPicklistTariffs(prev =>
+                                            checked
+                                                ? [...prev, tariff]
+                                                : prev.filter(t => t.id !== tariff.id)
+                                        );
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsPicklistModalOpen(false)}>Cancel</Button>
+                        <Button type="button" onClick={handleApplyPicklistTariffs}>Apply Selected Tariffs</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <input
                 type="file"
                 ref={settingsFileInputRef}
@@ -1445,6 +1565,9 @@ export default function SettingsPage() {
                   </div>
                    <Button variant="ghost" size="sm" onClick={() => handleRemovePeriod(period.id)} className="text-destructive hover:text-destructive/80">
                       <Trash2 className="h-4 w-4 mr-1"/> Remove
+                   </Button>{' '}
+                   <Button variant="ghost" size="sm" onClick={() => handleEditPeriodClick(period)} className="text-primary hover:text-primary/80">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-1 lucide lucide-edit-3"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Edit
                    </Button>
                 </li>
               ))}
@@ -1548,6 +1671,78 @@ export default function SettingsPage() {
                     aria-hidden="true"
                 />
             </div>
+
+            {/* Edit Tariff Modal */}
+             <Dialog open={!!editingPeriod} onOpenChange={(isOpen) => !isOpen && handleCancelEdit()}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Tariff Period</DialogTitle>
+                        <DialogDescription>
+                            Modify the details of the selected tariff period.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-1">
+                             <div className="flex items-center gap-1">
+                                <Label htmlFor="editPeriodName">Period Name</Label>
+                                {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
+                                    <Tooltip>
+                                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                        <TooltipContent><p>A descriptive name for the tariff period (e.g., "Night Saver", "Peak Hours").</p></TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </div>
+                            <Input id="editPeriodName" value={editPeriodName} onChange={(e) => setEditPeriodName(e.target.value)} />
+                        </div>
+                         <div className="space-y-1">
+                           <div className="flex items-center gap-1">
+                                <Label htmlFor="editRateInput">Rate (pence/kWh, Optional)</Label>
+                                {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
+                                    <Tooltip>
+                                        <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                        <TooltipContent><p>The cost of electricity per kilowatt-hour during this period (e.g., 7.5 for 7.5p). Leave blank if unknown.</p></TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </div>
+                            <Input id="editRateInput" type="number" step="0.01" placeholder="e.g., 7.50" value={editRate ?? ''} onChange={(e) => setEditRate(e.target.value ? parseFloat(e.target.value) : undefined)} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                    <Label htmlFor="editStartTime">Start Time (HH:MM)</Label>
+                                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
+                                        <Tooltip>
+                                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                            <TooltipContent><p>The time this tariff period begins, in 24-hour format (e.g., 00:30 for 12:30 AM).</p></TooltipContent>
+                                        </Tooltip>
+                                    )}
+                                </div>
+                                <Input id="editStartTime" type="time" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} />
+                            </div>
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-1">
+                                    <Label htmlFor="editEndTime">End Time (HH:MM)</Label>
+                                    {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
+                                        <Tooltip>
+                                            <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
+                                            <TooltipContent><p>The time this tariff period ends, in 24-hour format (e.g., 05:30 for 5:30 AM).</p></TooltipContent>
+                                        </Tooltip>
+                                    )}
+                                </div>
+                                <Input id="editEndTime" type="time" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} />
+                            </div>
+                        </div>
+                         <div className="flex items-center space-x-2 pt-2">
+                            <Switch id="editIsCheap" checked={editIsCheap} onCheckedChange={setEditIsCheap} />
+                            <Label htmlFor="editIsCheap">This is a cheap/off-peak rate period</Label>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                        <Button onClick={handleSaveEditedPeriod}>Save Changes</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </CardContent>
       </Card>
 
@@ -1555,4 +1750,97 @@ export default function SettingsPage() {
     </TooltipProvider>
   );
 }
+
+const tariffsPicklistData: TariffPeriod[] = [
+
+  {
+    "id": "1746429970167",
+    "name": "Octopus Cosy Home",
+    "supplier": "Octopus Energy",
+    "startTime": "00:00",
+    "endTime": "04:00",
+    "isCheap": false,
+    "rate": 27.24
+  },
+  {
+    "id": "1746430004312",
+    "name": "Octopus Cheap Cosy",
+    "supplier": "Octopus Energy",
+    "startTime": "04:00",
+    "endTime": "07:00",
+    "isCheap": true,
+    "rate": 13.36
+  },
+  {
+    "id": "1746430036334",
+    "name": "Octopus Cosy Norm",
+    "supplier": "Octopus Energy",
+    "startTime": "07:00",
+    "endTime": "13:00",
+    "isCheap": false,
+    "rate": 27.24
+  },
+  {
+    "id": "1746430079895",
+    "name": "Octopus Cosy Afternoon",
+    "supplier": "Octopus Energy",
+    "startTime": "13:00",
+    "endTime": "16:00",
+    "isCheap": true,
+    "rate": 13.36
+  },
+  {
+    "id": "1746638481699",
+    "name": "Octopus Cosy Late Afternoon",
+    "supplier": "Octopus Energy",
+    "startTime": "16:00",
+    "endTime": "19:00",
+    "isCheap": false,
+    "rate": 40.86
+  },
+  {
+    "id": "1746430123468",
+    "name": "Octopus Cosy Evening",
+    "supplier": "Octopus Energy",
+    "startTime": "19:00",
+    "endTime": "22:00",
+    "isCheap": false,
+    "rate": 27.24
+  },
+  {
+    "id": "1746430148918",
+    "name": "Octopus Cosy Night",
+    "supplier": "Octopus Energy",
+    "startTime": "22:00",
+    "endTime": "00:00",
+    "isCheap": true,
+    "rate": 13.36
+  },
+
+
+  // --- Octopus Energy - Other Examples ---
+  { "id": "1700000000001", "name": "Octopus Go - Cheap Rate", "supplier": "Octopus Energy", "startTime": "00:30", "endTime": "04:30", "isCheap": true, "rate": 9.50 }, // Example rate in p/kWh
+  { "id": "1700000000002", "name": "Octopus Go - Peak Rate", "supplier": "Octopus Energy", "startTime": "04:30", "endTime": "00:30", "isCheap": false, "rate": 30.50 }, // Signifies the rest of the day, Example rate in p/kWh
+  { "id": "1700000000003", "name": "Intelligent Octopus Go - Cheap Rate", "supplier": "Octopus Energy", "startTime": "23:30", "endTime": "05:30", "isCheap": true, "rate": 7.50 }, // Example rate in p/kWh
+  { "id": "1700000000004", "name": "Intelligent Octopus Go - Peak Rate", "supplier": "Octopus Energy", "startTime": "05:30", "endTime": "23:30", "isCheap": false, "rate": 30.50 }, // Signifies the rest of the day, Example rate in p/kWh
+  { "id": "1700000000005", "name": "Flexible Octopus (SVT)", "supplier": "Octopus Energy", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 28.62 }, // Signifies all day, Example standard variable rate in p/kWh
+  { "id": "1700000000006", "name": "Octopus Agile - Variable", "supplier": "Octopus Energy", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 15.00 }, // Signifies all day, rates change every 30 mins. Placeholder: actual rate varies constantly, e.g., an average
+
+  // --- British Gas - Examples ---
+  { "id": "1700000000010", "name": "British Gas Standard Variable", "supplier": "British Gas", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 29.00 }, // Example rate in p/kWh
+  { "id": "1700000000011", "name": "British Gas Economy 7 - Night", "supplier": "British Gas", "startTime": "00:30", "endTime": "07:30", "isCheap": true, "rate": 16.50 }, // Common E7 time, can vary, Example rate in p/kWh
+  { "id": "1700000000012", "name": "British Gas Economy 7 - Day", "supplier": "British Gas", "startTime": "07:30", "endTime": "00:30", "isCheap": false, "rate": 38.00 }, // Example rate in p/kWh
+  { "id": "1700000000013", "name": "British Gas Electric Driver - Off-Peak", "supplier": "British Gas", "startTime": "00:00", "endTime": "05:00", "isCheap": true, "rate": 8.95 }, // Example rate in p/kWh
+  { "id": "1700000000014", "name": "British Gas Electric Driver - Peak", "supplier": "British Gas", "startTime": "05:00", "endTime": "00:00", "isCheap": false, "rate": 32.00 }, // Example rate in p/kWh
+
+  // --- E.ON Next - Examples ---
+  { "id": "1700000000020", "name": "E.ON Next Pledge (SVT Tracker)", "supplier": "E.ON Next", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 28.00 }, // Example rate, tracks price cap
+  { "id": "1700000000021", "name": "E.ON Next Drive - Off-Peak", "supplier": "E.ON Next", "startTime": "00:00", "endTime": "07:00", "isCheap": true, "rate": 9.50 }, // Often midnight to 7am, or similar, Example rate in p/kWh
+  { "id": "1700000000022", "name": "E.ON Next Drive - Peak", "supplier": "E.ON Next", "startTime": "07:00", "endTime": "00:00", "isCheap": false, "rate": 31.50 }, // Example rate in p/kWh
+
+  // --- EDF Energy - Examples ---
+  { "id": "1700000000030", "name": "EDF Standard Variable", "supplier": "EDF Energy", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 28.80 }, // Example rate in p/kWh
+  { "id": "1700000000031", "name": "EDF GoElectric Overnight - Off-Peak", "supplier": "EDF Energy", "startTime": "00:00", "endTime": "05:00", "isCheap": true, "rate": 8.00 }, // Off-peak hours can be chosen, e.g. 5 hours between 12am and 7am. This example uses a common window, Example rate in p/kWh
+  { "id": "1700000000032", "name": "EDF GoElectric Overnight - Peak", "supplier": "EDF Energy", "startTime": "05:00", "endTime": "00:00", "isCheap": false, "rate": 33.00 } // Example rate in p/kWh
+];
 
