@@ -823,7 +823,7 @@ export default function AdvisoryPage() {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-1">
                     <div className="flex items-center gap-1">
-                        <Label htmlFor="evChargeBy">Charge By Time (HH:MM)</Label>
+                        <Label htmlFor="evChargeBy">Charge By Time (HH:MM)</Label> 
                         {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                             <Tooltip>
                                 <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>
@@ -841,7 +841,7 @@ export default function AdvisoryPage() {
                  </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
-                        <Label htmlFor="evMaxRateSlider">Max Charge Rate (kW)</Label>
+                        <Label htmlFor="evMaxRateSlider">Max Charge Rate per Hour (kW)</Label> 
                          {inputControlsMounted && showTooltips && ( // Use inputControlsMounted
                             <Tooltip>
                                 <TooltipTrigger asChild><HelpCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger>

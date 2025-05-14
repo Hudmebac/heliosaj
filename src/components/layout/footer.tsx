@@ -36,8 +36,18 @@ export default function Footer() {
                     ))}
                 </nav>
 
-                <div className="text-xs text-muted-foreground order-1 sm:order-2 mb-2 sm:mb-0 text-center sm:text-right">
+                <div className="flex flex-col sm:flex-row items-center gap-2 order-1 sm:order-2 mb-2 sm:mb-0 text-center sm:text-right text-xs text-muted-foreground">
                     © {new Date().getFullYear()} Craig Heggie. All rights reserved.
+                    <a
+                        href="https://heggie.netlify.app/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-primary hover:underline font-medium"
+                    >
+                        <img src="https://heggie.netlify.app/favicon.ico" alt="HeggieHub Favicon" className="h-4 w-4 inline-block" />
+                        HeggieHub
+                    </a>
+
                 </div>
             </div>
         </footer>

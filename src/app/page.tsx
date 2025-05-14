@@ -75,7 +75,7 @@ export default function HomePage() {
   const [tomorrowCalculatedForecast, setTomorrowCalculatedForecast] = useState<CalculatedForecast | null>(null);
 
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [selectedChartType, setSelectedChartType] = useState<ChartType>('bar');
+  const [selectedChartType, setSelectedChartType] = useState<ChartType>('line');
 
   useEffect(() => {
     setIsMounted(true);
@@ -291,7 +291,7 @@ export default function HomePage() {
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
         tickFormatter: (value: number) => `${value.toFixed(2)}kWh`,
-        width: isMobile ? 35 : 45, 
+        width: isMobile ? 35 : 45,
         ticks: yAxisTicksForChart,
       };
       const commonXAxisProps = {
@@ -327,9 +327,9 @@ export default function HomePage() {
         case 'line':
           return (
             <LineChart {...commonProps}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+ <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+ <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} style={{ fill: 'white', opacity: 1 }} />
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Line type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: isMobile ? 2 : 3 }} activeDot={{ r: isMobile ? 4 : 6 }} yAxisId="left" />
@@ -338,9 +338,9 @@ export default function HomePage() {
         case 'area':
           return (
             <AreaChart {...commonProps}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+ <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+ <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} style={{ fill: 'white', opacity: 1 }} />
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Area type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} yAxisId="left"/>
@@ -350,9 +350,9 @@ export default function HomePage() {
         default:
           return (
             <BarChart {...commonProps}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+ <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} />
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+ <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} style={{ fill: 'white', opacity: 1 }} />
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={isMobile ? 2 : 4} yAxisId="left" />
