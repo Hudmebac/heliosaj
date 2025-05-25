@@ -114,7 +114,9 @@ export default function Header() {
           <Sun className="h-6 w-6 text-primary" />
           HelioHeggie
         </Link>
-
+        <Link href="/aj_renewables_info" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
+          AJ Renewables
+        </Link>
         <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">
           {navItems.map((item) => (
             <Link
