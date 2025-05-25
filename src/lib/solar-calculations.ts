@@ -191,21 +191,20 @@ export function calculateSolarGeneration(
 
     const peakHourSolarNoon = sunriseHour + daylightHours / 2;
 
-    // Generate hourly forecasts only between sunrise and sunset
-    const startHour = Math.floor(sunriseHour);
-    const endHour = Math.ceil(sunsetHour);
-
-    for (let hour = startHour; hour < endHour; hour++) {
+    for (let hour = 0; hour < 24; hour++) {
       let estimatedGenerationWh = 0;
-      const proximityToNoonFactor = 1 - Math.abs(hour + 0.5 - peakHourSolarNoon) / (daylightHours / 2);
-      // Using Math.pow with 1.5 creates a more realistic bell curve than 2
-      estimatedGenerationWh = Math.pow(Math.max(0, proximityToNoonFactor), 1.5);
+      if (hour >= Math.floor(sunriseHour) && hour < Math.ceil(sunsetHour) && daylightHours > 0) {
+        const proximityToNoonFactor = 1 - Math.abs(hour + 0.5 - peakHourSolarNoon) / (daylightHours / 2);
+        // Using Math.pow with 1.5 creates a more realistic bell curve than 2
+        let hourlyGenerationFactor = Math.pow(Math.max(0, proximityToNoonFactor), 1.5); 
+        estimatedGenerationWh = hourlyGenerationFactor; 
+      }
       hourlyForecast.push({
         time: `${hour.toString().padStart(2, '0')}:00`,
         estimatedGenerationWh: estimatedGenerationWh, 
       });
     }
-
+    
     const sumOfHourlyFactors = hourlyForecast.reduce((sum, hf) => sum + hf.estimatedGenerationWh, 0);
 
     if (sumOfHourlyFactors > 0.001 && dailyTotalGenerationKWh > 0) {

@@ -129,7 +129,7 @@ export default function Header() {
               aria-current={pathname === item.href ? 'page' : undefined}
               title={item.label}
             >
-              <item.icon className="h-4 w-4 sm:h-4 sm:w-4" />
+              <item.icon className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">{item.label}</span>
             </Link>
           ))}
@@ -145,7 +145,7 @@ export default function Header() {
                   )}
                   id="weather-source-trigger"
                 >
-                  <CloudSun className="h-4 w-4 sm:h-4 sm:w-4" />
+                  <CloudSun className="h-3 w-3 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Source:&nbsp;</span>
                   {currentSource?.name || 'Select...'}
                 </Button>
