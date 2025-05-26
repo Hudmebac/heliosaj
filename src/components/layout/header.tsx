@@ -9,6 +9,7 @@ import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import {
   DropdownMenu,
@@ -192,9 +193,23 @@ export default function Header() {
           )}
         </nav>
 
-        <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2">
-         <InputControlToggle />
-         <ThemeToggle />
+        <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2 ml-auto">
+          <a 
+            href="https://play.google.com/store/apps/details?id=com.mobile.givenergy&utm_source=emea_Med" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            title="Download GivEnergy App"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <Image 
+              src="/images/GEIcon.webp" 
+              alt="GivEnergy App Icon" 
+              width={32} 
+              height={32} 
+            />
+          </a>
+          <InputControlToggle />
+          <ThemeToggle />
         </div>
       </div>
     </header>
