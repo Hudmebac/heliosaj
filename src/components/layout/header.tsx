@@ -112,8 +112,8 @@ export default function Header() {
     <header className="bg-secondary text-secondary-foreground shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center">
         <Link href="/" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
-          <Sun className="h-6 w-6 text-primary" />
-          HelioHeggie
+ <Sun className="h-6 w-6 text-primary" />
+ HelioHeggie&nbsp;&nbsp;&nbsp;
         </Link> 
         <Link href="/aj_renewables_info" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
           AJ Renewables
@@ -125,7 +125,7 @@ export default function Header() {
             target="_blank"
             rel="noopener noreferrer"
             title="Download GivEnergy App"
-            className="hover:opacity-80 transition-opacity mr-2" // Added mr-2 for spacing
+            className="hover:opacity-80 transition-opacity ml-4 mr-2" // Added ml-4 for space after AJ Renewables
           >
             <Image
               src="/images/GEIcon.webp"
