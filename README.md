@@ -18,7 +18,7 @@ The primary purpose of this application is to empower users with the tools and i
 
 1.  **Clone the repository:**
 ```bash
-    git clone https://github.com/Hudmebac/helio.git
+    git clone https://github.com/Hudmebac/heliosaj.git
 ```
 2.  **Install dependencies:**
 ```bash
