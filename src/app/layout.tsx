@@ -16,7 +16,7 @@ const inter = Inter({
 
 
 export const metadata: Metadata = {
-  title: 'HelioHeggie',
+  title: 'Helios AJ',
   description: 'Solar Energy Forecaster by Craig Heggie',
   icons: {
     icon: '/favicon.ico', 
