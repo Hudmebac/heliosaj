@@ -142,7 +142,7 @@ const AJRenewablesInfoPage: React.FC = () => {
           <img 
             src="/images/ajlogo.png" // Ensure this path is correct
             alt="AJ Renewables Logo" 
-            className="h-20 sm:h-24 md:h-28 w-auto mx-auto mb-6" 
+            className="h-20 sm:h-24 md:h-28 w-auto mx-auto mb-6 bg-black dark:bg-transparent rounded-xl" 
             // Add dark mode filter if logo isn't suitable for dark bg
             // style={isDarkMode ? { filter: 'invert(1) hue-rotate(180deg)' } : {}} // Example
           />
