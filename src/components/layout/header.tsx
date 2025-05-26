@@ -119,6 +119,21 @@ export default function Header() {
           AJ Renewables
         </Link>
         <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">
+          {/* GivEnergy App Icon Link - Moved */}
+          <a
+            href="https://play.google.com/store/apps/details?id=com.mobile.givenergy&utm_source=emea_Med"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Download GivEnergy App"
+            className="hover:opacity-80 transition-opacity mr-2" // Added mr-2 for spacing
+          >
+            <Image
+              src="/images/GEIcon.webp"
+              alt="GivEnergy App Icon"
+              width={24} // Adjusted size to fit better in nav
+              height={24} // Adjusted size to fit better in nav
+            />
+          </a>
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -194,20 +209,7 @@ export default function Header() {
         </nav>
 
         <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2 ml-auto">
-          <a 
-            href="https://play.google.com/store/apps/details?id=com.mobile.givenergy&utm_source=emea_Med" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            title="Download GivEnergy App"
-            className="hover:opacity-80 transition-opacity"
-          >
-            <Image 
-              src="/images/GEIcon.webp" 
-              alt="GivEnergy App Icon" 
-              width={32} 
-              height={32} 
-            />
-          </a>
+          {/* Original GivEnergy App Icon Link - Removed */}
           <InputControlToggle />
           <ThemeToggle />
         </div>
