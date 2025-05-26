@@ -2,3 +2,6 @@ gitmodules
 [submodule "helioheggie"]
 	path = helioheggie
 	url = https://github.com/Hudmebac/helioaj.git
+[submodule "new-heliosaj"]
+	path = new-heliosaj
+	url = https://github.com/Hudmebac/heliosaj.git
