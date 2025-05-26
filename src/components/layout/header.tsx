@@ -113,7 +113,7 @@ export default function Header() {
         <Link href="/" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
           <Sun className="h-6 w-6 text-primary" />
           HelioHeggie
-        </Link>
+        </Link> 
         <Link href="/aj_renewables_info" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
           AJ Renewables
         </Link>
@@ -131,7 +131,7 @@ export default function Header() {
               aria-current={pathname === item.href ? 'page' : undefined}
               title={item.label}
             >
-              <item.icon className="h-3 w-3 sm:h-4 sm:w-4" />
+              <item.icon className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="hidden sm:inline">{item.label}</span>
             </Link>
           ))}
@@ -147,7 +147,7 @@ export default function Header() {
                   )}
                   id="weather-source-trigger"
                 >
-                  <CloudSun className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <CloudSun className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span className="hidden sm:inline">Source:&nbsp;</span>
                   {currentSource?.name || 'Select...'}
                 </Button>
@@ -182,7 +182,7 @@ export default function Header() {
                           refreshForecastDates();
                           setIsManualForecastModalOpen(true);
                         }}>
-                            <Edit3 className="h-4 w-4 mr-2" />
+                            <Edit3 className="h-5 w-5 mr-2" />
                             Edit Manual Forecast
                         </DropdownMenuItem>
                     </>
