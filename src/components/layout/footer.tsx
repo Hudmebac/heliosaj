@@ -36,7 +36,9 @@ export default function Footer() {
                     ))}
                 </nav>
 
-                <div className="text-xs text-muted-foreground order-1 sm:order-2 mb-2 sm:mb-0 text-center sm:text-right">
+                <div className="text-xs text-orange-300
+                
+                00 order-1 sm:order-2 mb-2 sm:mb-0 text-center sm:text-right">
                     © {new Date().getFullYear()} HelioHeggie. All rights reserved.
                 </div>
             </div>
