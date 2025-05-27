@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
 import Image from 'next/image';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useState, useEffect } from 'react';
 import {
   DropdownMenu,
@@ -45,6 +46,7 @@ const weatherSources: WeatherSource[] = [
 export default function Header() {
   const pathname = usePathname();
   const [settings, setSettings] = useLocalStorage<UserSettings | null>('userSettings', null);
+  const isMobile = useIsMobile();
   const { isMounted } = useInputControls(); 
 
   const [selectedWeatherSourceId, setSelectedWeatherSourceId] = useState<string>('open-meteo');
@@ -121,7 +123,7 @@ export default function Header() {
         <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">
           {/* GivEnergy App Icon Link - Moved */}
           <a
-            href="https://play.google.com/store/apps/details?id=com.mobile.givenergy&utm_source=emea_Med"
+            href={isMobile ? "https://play.google.com/store/apps/details?id=com.mobile.givenergy&utm_source=emea_Med" : "https://givenergy.cloud/dashboard"}
             target="_blank"
             rel="noopener noreferrer"
             title="Download GivEnergy App"
