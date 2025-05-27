@@ -126,7 +126,8 @@ const StageCard: React.FC<Stage> = ({ icon: Icon, title, description }) => (
 const AJRenewablesInfoPage: React.FC = () => {
   const [isDetailedInfoCollapsed, setIsDetailedInfoCollapsed] = useState(true);
   const [isGivEnergyCollapsed, setIsGivEnergyCollapsed] = useState(true);
-  const toggleDetailedInfo = () => {
+  const [isFinanceCollapsed, setIsFinanceCollapsed] = useState(true);
+   const toggleDetailedInfo = () => {
     setIsDetailedInfoCollapsed(!isDetailedInfoCollapsed);
   };
 
@@ -421,30 +422,46 @@ const AJRenewablesInfoPage: React.FC = () => {
               <FileText className="h-5 w-5" /> Get a Free Quote
             </a>
           </div>
-          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
-            <div className="mb-6">
+          
+          {/* Registered Office and Company Info */}
+          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
               <p className="text-base text-slate-700 dark:text-orange-400 mb-2">
                 <strong>Registered Office Address:</strong> Unit 6, Lochgelly Business Park, Auchterderran Road, Lochgelly, Scotland, KY5 9HF
               </p>
               <p className="text-base text-slate-700 dark:text-orange-400">
                 <strong>Company Number:</strong> SC691544
               </p>
+          </div>
+
+          {/* Finance & Regulation - Collapsible Section */}
+          <div className="border-t border-slate-300 dark:border-slate-600 my-6 pt-6">
+             <div
+               className="flex items-center justify-between cursor-pointer"
+               onClick={() => setIsFinanceCollapsed(!isFinanceCollapsed)}
+               role="button"
+               tabIndex={0}
+               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setIsFinanceCollapsed(!isFinanceCollapsed)}
+               aria-expanded={!isFinanceCollapsed}
+               aria-controls="finance-regulation-content"
+             >
+               <h3 className="text-lg font-semibold text-slate-800 dark:text-orange-400">
+                 Finance & Regulation
+               </h3>
+               <ChevronDown className={`h-6 w-6 text-orange-600 dark:text-orange-500 transform transition-transform duration-300 ${isFinanceCollapsed ? '' : 'rotate-180'}`} />
             </div>
-
-            <div className="border-t border-slate-300 dark:border-slate-600 my-6"></div>
-
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-orange-400 mb-3">
-              Finance & Regulation
-            </h3>
-            <p className="text-sm text-slate-700 dark:text-orange-400 mb-3 leading-relaxed">
-              A.J. Fire Protection and Electricals Ltd (t/a AJ Renewables) is an Introducer Appointed Representative
-              (Financial Services Register No. 1006977) of Phoenix Financial Consultants Limited (Phoenix).
-            </p>
-            <p className="text-sm text-slate-700 dark:text-orange-400 mb-3 leading-relaxed">
-              Phoenix is a credit broker, not a lender. Phoenix is authorised and regulated by the Financial Conduct Authority (FRN: 539195),
-              and offers finance from its panel of lenders.
-            </p>
-            <p className="mt-4 text-sm font-bold text-orange-400 dark:text-orange-400">All finance subject to status and credit checks.</p>
+            {!isFinanceCollapsed && (
+               <div id="finance-regulation-content" className="mt-4 space-y-3 text-sm text-slate-700 dark:text-orange-400 leading-relaxed">
+                 <p>
+                   A.J. Fire Protection and Electricals Ltd (t/a AJ Renewables) is an Introducer Appointed Representative
+                   (Financial Services Register No. 1006977) of Phoenix Financial Consultants Limited (Phoenix).
+                 </p>
+                 <p>
+                   Phoenix is a credit broker, not a lender. Phoenix is authorised and regulated by the Financial Conduct Authority (FRN: 539195),
+                   and offers finance from its panel of lenders.
+                 </p>
+                 <p className="mt-2 font-bold">All finance subject to status and credit checks.</p>
+               </div>
+            )}
           </div>
         </footer>
       </div>
