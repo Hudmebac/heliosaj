@@ -90,7 +90,7 @@ const servicesData: Service[] = [
 ];
 
 const ServiceCard: React.FC<Service> = ({ icon: Icon, title, shortDescription, points }) => (
-  <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-700/50 p-6 flex flex-col h-full hover:shadow-xl dark:hover:shadow-slate-600/60 transition-shadow duration-300">
+  <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-slate-800/50 p-6 flex flex-col h-full hover:shadow-xl dark:hover:shadow-slate-600/60 transition-shadow duration-300">
     <div className="flex items-center mb-4">
       <Icon className="h-10 w-10 text-orange-500 mr-4" /> {/* Orange icon works well on dark too */}
       <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
@@ -421,10 +421,31 @@ const AJRenewablesInfoPage: React.FC = () => {
               <FileText className="h-5 w-5" /> Get a Free Quote
             </a>
           </div>
-          <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8">
-            | A.J. Fire Protection and Electricals Ltd - Registered office address:  Unit 6 Unit 6, Lochgelly Business Park, Auchterderran Road, Lochgelly, Scotland, KY5 9HF | Company number: SC691544
-            A.J. Fire Protection and Electricals Ltd (t/a AJ Renewables) is an Introducer Appointed Representative (Financial Services Register No. 1006977) of Phoenix Financial Consultants Limited (Phoenix). Phoenix is a credit broker, not a lender. Phoenix is authorised and regulated by the Financial Conduct Authority (FRN: 539195), and offers finance trom its panel of lenders. All finance subject to status and credit checks.
-          </p>
+          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+            <div className="mb-6">
+              <p className="text-base text-slate-700 dark:text-orange-400 mb-2">
+                <strong>Registered Office Address:</strong> Unit 6, Lochgelly Business Park, Auchterderran Road, Lochgelly, Scotland, KY5 9HF
+              </p>
+              <p className="text-base text-slate-700 dark:text-orange-400">
+                <strong>Company Number:</strong> SC691544
+              </p>
+            </div>
+
+            <div className="border-t border-slate-300 dark:border-slate-600 my-6"></div>
+
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-orange-400 mb-3">
+              Finance & Regulation
+            </h3>
+            <p className="text-sm text-slate-700 dark:text-orange-400 mb-3 leading-relaxed">
+              A.J. Fire Protection and Electricals Ltd (t/a AJ Renewables) is an Introducer Appointed Representative
+              (Financial Services Register No. 1006977) of Phoenix Financial Consultants Limited (Phoenix).
+            </p>
+            <p className="text-sm text-slate-700 dark:text-orange-400 mb-3 leading-relaxed">
+              Phoenix is a credit broker, not a lender. Phoenix is authorised and regulated by the Financial Conduct Authority (FRN: 539195),
+              and offers finance from its panel of lenders.
+            </p>
+            <p className="mt-4 text-sm font-bold text-orange-400 dark:text-orange-400">All finance subject to status and credit checks.</p>
+          </div>
         </footer>
       </div>
     </div>
