@@ -150,7 +150,7 @@ const AJRenewablesInfoPage: React.FC = () => {
           />
           <h1 className="text-4xl sm:text-5xl font-bold text-orange-500 dark:text-orange-400 mb-3">
             AJ Renewables
-          </h1>
+          </h1> 
           <p className="text-xl text-slate-700 dark:text-orange-300 mb-6">
             Your Trusted Partner for Renewable Energy Solutions
           </p>
@@ -168,7 +168,7 @@ const AJRenewablesInfoPage: React.FC = () => {
         {/* Services Section */}
         <section className="mb-16">
           <h2 className="text-3xl font-semibold text-orange-400 dark:text-Orange-300 mb-2 text-center">
-            Our Renewable Energy Services
+            Our Renewable Energy Services 
           </h2>
           <p className="text-center text-slate-600 dark:text-orange-300 mb-10 max-w-2xl mx-auto">
             We offer a comprehensive suite of renewable energy solutions tailored to your home or business needs, helping you save money and reduce your carbon footprint.
@@ -229,7 +229,35 @@ const AJRenewablesInfoPage: React.FC = () => {
                   <li>Manufacturer Approved Installer Status for leading brands (Tesla, GivEnergy, Myenergi, SolarEdge, etc.)</li>
                 </ul>
               </div>
-
+ {/* Accreditations Section */}
+ <section className="mb-16 bg-slate-200 dark:bg-slate-200 p-6 sm:p-8 rounded-xl shadow-lg dark:shadow-slate-700/50">
+          <h2 className="text-2xl font-semibold text-orange-600 dark:text-orange-500 mb-6 text-center">
+            Accreditations
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 justify-items-center">
+            <img src="/images/accreditations/ctsi.png" alt="ctsi Approved Code Trading Standards" className="h-100 w-auto object-contain" />
+            <img src="/images/accreditations/give.png" alt="GivEnergy Approved Installer" className="h-100 w-auto object-contain" />
+            <img src="/images/accreditations/mcs.png" alt="MCS Certified" className="h-100 w-auto object-contain" />
+            <img src="/images/accreditations/napit.png" alt="NAPIT Accredited" className="h-100 w-auto object-contain" />
+            <img src="/images/accreditations/trust.png" alt="TrustMark Government Endorsed Quality" className="h-100 w-auto object-contain" />
+            <img src="/images/accreditations/recc.png" alt="Renewable Energy Consumer Code" className="h-100 w-auto object-contain" />
+            <img src="/images/accreditations/which.png" alt="Which? Trusted Trader" className="h-100 w-auto object-contain" />
+            </div>
+            <h2 className="text-2xl font-semibold text-orange-600 dark:text-orange-500 mb-6 text-center">
+            Partners
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 justify-items-center">
+            <img src="/images/partners/ecomax.png" alt="eco-max Energy Saving Products" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/growatt.png" alt="Growatt Powering Tomorrow" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/JA.png" alt="JA Solar" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/puredrive.png" alt="PUREDRIVE energy Storage" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/solaredge.png" alt="Solar Edge Certified Installer" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/duracell.png" alt="DURACELL ENERGY" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/SOLIS.png" alt="SOLIS" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/canadian.png" alt="CanadianSolar" className="h-40 w-auto object-contain" />
+            <img src="/images/partners/teslapowerwall.png" alt="Tesla Power Wall" className="h-40 w-auto object-contain" />
+            </div>
+        </section>
               <div>
                 <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center">
                   <Sparkles className="h-6 w-6 mr-2 text-orange-500" />
@@ -281,7 +309,7 @@ const AJRenewablesInfoPage: React.FC = () => {
         {/* GivEnergy Section */}
         <section className="mb-16 bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-xl shadow-lg dark:shadow-slate-700/50">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-orange-600 dark:text-orange-500">
+            <h2 className="text-2xl font-semibold text-orange-600 dark:text-orange-500"> 
               Featured Partner: GivEnergy {/* Keep the main heading */}
             </h2>
           </div>
@@ -397,7 +425,7 @@ const AJRenewablesInfoPage: React.FC = () => {
             </div>
           </div>
         </section>
-
+       
         {/* Contact & Links Section */}
         <footer className="border-t border-slate-200 dark:border-slate-700 pt-10">
           <h2 className="text-2xl font-semibold text-slate-800 dark:text-orange-400 mb-6 text-center">
@@ -423,7 +451,7 @@ const AJRenewablesInfoPage: React.FC = () => {
             </a>
           </div>
 
-          {/* Registered Office and Company Info */}
+          {/* Registered Office and Company Info */} 
           <div className="mt-8 pt-6 border-t border-slate-200 dark:border-orange-400 text-left text-sm text-slate-800 dark:text-orange-400">
               <p className="mb-2">
                 <strong className="font-semibold">Registered Office Address:</strong> Unit 6, Lochgelly Business Park, Auchterderran Road, Lochgelly, Scotland, KY5 9HF
@@ -434,7 +462,7 @@ const AJRenewablesInfoPage: React.FC = () => {
           </div>
 
           {/* Finance & Regulation - Collapsible Section */}
-          <div className="border-t border-slate-200 dark:border-orange-400 mt-6 pt-6">
+          <div className="border-t border-slate-200 dark:border-orange-400 mt-6 pt-6"> 
              <div
                className="flex items-center justify-between cursor-pointer"
                onClick={() => setIsFinanceCollapsed(!isFinanceCollapsed)} // Use the state variable
