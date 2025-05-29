@@ -12,12 +12,16 @@ interface SystemData {
   solarProduction: number;
   houseConsumption: number;
   batteryCharge: number;
+  batteryChargeKWh: number;
   gridImportExport: number;
+  batteryFlow: number; // Negative for discharge, positive for charge
+  evChargerAmount: number;
 }
 
 const mockSystemData: SystemData = {
   solarProduction: 5.2,
   houseConsumption: 2.1,
+  batteryChargeKWh: 8.5, // Example kWh value
   batteryCharge: 75,
   gridImportExport: -0.5, // Negative for export, positive for import
 };
@@ -27,7 +31,7 @@ const GivEnergyControlPage: React.FC = () => {
   const [serialNumber, setSerialNumber] = useLocalStorage('givenergy-serial-number', '');
   const [systemData, setSystemData] = useState<SystemData>(mockSystemData);
   const [isLoggedIn, setIsLoggedIn] = useState(false); // Consider logged in if both exist
-
+  const [activeTab, setActiveTab] = useState('home'); // New state for active tab
 
   useEffect(() => {
     // Update isLoggedIn state whenever apiKey or serialNumber changes
@@ -43,7 +47,7 @@ const GivEnergyControlPage: React.FC = () => {
     setApiKey('');
     setSerialNumber('');
     setIsLoggedIn(false);
-    setSystemData({ solarProduction: 0, houseConsumption: 0, batteryCharge: 0, gridImportExport: 0 }); // Clear data on logout
+    setSystemData({ solarProduction: 0, houseConsumption: 0, batteryCharge: 0, batteryChargeKWh: 0, gridImportExport: 0, batteryFlow: 0, evChargerAmount: 0 }); // Clear data on logout
   };
 
   // Placeholder function to update system data - replace with actual API calls
@@ -53,8 +57,11 @@ const GivEnergyControlPage: React.FC = () => {
     setSystemData({
       solarProduction: Math.random() * 10,
       houseConsumption: Math.random() * 5,
-      batteryCharge: Math.random() * 100,
+      batteryCharge: parseFloat((Math.random() * 100).toFixed(1)), // Ensure percentage is float with one decimal
+      batteryChargeKWh: parseFloat((Math.random() * 12).toFixed(2)), // Example max capacity 12kWh
       gridImportExport: (Math.random() - 0.5) * 2,
+      batteryFlow: (Math.random() - 0.5) * 3, // Simulate charge/discharge
+      evChargerAmount: Math.random() * 7, // Simulate EV charging amount
     });
   };
 
@@ -62,9 +69,33 @@ const GivEnergyControlPage: React.FC = () => {
     <div className="container mx-auto px-4 py-12">
       <h1 className="text-3xl font-bold text-center mb-8">GivEnergy System Control</h1>
 
-      <Tabs defaultValue="authentication" className="w-full max-w-2xl mx-auto">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="authentication">Authentication</TabsTrigger>
+      <Tabs defaultValue="authentication" value={activeTab} onValueChange={setActiveTab} className="w-full max-w-4xl mx-auto">
+        <TabsList className="grid w-full grid-cols-3 md:grid-cols-5">
+          <TabsTrigger value="authentication">
+            {/* Placeholder Icon for Authentication */}
+            <span>🔑</span> Authentication
+          </TabsTrigger>
+          <TabsTrigger value="home" disabled={!isLoggedIn}>
+            {/* Placeholder Icon for Home */}
+            <span>🏠</span> Home
+          </TabsTrigger>
+          <TabsTrigger value="solar" disabled={!isLoggedIn}>
+            {/* Placeholder Icon for Solar */}
+            <span>☀️</span> Solar
+          </TabsTrigger>
+          <TabsTrigger value="battery" disabled={!isLoggedIn}>
+            {/* Placeholder Icon for Battery */}
+            <span>🔋</span> Battery
+          </TabsTrigger>
+          <TabsTrigger value="grid" disabled={!isLoggedIn}>
+            {/* Placeholder Icon for Grid */}
+            <span>⚡</span> Grid
+          </TabsTrigger>
+          <TabsTrigger value="ev-charger" disabled={!isLoggedIn}>
+            {/* Placeholder Icon for EV Charger */}
+            <span>🚗⚡</span> EV Charger
+          </TabsTrigger>
+
           <TabsTrigger value="dashboard" disabled={!isLoggedIn}>Dashboard</TabsTrigger>
         </TabsList>
         <TabsContent value="authentication" className="mt-6">
@@ -101,16 +132,133 @@ const GivEnergyControlPage: React.FC = () => {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="System Control" className="mt-6">
+
+        {/* Home Section */}
+        <TabsContent value="home" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>System Control</CardTitle>
+              <CardTitle>Home Overview</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p>Solar Production: {systemData.solarProduction.toFixed(2)} kW</p>
-              <p>House Consumption: {systemData.houseConsumption.toFixed(2)} kW</p>
-              <p>Battery Charge: {systemData.batteryCharge.toFixed(1)} %</p>
-              <p>Grid ({systemData.gridImportExport < 0 ? 'Export' : 'Import'}): {Math.abs(systemData.gridImportExport).toFixed(2)} kW</p>
+              <h3 className="text-xl font-semibold">Current Metrics</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex justify-between">
+                  <span className="font-bold text-lg">House Consumption:</span>
+                  <span>
+                    {systemData?.houseConsumption !== undefined ? systemData.houseConsumption.toFixed(2) : 'Loading...'} kW
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-bold text-lg">Solar Generation:</span>
+                  <span>
+                    {systemData?.solarProduction !== undefined ? systemData.solarProduction.toFixed(2) : 'Loading...'} kW
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-bold text-lg">Battery Level:</span>
+                  <span>
+                    {systemData?.batteryCharge !== undefined ? systemData.batteryCharge.toFixed(1) : 'Loading...'} % ({systemData?.batteryChargeKWh !== undefined ? systemData.batteryChargeKWh.toFixed(2) : 'Loading...'} kWh)
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-bold text-lg">Grid Flow:</span>
+                  <span>
+                    {systemData?.gridImportExport !== undefined ? (systemData.gridImportExport < 0 ? 'Export' : 'Import') : 'Loading...'}: {systemData?.gridImportExport !== undefined ? Math.abs(systemData.gridImportExport).toFixed(2) : 'Loading...'} kW
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-bold text-lg">Battery Flow:</span>
+                  <span>
+                    {systemData?.batteryFlow !== undefined ? (systemData.batteryFlow < 0 ? 'Discharging' : 'Charging') : 'Loading...'}: {systemData?.batteryFlow !== undefined ? Math.abs(systemData.batteryFlow).toFixed(2) : 'Loading...'} kW
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <h3 className="text-xl font-semibold mb-2">Energy Flows</h3>
+                {/* Placeholder for Energy Flow Diagram */}
+                <div className="w-full h-40 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center text-gray-500">
+                  Placeholder for Energy Flow Diagram
+                </div>
+              </div>
+
+              <Button className="w-full mt-6" onClick={fetchSystemData}>Refresh Data</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Solar Section */}
+        <TabsContent value="solar" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Solar System</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p>
+                Solar Current Output: {systemData?.solarProduction !== undefined ? systemData.solarProduction.toFixed(2) : 'Loading...'} kW
+              </p>
+              {/* Placeholder for Solar Generation Charts and Efficiency Metrics */}
+              <div className="w-full h-40 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center text-gray-500">
+                Placeholder for Solar Data and Charts
+              </div>
+              <Button className="w-full" onClick={fetchSystemData}>Refresh Data</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Battery Section */}
+        <TabsContent value="battery" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Battery Storage</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p>
+                Battery Charge Level: {systemData?.batteryCharge !== undefined ? systemData.batteryCharge.toFixed(1) : 'Loading...'} % ({systemData?.batteryChargeKWh !== undefined ? systemData.batteryChargeKWh.toFixed(2) : 'Loading...'} kWh)
+              </p>
+              <p>
+                Battery Flow: {systemData?.batteryFlow !== undefined ? (systemData.batteryFlow < 0 ? 'Discharging' : 'Charging') : 'Loading...'}: {systemData?.batteryFlow !== undefined ? Math.abs(systemData.batteryFlow).toFixed(2) : 'Loading...'} kW
+              </p>
+              {/* Placeholder for Charge/Discharge Rate Visuals and Usage Analytics */}
+              <div className="w-full h-40 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center text-gray-500">
+                Placeholder for Battery Data and Charts
+              </div>
+              <Button className="w-full" onClick={fetchSystemData}>Refresh Data</Button>
+              {/* Add more dashboard elements and controls here */}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Grid Section */}
+        <TabsContent value="grid" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Grid Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p>
+                Import vs. Export: {systemData?.gridImportExport !== undefined ? (systemData.gridImportExport < 0 ? 'Export' : 'Import') : 'Loading...'}: {systemData?.gridImportExport !== undefined ? Math.abs(systemData.gridImportExport).toFixed(2) : 'Loading...'} kW
+              </p>
+              {/* Placeholder for Grid electricity usage trends and Price indicators */}
+              <Button className="w-full" onClick={fetchSystemData}>Refresh Data</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* EV Charger Section */}
+        <TabsContent value="ev-charger" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>EV Charger</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p>
+                Current Charging Power: {systemData?.evChargerAmount !== undefined ? systemData.evChargerAmount.toFixed(2) : 'Loading...'} kW
+              </p>
+              {/* Placeholder for Total energy transferred to EV and Charging session history */}
+              <div className="w-full h-40 bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center text-gray-500">
+                Placeholder for EV Charger Data and Charts
+              </div>
               <Button className="w-full" onClick={fetchSystemData}>Refresh Data</Button>
               {/* Add more dashboard elements and controls here */}
             </CardContent>
