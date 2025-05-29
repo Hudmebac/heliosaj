@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,9 +26,15 @@ const GivEnergyControlPage: React.FC = () => {
   const [apiKey, setApiKey] = useLocalStorage('givenergy-api-key', '');
   const [serialNumber, setSerialNumber] = useLocalStorage('givenergy-serial-number', '');
   const [systemData, setSystemData] = useState<SystemData>(mockSystemData);
-  const isLoggedIn = !!apiKey && !!serialNumber; // Consider logged in if both exist
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Consider logged in if both exist
 
+
+  useEffect(() => {
+    // Update isLoggedIn state whenever apiKey or serialNumber changes
+    setIsLoggedIn(!!apiKey && !!serialNumber);
+  }, [apiKey, serialNumber]);
   const handleSignIn = () => {
+
     // Implement actual authentication logic here
     console.log('Signing in with API Key:', apiKey);
   };
@@ -84,7 +90,7 @@ const GivEnergyControlPage: React.FC = () => {
                     <Label htmlFor="serialNumber">Serial Number</Label>
                     <Input id="serialNumber" type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="Enter your Inverter Serial Number" />
                   </div>
-                  <Button className="w-full" onClick={handleSignIn}>Sign In</Button>
+                  <Button className="w-full" onClick={handleSignIn} disabled={!apiKey || !serialNumber}>Sign In</Button>
                 </>
               ) : (
                 <div className="text-center text-slate-500 dark:text-slate-400">
