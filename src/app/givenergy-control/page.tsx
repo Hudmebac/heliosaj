@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -25,6 +25,7 @@ const mockSystemData: SystemData = {
 const GivEnergyControlPage: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
   const [systemData, setSystemData] = useState<SystemData>(mockSystemData);
 
   const handleSignIn = () => {
@@ -37,6 +38,7 @@ const GivEnergyControlPage: React.FC = () => {
   const handleSignOut = () => {
     // Implement actual sign out logic here
     setApiKey('');
+    setSerialNumber('');
     setIsLoggedIn(false);
     setSystemData({ solarProduction: 0, houseConsumption: 0, batteryCharge: 0, gridImportExport: 0 }); // Clear data on logout
   };
@@ -70,16 +72,28 @@ const GivEnergyControlPage: React.FC = () => {
             <CardContent className="space-y-4">
               {!isLoggedIn ? (
                 <>
+                  <p className="text-sm text-gray-600">
+                    To connect to your GivEnergy system, you need to provide your API Key and Inverter Serial Number.
+                    You can generate an API token from your GivEnergy Cloud account settings.
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Follow this link to generate your API token: <a href="http://givenergy.cloud/account-settings/api-tokens" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">GivEnergy Cloud API Tokens</a>
+                  </p>
                   <div className="space-y-2">
                     <Label htmlFor="apiKey">API Key</Label>
                     <Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Enter your GivEnergy API Key" />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="serialNumber">Serial Number</Label>
+                    <Input id="serialNumber" type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="Enter your Inverter Serial Number" />
+                  </div>
                   <Button className="w-full" onClick={handleSignIn}>Sign In</Button>
                 </>
               ) : (
-                <div className="text-center space-y-4">
-                  <p>Successfully connected to GivEnergy API.</p>
-                  <Button variant="destructive" onClick={handleSignOut}>Sign Out</Button>
+
+
+                <div className="text-center text-slate-500 dark:text-slate-400">
+                  <p>Successfully connected to GivEnergy API. You can now view your system data below.</p>
                 </div>
               )}
             </CardContent>
