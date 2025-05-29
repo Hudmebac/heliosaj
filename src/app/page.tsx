@@ -292,7 +292,8 @@ export default function HomePage() {
         allowDecimals: true,
         tickFormatter: (value: number) => `${value.toFixed(2)}kWh`,
         width: isMobile ? 35 : 45, 
-        ticks: yAxisTicksForChart,
+ ticks: yAxisTicksForChart,
+        allowDataOverflow: true, // Allow ticks on first line
       };
       const commonXAxisProps = {
         dataKey: "time",
@@ -328,7 +329,7 @@ export default function HomePage() {
           return (
             <LineChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
-              <XAxis {...commonXAxisProps} />
+              <XAxis {...commonXAxisProps} /> {/* X-axis */}
               <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
@@ -339,7 +340,7 @@ export default function HomePage() {
           return (
             <AreaChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
-              <XAxis {...commonXAxisProps} />
+              <XAxis {...commonXAxisProps} /> {/* X-axis */}
               <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
@@ -351,7 +352,7 @@ export default function HomePage() {
           return (
             <BarChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
-              <XAxis {...commonXAxisProps} />
+              <XAxis {...commonXAxisProps} /> {/* X-axis */}
               <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
