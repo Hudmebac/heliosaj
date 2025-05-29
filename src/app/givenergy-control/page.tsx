@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
+import { useLocalStorage } from '@/hooks/use-local-storage';
 // Placeholder types and data - replace with actual API calls and state management
 interface SystemData {
   solarProduction: number;
@@ -23,20 +23,17 @@ const mockSystemData: SystemData = {
 };
 
 const GivEnergyControlPage: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
+  const [apiKey, setApiKey] = useLocalStorage('givenergy-api-key', '');
+  const [serialNumber, setSerialNumber] = useLocalStorage('givenergy-serial-number', '');
   const [systemData, setSystemData] = useState<SystemData>(mockSystemData);
+  const isLoggedIn = !!apiKey && !!serialNumber; // Consider logged in if both exist
 
   const handleSignIn = () => {
     // Implement actual authentication logic here
     console.log('Signing in with API Key:', apiKey);
-    setIsLoggedIn(true); // Simulate successful login
-    // Fetch initial system data after login
   };
 
-  const handleSignOut = () => {
-    // Implement actual sign out logic here
+  const handleClearCredentials = () => {
     setApiKey('');
     setSerialNumber('');
     setIsLoggedIn(false);
@@ -78,7 +75,7 @@ const GivEnergyControlPage: React.FC = () => {
                   </p>
                   <p className="text-sm text-gray-600">
                     Follow this link to generate your API token: <a href="http://givenergy.cloud/account-settings/api-tokens" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">GivEnergy Cloud API Tokens</a>
-                  </p>
+      </p>
                   <div className="space-y-2">
                     <Label htmlFor="apiKey">API Key</Label>
                     <Input id="apiKey" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Enter your GivEnergy API Key" />
@@ -90,19 +87,18 @@ const GivEnergyControlPage: React.FC = () => {
                   <Button className="w-full" onClick={handleSignIn}>Sign In</Button>
                 </>
               ) : (
-
-
                 <div className="text-center text-slate-500 dark:text-slate-400">
-                  <p>Successfully connected to GivEnergy API. You can now view your system data below.</p>
+                  <p>Successfully connected to GivEnergy API. You can now view your system data.</p>
+                  <Button onClick={handleClearCredentials} className="mt-4">Clear Credentials</Button>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="dashboard" className="mt-6">
+        <TabsContent value="System Control" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>System Dashboard</CardTitle>
+              <CardTitle>System Control</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p>Solar Production: {systemData.solarProduction.toFixed(2)} kW</p>
@@ -118,5 +114,4 @@ const GivEnergyControlPage: React.FC = () => {
     </div>
   );
 };
-
 export default GivEnergyControlPage;
