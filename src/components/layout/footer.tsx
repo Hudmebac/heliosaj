@@ -9,7 +9,7 @@ export default function Footer() {
     const pathname = usePathname();
 
     const navItems = [
-        { href: '/dashboard', label: 'Dashboard' },
+        { href: '/', label: 'Dashboard' },
         { href: '/advisory', label: 'Advisory' },
         { href: '/settings', label: 'Settings' },
         { href: '/info', label: 'Info' },
