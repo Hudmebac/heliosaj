@@ -290,7 +290,7 @@ export default function HomePage() {
         stroke: "hsl(var(--muted-foreground))",
         domain: [0, maxYValueForChart] as [number, number],
         allowDecimals: true,
-        tickFormatter: (value: number) => `${value.toFixed(2)}kWh`,
+        tickFormatter: (value: number) => `${value.toFixed(2)}kWh`, // Ensure kWh is displayed
         width: isMobile ? 35 : 45, 
  ticks: yAxisTicksForChart,
         allowDataOverflow: true, // Allow ticks on first line
@@ -330,7 +330,7 @@ export default function HomePage() {
             <LineChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} /> {/* X-axis */}
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} allowDataOverflow={true} /> {/* Ensure first tick shows */}
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Line type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: isMobile ? 2 : 3 }} activeDot={{ r: isMobile ? 4 : 6 }} yAxisId="left" />
@@ -341,7 +341,7 @@ export default function HomePage() {
             <AreaChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} /> {/* X-axis */}
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} allowDataOverflow={true} /> {/* Ensure first tick shows */}
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Area type="monotone" dataKey="kWh" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} yAxisId="left"/>
@@ -353,7 +353,7 @@ export default function HomePage() {
             <BarChart {...commonProps}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
               <XAxis {...commonXAxisProps} /> {/* X-axis */}
-              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} />
+              <YAxis yAxisId="left" orientation="left" {...commonYAxisProps} allowDataOverflow={true} /> {/* Ensure first tick shows */}
               {!isMobile && <YAxis yAxisId="right" orientation="right" {...commonYAxisProps} />}
               <RechartsTooltip content={customTooltip} cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.3 }}/>
               <Bar dataKey="kWh" fill="hsl(var(--primary))" radius={isMobile ? 2 : 4} yAxisId="left" />
@@ -363,9 +363,9 @@ export default function HomePage() {
     };
 
     return (
-        <Card>
+        <Card className="h-full flex flex-col">
             <CardHeader>
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-center">
                     <div>
                         <CardTitle className="text-lg sm:text-xl">{title} ({isApiForecast ? 'Auto' : 'Manual'}) Forecast</CardTitle>
                         <CardDescription className="text-xs sm:text-sm">
@@ -377,7 +377,7 @@ export default function HomePage() {
                         {weatherIcon}
                     </div>
                 </div>
-                <div className="flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
+                <div className="flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><Sunrise className="w-3 h-3"/> {sunriseTime}</span>
                     <span className="flex items-center gap-1"><Sunset className="w-3 h-3"/> {sunsetTime}</span>
                     {isApiForecast && 'temperature_2m_max' in sourceDayData && (sourceDayData as DailyWeather).temperature_2m_max !== undefined && (
@@ -385,7 +385,7 @@ export default function HomePage() {
                     )}
                 </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-grow">
                 {calculatedDayForecast && !calculatedDayForecast.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
                     <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[250px] sm:h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -439,21 +439,21 @@ export default function HomePage() {
     <div className="space-y-6">
        <div className="flex justify-between items-start sm:items-center flex-col sm:flex-row">
            <div className="mb-4 sm:mb-0">
-                <h1 className="text-2xl sm:text-3xl font-bold">Solar Dashboard</h1>
+                <h1 className="text-xl sm:text-2xl font-bold">Solar Dashboard</h1>
                 <p className="text-sm sm:text-base text-muted-foreground">Forecasting for: {isMounted ? locationDisplay : 'Loading...'}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <HowToInfo pageKey="dashboard" />
                 {isMounted ? (
+                     // Conditional rendering for Refresh/Edit button based on source
                     isApiSourceSelected ? (
                         <Button
                             onClick={() => refetchWeather()}
                             disabled={weatherLoading || weatherRefetching || !settings || !locationAvailable}
                             variant="outline"
-                            size="sm"
-                        >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Refresh Forecast
+                            size="icon" // Make it icon only
+>
+                            <RefreshCw className="h-4 w-4" /> {/* Icon only */}
                         </Button>
                     ) : (
                         <Button variant="outline" onClick={() => setIsManualModalOpen(true)} disabled={!settings}>
@@ -481,8 +481,8 @@ export default function HomePage() {
             />
         )}
 
-        <div className="flex justify-end mb-4">
-          <Select value={selectedChartType} onValueChange={(value) => setSelectedChartType(value as ChartType)}>
+        <div className="flex justify-end items-center">
+          <Select value={selectedChartType} onValueChange={(value) => setSelectedChartType(value as ChartType)} >
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Select chart type" />
             </SelectTrigger>
