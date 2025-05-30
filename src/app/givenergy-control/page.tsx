@@ -80,11 +80,14 @@ const GivEnergyControlPage: React.FC = () => {
   const [serialNumber, setSerialNumber] = useLocalStorage('givenergy-serial-number', '');
   const [systemData, setSystemData] = useState<SystemData>(mockSystemData);
   const [isLoggedIn, setIsLoggedIn] = useState(false); // Consider logged in if both exist
-  const [activeTab, setActiveTab] = useState('home'); // New state for active tab
+  const [activeTab, setActiveTab] = useState('authentication'); // New state for active tab
 
   useEffect(() => {
     // Update isLoggedIn state whenever apiKey or serialNumber changes
-    setIsLoggedIn(!!apiKey && !!serialNumber);
+    const loggedIn = !!apiKey && !!serialNumber;
+    setIsLoggedIn(loggedIn);
+    // Set active tab to 'home' if logged in on mount
+    if (loggedIn) {setActiveTab('home');}
   }, [apiKey, serialNumber]);
   const handleSignIn = () => {
 
