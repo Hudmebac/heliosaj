@@ -50,7 +50,7 @@ export default function Footer() {
                              aria-current={pathname === givEnergyControlButton.href ? 'page' : undefined}
                      >
                          {givEnergyControlButton.label}
-                     </Link>
+                </Link>
                 </nav>
 
                 <div className="text-xs text-orange-300

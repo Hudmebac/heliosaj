@@ -1,6 +1,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from 'next/link'; // Import Link for navigation
 
 export default function InfoPage() {
   return (
@@ -13,6 +14,7 @@ export default function InfoPage() {
           <TabsTrigger value="panels">Solar Panels</TabsTrigger>
           <TabsTrigger value="myths">Myth Busting</TabsTrigger>
           <TabsTrigger value="advice">General Advice</TabsTrigger>
+          <TabsTrigger value="partners">Our Partners</TabsTrigger>
         </TabsList>
 
         <TabsContent value="how-to">
@@ -158,8 +160,26 @@ export default function InfoPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="partners">
+          <Card>
+            <CardHeader>
+              <CardTitle>Learn More About Our Partners</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
+              <p>Explore detailed information about our key renewable energy partners:</p>
+              <div className="flex flex-col space-y-3">
+                <Link href="/aj_renewables_info" className="text-blue-600 hover:underline dark:text-orange-400">
+                  AJ Renewables Info
+                </Link>
+                <Link href="/givenergy_info" className="text-blue-600 hover:underline dark:text-orange-400">
+                  GivEnergy Info
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
-
