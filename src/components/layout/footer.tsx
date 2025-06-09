@@ -15,9 +15,6 @@ export default function Footer() {
         { href: '/info', label: 'Info' },
     ];
 
-    // Define the GivEnergy Control button
-    const givEnergyControlButton = { href: '/givenergy-control', label: 'GivEnergy Control' };
-
     return (
         <footer className="bg-secondary text-secondary-foreground mt-auto shadow-inner">
             <div className="container mx-auto px-2 sm:px-4 py-4 flex flex-col sm:flex-row justify-between items-center">
@@ -37,22 +34,7 @@ export default function Footer() {
                             {item.label}
                         </Link>
                     ))}
-                     {/* Add the GivEnergy Control button */}
-                     <Link
-                        key={givEnergyControlButton.href}
-                        href={givEnergyControlButton.href}
-                         className={cn(
-                                "px-2 py-1 rounded-md text-xs sm:text-sm transition-colors duration-200 ease-in-out",
-                                "hover:text-accent focus:text-accent focus:outline-none focus:ring-1 focus:ring-accent focus:ring-offset-1 focus:ring-offset-secondary",
-                                "[text-shadow:_0_0_8px_var(--tw-shadow-color)] shadow-accent",
-                                pathname === givEnergyControlButton.href ? 'font-semibold text-accent' : 'font-medium hover:shadow-accent/80 focus:shadow-accent'
-                            )}
-                             aria-current={pathname === givEnergyControlButton.href ? 'page' : undefined}
-                     >
-                         {givEnergyControlButton.label}
-                </Link>
                 </nav>
-
                 <div className="text-xs text-orange-300
                 
                 00 order-1 sm:order-2 mb-2 sm:mb-0 text-center sm:text-right">

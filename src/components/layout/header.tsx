@@ -112,11 +112,19 @@ export default function Header() {
   return (
     <>
     <header className="bg-secondary text-secondary-foreground shadow-md sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center">
-        <Link href="/" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
- <Sun className="h-6 w-6 text-primary" />
+      <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center relative">
+ <Link href="https://helioheggie.netlify.app/" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
+ <Image 
+ src="/images/heliosheggie.png"
+ alt="HelioHeggie Icon"
+ width={24} 
+ height={24}
+ className="h-6 w-6 text-primary" // Maintain size and color consistency
+ />
+ {/* Original Sun icon removed */}
  HelioHeggie&nbsp;&nbsp;&nbsp;
         </Link> 
+ {/* Link to home page is now wrapped around the Image and text */}
         <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">
           {/* GivEnergy App Icon Link - Moved */}
           <a
