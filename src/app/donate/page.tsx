@@ -46,10 +46,15 @@ export default function DonatePage() {
     Click below to make a £5 donation and help us keep the lights (and insights) on.
   </p>
 
-  <div className="flex justify-center">
+  <div className="flex flex-col items-center gap-4">
     <a href="https://buy.stripe.com/14A7sK8fK21l8x38Z94wM00" target="_blank" rel="noopener noreferrer">
       <Button className="w-full">
         <span role="img" aria-label="heart">❤️</span> Donate £5 with Stripe
+      </Button>
+    </a>
+    <a href="https://buy.stripe.com/eVq4gy7bGgWf9B71wH4wM01" target="_blank" rel="noopener noreferrer">
+      <Button className="w-full">
+        <span role="img" aria-label="hearts">❤️❤️❤️</span> Donate and Subscribe for £3 a month
       </Button>
     </a>
   </div>
