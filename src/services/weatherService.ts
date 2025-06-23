@@ -36,7 +36,7 @@ export class OpenMeteoWeatherService {
         "sunrise",
         "sunset",
         "precipitation_sum",
-        "precipitation_hours",
+        "precipitation_probability_max",
         "shortwave_radiation_sum", // For solar calcs
         "daylight_duration",
         "sunshine_duration", // Crucial for solar calcs

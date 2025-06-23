@@ -1,20 +1,35 @@
 
+'use client';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from 'next/link'; // Import Link for navigation
-
+import { WMO_CODE_MAP } from "@/types/weather"; // Import WMO_CODE_MAP
+import { useEffect, useState } from "react";
+ 
 export default function InfoPage() {
+  const [activeTab, setActiveTab] = useState('how-to');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && ['how-to', 'panels', 'myths', 'advice', 'partners', 'wmo-codes'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    }
+  }, []);
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Information Center</h1>
-
-      <Tabs defaultValue="how-to" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="how-to">How-To Use</TabsTrigger>
           <TabsTrigger value="panels">Solar Panels</TabsTrigger>
           <TabsTrigger value="myths">Myth Busting</TabsTrigger>
           <TabsTrigger value="advice">General Advice</TabsTrigger>
           <TabsTrigger value="partners">Our Partners</TabsTrigger>
+          <TabsTrigger value="wmo-codes">WMO Codes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="how-to">
@@ -179,6 +194,25 @@ export default function InfoPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="wmo-codes" id="wmo-codes">
+          <Card>
+            <CardHeader>
+              <CardTitle>WMO Weather Codes Reference</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
+              <p>Understanding the weather codes used in forecasts:</p>
+              <ul className="list-disc list-inside grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                {Object.entries(WMO_CODE_MAP).map(([code, description]) => (
+                  <li key={code}>
+                    <strong>{code}:</strong> {description}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
     </div>
   );

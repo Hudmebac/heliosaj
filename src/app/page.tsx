@@ -1,6 +1,6 @@
 
 'use client';
-import React, {useState, useEffect, useMemo, useCallback } from 'react';
+import React, {useState, useEffect, useMemo, useCallback } from 'react';import Link from 'next/link';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type {UserSettings, ManualDayForecast, ManualForecastInput } from '@/types/settings';
@@ -535,7 +535,12 @@ export default function HomePage() {
 
                 {isApiSourceSelected && weatherForecastData?.weeklyForecast && weatherForecastData.weeklyForecast.length > 0 && !weatherLoading && !isMobile && (
                   <div className="mt-8">
-                      <h2 className="text-xl sm:text-2xl font-bold mb-4">Week Ahead (Auto Forecast)</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold mb-4 flex items-center gap-2">
+                        Week Ahead (Auto Forecast)
+                        <Link href="/info#wmo-codes" className="text-sm text-blue-600 hover:underline dark:text-orange-400">
+                           WMO Codes
+                        </Link>
+                      </h2>
                       <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
                           {weatherForecastData.weeklyForecast.map((forecast, index) => renderWeeklyForecastItem(forecast, index))}
                       </div>
