@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { InputControlToggle } from '@/components/input-control-toggle';
-import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3 } from 'lucide-react';
+import { Sun, Home, Settings, Info, Zap, CloudSun, Edit3, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocalStorage, useManualForecast } from '@/hooks/use-local-storage';
 import type { UserSettings } from '@/types/settings';
@@ -112,33 +112,27 @@ export default function Header() {
   return (
     <>
     <header className="bg-secondary text-secondary-foreground shadow-md sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center relative">
- <Link href="https://helioheggie.netlify.app/" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
- <Image 
- src="/images/heliosheggie.png"
- alt="HelioHeggie Icon"
- width={24} 
- height={24}
- className="h-6 w-6 text-primary" // Maintain size and color consistency
- />
- {/* Original Sun icon removed */}
+ <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center relative">
+ <Link href="/" className="flex items-center gap-2 mb-3 sm:mb-0 text-lg sm:text-xl font-bold hover:opacity-80 transition-opacity">
+ <Sun className="h-6 w-6 text-primary" />
+ {/* Original Image removed */}
  HelioHeggie&nbsp;&nbsp;&nbsp;
         </Link> 
  {/* Link to home page is now wrapped around the Image and text */}
         <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">
           {/* GivEnergy App Icon Link - Moved */}
           <a
-            href={isMobile ? "https://play.google.com/store/apps/details?id=com.mobile.givenergy&utm_source=emea_Med" : "https://givenergy.cloud/dashboard"}
+            href="https://helioheggie.netlify.app/"
             target="_blank"
             rel="noopener noreferrer"
-            title="Download GivEnergy App"
+            title="Helios Control App"
             className="hover:opacity-80 transition-opacity ml-4 mr-2" // Added ml-4 for space after AJ Renewables
           >
             <Image
-              src="/images/GEIcon.webp"
+              src="/images/heliosheggie.png"
               alt="GivEnergy App Icon"
               width={24} // Adjusted size to fit better in nav
-              height={24} // Adjusted size to fit better in nav
+              height={24} // Adjusted size to fit better in nav              
             />
           </a>
           {navItems.map((item) => (
@@ -218,6 +212,12 @@ export default function Header() {
         <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2 ml-auto">
           {/* Original GivEnergy App Icon Link - Removed */}
           <InputControlToggle />
+          <Link
+            href="/donate"
+            title="Support this project"
+          >
+            <Heart className="h-6 w-6 text-red-500 hover:opacity-80 transition-opacity" />
+          </Link>
           <ThemeToggle />
         </div>
       </div>
