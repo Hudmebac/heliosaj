@@ -368,9 +368,9 @@ const AJRenewablesInfoPage: React.FC = () => {
                  </p>
                  <p>
                    Phoenix is a credit broker, not a lender. Phoenix is authorised and regulated by the Financial Conduct Authority (FRN: 539195),
-                   and offers finance from its panel of lenders.
+                   and offers finance from its panel of lenders.{/* trom to from, need to confirm if still partners as not linked up now */}
                  </p>
-                 <p className="mt-2 font-bold text-orange-500 dark:text-orange-400">All finance subject to status and credit checks.</p> {/* Keep bold and red */}
+                 <p className="mt-2 font-bold text-orange-500 dark:text-orange-800">All finance subject to status and credit checks.</p> {/* Keep bold */}
                </div>
             )}
           </div>
