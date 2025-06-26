@@ -198,6 +198,7 @@ export default function Header() {
                         <DropdownMenuItem onSelect={() => {
                           refreshForecastDates();
                           setIsManualForecastModalOpen(true);
+                          // onSave is handled by the ManualForecastModal instance below
                         }}>
                             <Edit3 className="h-5 w-5 mr-2" />
                             Edit Manual Forecast

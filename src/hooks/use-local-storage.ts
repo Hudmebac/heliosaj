@@ -78,20 +78,21 @@ const getDefaultManualDayForecast = (date: Date): ManualDayForecast => ({
   sunrise: '06:00',
   sunset: '18:00',
   condition: 'sunny',
-});
+})
+
 
 export const useManualForecast = (): [ManualForecastInput, (value: ManualForecastInput | ((val: ManualForecastInput) => ManualForecastInput)) => void, () => void] => {
-  const initialManualForecast = useMemo(() => {
+
+  // Use a function to initialize the useLocalStorage state.
+ // This function runs only once on initial render.
+  const [forecast, setForecast] = useLocalStorage<ManualForecastInput>('manualWeatherForecast', () => {
+    if (typeof window !== 'undefined') {
+      const item = window.localStorage.getItem('manualWeatherForecast');
+      try { return item ? (JSON.parse(item) as ManualForecastInput) : undefined; } catch { /* ignore */ }
+    }
     const today = new Date();
-    const tomorrow = addDays(today, 1);
-    return {
-      today: getDefaultManualDayForecast(today),
-      tomorrow: getDefaultManualDayForecast(tomorrow),
-    };
-  }, []);
-
-  const [forecast, setForecast] = useLocalStorage<ManualForecastInput>('manualWeatherForecast', initialManualForecast);
-
+ return { today: getDefaultManualDayForecast(today), tomorrow: getDefaultManualDayForecast(addDays(today, 1)) };
+  });
   const refreshDates = useCallback(() => {
     setForecast(prevForecast => {
       const currentDateToday = format(new Date(), 'yyyy-MM-dd');
@@ -129,5 +130,5 @@ export const useManualForecast = (): [ManualForecastInput, (value: ManualForecas
   }, []); 
 
   return [forecast, setForecast, refreshDates];
-};
+}
 
