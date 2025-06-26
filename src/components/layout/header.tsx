@@ -119,14 +119,13 @@ export default function Header() {
  HelioHeggie&nbsp;&nbsp;&nbsp;
         </Link> 
  {/* Link to home page is now wrapped around the Image and text */}
-        <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">
-          {/* GivEnergy App Icon Link - Moved */}
+        <nav className="flex flex-wrap justify-center items-center gap-1 sm:gap-2 mb-3 sm:mb-0 order-2 sm:order-1">          
           <a
             href="https://helioheggie.netlify.app/"
             target="_blank"
             rel="noopener noreferrer"
             title="Helios Control App"
-            className="hover:opacity-80 transition-opacity ml-4 mr-2" // Added ml-4 for space after AJ Renewables
+            className="hover:opacity-80 transition-opacity ml-4 mr-2"
           >
             <Image
               src="/images/heliosheggie.png"
@@ -211,7 +210,6 @@ export default function Header() {
         </nav>
 
         <div className="absolute top-3 right-3 sm:static sm:top-auto sm:right-auto order-1 sm:order-2 flex items-center gap-2 ml-auto">
-          {/* Original GivEnergy App Icon Link - Removed */}
           <InputControlToggle />
           <Link
             href="/donate"

@@ -10,10 +10,8 @@ const SHOW_TOOLTIPS_KEY = 'inputControls_showTooltips';
 export interface InputControlsContextType {
   showSliders: boolean;
   toggleSliderVisibility: () => void;
-  setShowSliders: (value: boolean | ((val: boolean) => boolean)) => void; // Added for completeness
   showTooltips: boolean;
   toggleTooltipVisibility: () => void;
-  setShowTooltips: (value: boolean | ((val: boolean) => boolean)) => void; // Added for completeness
   isMounted: boolean;
 }
 
@@ -24,7 +22,7 @@ const defaultContextValue: InputControlsContextType = {
   showTooltips: true,
   toggleTooltipVisibility: () => console.warn('toggleTooltipVisibility called before provider mounted'),
   setShowTooltips: () => console.warn('setShowTooltips called before provider mounted'),
-  isMounted: false,
+  isMounted: false, // Represents whether the component has mounted on the client
 };
 
 const InputControlsContext = createContext<InputControlsContextType>(defaultContextValue);

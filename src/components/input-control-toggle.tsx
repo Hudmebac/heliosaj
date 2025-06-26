@@ -22,7 +22,7 @@ export function InputControlToggle() {
     showSliders, 
     toggleSliderVisibility, 
     showTooltips, 
-    toggleTooltipVisibility,
+    toggleTooltipVisibility, // Use isMounted from context
     isMounted // Use isMounted from context
   } = useInputControls();
   

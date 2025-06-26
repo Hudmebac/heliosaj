@@ -183,7 +183,7 @@ export function ManualForecastModal({ isOpen, onClose, currentForecast, onSave }
           ))}
           <div className="mt-4 border-t pt-4">
             <ForecastInfo />
-          </div>
+ </div>
         </div>
         <div className="text-xs text-muted-foreground flex items-center gap-1.5 mb-4 p-2 border border-dashed rounded-md">
           <InfoIcon className="h-4 w-4 text-primary flex-shrink-0" />

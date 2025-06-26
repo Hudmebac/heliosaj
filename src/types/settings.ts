@@ -21,9 +21,7 @@ export const settingsSchema = z.object({
   evChargeRequiredKWh: z.coerce.number().nonnegative().optional(),
   evChargeByTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)" }).optional().or(z.literal('')),
   evMaxChargeRateKWh: z.coerce.number().positive().optional(),
-  monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
-  // inputMode is handled internally by component state, not part of persisted settings schema directly
-  // lastKnownBatteryLevelKWh is also handled by component state / useEffect in advisory
+ monthlyGenerationFactors: z.array(z.coerce.number().min(0).max(2)).length(12).optional(),
 });
 
 

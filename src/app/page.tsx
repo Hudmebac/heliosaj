@@ -26,10 +26,8 @@ type ChartType = 'bar' | 'line' | 'area';
 const getWeatherIconFromString = (conditionString: string | undefined) => {
   if (!conditionString) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" data-ai-hint="sun icon" />;
   const condition = conditionString.toLowerCase();
-
   // Order matters: more specific checks first
   if (condition.includes('thunderstorm')) return <CloudLightning className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" data-ai-hint="thunderstorm icon" />;
-  if (condition.includes('snow') || condition.includes('sleet') || condition.includes('snowfall') || condition.includes('snow grains') || condition.includes('snow showers')) return <CloudSnow className="w-5 h-5 sm:w-6 sm:h-6 text-blue-300" data-ai-hint="snow icon" />;
   if (condition.includes('rain') || condition.includes('drizzle') || condition.includes('showers')) return <CloudRain className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" data-ai-hint="rain icon" />;
   
   // Handle Cloudy+ (formerly Fog) specifically
@@ -39,7 +37,6 @@ const getWeatherIconFromString = (conditionString: string | undefined) => {
   if (condition.includes('fog') || condition.includes('mist') || condition.includes('haze') || condition.includes('rime fog')) return <CloudFog className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" data-ai-hint="fog icon" />;
   
   if (condition.includes('overcast')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" data-ai-hint="overcast icon" />;
-  
   // Adjusted cloudy check to ensure it doesn't misinterpret "Cloudy+" or "Partly Cloudy"
   if (condition.includes('cloudy') && !condition.includes('partly') && !condition.includes('+')) return <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" data-ai-hint="cloudy icon" />;
   
@@ -47,7 +44,6 @@ const getWeatherIconFromString = (conditionString: string | undefined) => {
   if (condition.includes('sunny') || condition.includes('clear') || condition.includes('fair')) return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" data-ai-hint="sunny icon" />;
   
   // Default for unknown
-  console.warn("Unknown weather condition string for icon:", conditionString);
   return <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" data-ai-hint="default weather" />;
 };
 

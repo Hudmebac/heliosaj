@@ -22,16 +22,8 @@ export function ThemeToggle() {
   }, [])
 
   if (!mounted) {
-    // Render a placeholder or null on the server to avoid hydration mismatch for the icon
     return <Button variant="outline" size="icon" className="bg-background text-foreground hover:bg-muted" disabled><Sun className="h-[1.2rem] w-[1.2rem]" /></Button>;
   }
-
-  const Icon = resolvedTheme === 'dark' ? Moon : resolvedTheme === 'high-contrast' ? Contrast : Sun;
-  
-  // For the button icon, we can show Sun/Moon based on resolved light/dark, 
-  // or a specific icon if high-contrast is selected.
-  // Or, keep it simple with Sun and Moon only, and let the dropdown show the active state.
-  // Let's show Contrast icon when high-contrast is active.
   let TriggerIcon;
   if (theme === 'high-contrast' || resolvedTheme === 'high-contrast') {
     TriggerIcon = <Contrast className="h-[1.2rem] w-[1.2rem]" />;
@@ -46,7 +38,6 @@ export function ThemeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" className="bg-background text-foreground hover:bg-muted">
-          {/* Conditional rendering for the icon based on current theme state */}
           {theme === 'light' && <Sun className="h-[1.2rem] w-[1.2rem] transition-all" />}
           {theme === 'dark' && <Moon className="h-[1.2rem] w-[1.2rem] transition-all" />}
           {theme === 'high-contrast' && <Contrast className="h-[1.2rem] w-[1.2rem] transition-all" />}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { UserSettings } from '@/types/settings';
-import type { WeatherForecast, CurrentWeather, HourlyWeather, DailyWeather, Location, WeatherConditionCodes } from '@/types/weather';
+import type { WeatherForecast, CurrentWeather, HourlyWeather, DailyWeather, Location } from '@/types/weather';
 import { WMO_CODE_MAP } from '@/types/weather'; // Assuming WMO_CODE_MAP is correctly defined here
 import { fetchWeatherApi } from 'openmeteo';
 import { format, parseISO, startOfHour, isEqual, addHours, addDays } from 'date-fns';
@@ -26,8 +26,8 @@ export class OpenMeteoWeatherService {
         "weather_code",
         "wind_speed_10m",
         "cloud_cover",
-        "shortwave_radiation", // For solar calcs
-        "direct_normal_irradiance" // For solar calcs
+        "shortwave_radiation",
+        "direct_normal_irradiance"
       ].join(','),
       daily: [
         "weather_code",
@@ -37,9 +37,9 @@ export class OpenMeteoWeatherService {
         "sunset",
         "precipitation_sum",
         "precipitation_probability_max",
-        "shortwave_radiation_sum", // For solar calcs
+        "shortwave_radiation_sum",
         "daylight_duration",
-        "sunshine_duration", // Crucial for solar calcs
+        "sunshine_duration",
         "uv_index_max",
         "uv_index_clear_sky_max"
       ].join(','),
@@ -54,7 +54,7 @@ export class OpenMeteoWeatherService {
         "weather_code",
         "cloud_cover",
         "wind_speed_10m",
-        // For current solar intensity proxies, ideally from hourly data
+        // Direct solar radiation variables
         "shortwave_radiation",
         "direct_normal_irradiance"
       ].join(','),
@@ -89,8 +89,8 @@ export class OpenMeteoWeatherService {
           snowfall: apiCurrent.variables(6)?.value(),
           weather_code: apiCurrent.variables(7)?.value() as number,
           cloud_cover: apiCurrent.variables(8)?.value(),
-          wind_speed_10m: apiCurrent.variables(9)?.value(),
-          shortwave_radiation: apiCurrent.variables(10)?.value(), // Added
+          wind_speed_10m: apiCurrent.variables(9)?.value(), 
+          shortwave_radiation: apiCurrent.variables(10)?.value(),
           direct_normal_irradiance: apiCurrent.variables(11)?.value(), // Added
           weatherConditionString: WMO_CODE_MAP[apiCurrent.variables(7)?.value() as number] || "Unknown",
         };

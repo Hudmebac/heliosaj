@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format } from 'date-fns'; // Import format from date-fns
+import { format } from 'date-fns';
 
 export interface MonthData {
   month: string;

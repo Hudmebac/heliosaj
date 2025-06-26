@@ -23,11 +23,8 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
   const [storedValue, setStoredValue] = useState<T>(initialValue);
 
   useEffect(() => {
-    // This effect runs ONCE on mount on the client to sync with localStorage
-    // It ensures that the state is updated with the value from localStorage
-    // if it differs from the initialValue used for SSR/initial client render.
     if (typeof window !== 'undefined') {
-        const valueFromStorage = readValueFromLocalStorage();
+ const valueFromStorage = readValueFromLocalStorage();
         if (JSON.stringify(valueFromStorage) !== JSON.stringify(storedValue)) {
             setStoredValue(valueFromStorage);
         }
@@ -46,7 +43,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
       const valueToStore =
         value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+ window.localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       console.warn(`Error setting localStorage key “${key}”:`, error);
     }
@@ -83,8 +80,6 @@ const getDefaultManualDayForecast = (date: Date): ManualDayForecast => ({
 
 export const useManualForecast = (): [ManualForecastInput, (value: ManualForecastInput | ((val: ManualForecastInput) => ManualForecastInput)) => void, () => void] => {
 
-  // Use a function to initialize the useLocalStorage state.
- // This function runs only once on initial render.
   const [forecast, setForecast] = useLocalStorage<ManualForecastInput>('manualWeatherForecast', () => {
     if (typeof window !== 'undefined') {
       const item = window.localStorage.getItem('manualWeatherForecast');
@@ -102,9 +97,6 @@ export const useManualForecast = (): [ManualForecastInput, (value: ManualForecas
       const newTodayData = { ...prevForecast.today };
       if (prevForecast.today.date !== currentDateToday) {
         newTodayData.date = currentDateToday;
-        // Optionally reset other fields if date changes, or keep them
-        // For now, just updating date. If sunrise/sunset also need reset, do it here.
-        // newTodayData.sunrise = '06:00'; // etc. if needed
         changed = true;
       }
 

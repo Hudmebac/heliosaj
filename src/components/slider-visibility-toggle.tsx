@@ -42,7 +42,6 @@ export function InputControlToggle() {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Input Controls</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent cursor-default">
           <div className="flex items-center justify-between w-full gap-2">
             <Label htmlFor="slider-visibility-switch" className="flex items-center gap-2 cursor-pointer flex-grow">
               {showSliders ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -55,8 +54,7 @@ export function InputControlToggle() {
               aria-label={showSliders ? "Hide sliders" : "Show sliders"}
             />
           </div>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent cursor-default">
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent cursor-default"> {/* Removed focus:bg-transparent to allow default hover/focus styles */}
           <div className="flex items-center justify-between w-full gap-2">
             <Label htmlFor="tooltip-visibility-switch" className="flex items-center gap-2 cursor-pointer flex-grow">
               {showTooltips ? <MessageSquareText className="h-4 w-4" /> : <MessageSquareOff className="h-4 w-4" />}
