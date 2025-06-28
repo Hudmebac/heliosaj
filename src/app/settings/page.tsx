@@ -1760,7 +1760,7 @@ const tariffsPicklistData: TariffPeriod[] = [
     "startTime": "00:00",
     "endTime": "04:00",
     "isCheap": false,
-    "rate": 27.24
+    "rate": 24.533
   },
   {
     "id": "1746430004312",
@@ -1769,7 +1769,7 @@ const tariffsPicklistData: TariffPeriod[] = [
     "startTime": "04:00",
     "endTime": "07:00",
     "isCheap": true,
-    "rate": 13.36
+    "rate": 12.031
   },
   {
     "id": "1746430036334",
@@ -1778,7 +1778,7 @@ const tariffsPicklistData: TariffPeriod[] = [
     "startTime": "07:00",
     "endTime": "13:00",
     "isCheap": false,
-    "rate": 27.24
+    "rate": 24.533
   },
   {
     "id": "1746430079895",
@@ -1787,7 +1787,7 @@ const tariffsPicklistData: TariffPeriod[] = [
     "startTime": "13:00",
     "endTime": "16:00",
     "isCheap": true,
-    "rate": 13.36
+    "rate": 12.031
   },
   {
     "id": "1746638481699",
@@ -1796,7 +1796,7 @@ const tariffsPicklistData: TariffPeriod[] = [
     "startTime": "16:00",
     "endTime": "19:00",
     "isCheap": false,
-    "rate": 40.86
+    "rate": 36.8
   },
   {
     "id": "1746430123468",
@@ -1805,7 +1805,7 @@ const tariffsPicklistData: TariffPeriod[] = [
     "startTime": "19:00",
     "endTime": "22:00",
     "isCheap": false,
-    "rate": 27.24
+    "rate": 24.533
   },
   {
     "id": "1746430148918",
@@ -1827,7 +1827,7 @@ const tariffsPicklistData: TariffPeriod[] = [
   { "id": "1700000000006", "name": "Octopus Agile - Variable", "supplier": "Octopus Energy", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 15.00 }, // Signifies all day, rates change every 30 mins. Placeholder: actual rate varies constantly, e.g., an average
 
   // --- British Gas - Examples ---
-  { "id": "1700000000010", "name": "British Gas Standard Variable", "supplier": "British Gas", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 29.00 }, // Example rate in p/kWh
+  { "id": "1700000000010", "name": "British Gas Standard Variable", "supplier": "British Gas", "startTime": "00:00", "endTime": "00:00", "isCheap": false, "rate": 25.73 }, // Example rate in p/kWh
   { "id": "1700000000011", "name": "British Gas Economy 7 - Night", "supplier": "British Gas", "startTime": "00:30", "endTime": "07:30", "isCheap": true, "rate": 16.50 }, // Common E7 time, can vary, Example rate in p/kWh
   { "id": "1700000000012", "name": "British Gas Economy 7 - Day", "supplier": "British Gas", "startTime": "07:30", "endTime": "00:30", "isCheap": false, "rate": 38.00 }, // Example rate in p/kWh
   { "id": "1700000000013", "name": "British Gas Electric Driver - Off-Peak", "supplier": "British Gas", "startTime": "00:00", "endTime": "05:00", "isCheap": true, "rate": 8.95 }, // Example rate in p/kWh
