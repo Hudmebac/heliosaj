@@ -1814,7 +1814,7 @@ const tariffsPicklistData: TariffPeriod[] = [
     "startTime": "22:00",
     "endTime": "00:00",
     "isCheap": true,
-    "rate": 13.36
+    "rate": 12.031
   },
 
 
