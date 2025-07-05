@@ -186,6 +186,7 @@ export function calculateSolarGeneration(
     // If the source is Open-Meteo, divide the result by 2.5
     if (settings.selectedWeatherSource === 'open-meteo') {
         dailyTotalGenerationKWh = dailyTotalGenerationKWh / 2.5;
+        dailyTotalGenerationKWh = dailyTotalGenerationKWh * 1.20; // Increase by 20%
     }
 
 

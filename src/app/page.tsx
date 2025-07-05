@@ -247,7 +247,10 @@ export default function HomePage() {
 
     const sunriseTime = getFormattedTime(sourceDayData.sunrise);
     const sunsetTime = getFormattedTime(sourceDayData.sunset);
-
+    const morningCondition = ('morningCondition' in sourceDayData) ? sourceDayData.morningCondition?.replace(/_/g, ' ') : undefined;
+    const earlyAfternoonCondition = ('earlyAfternoonCondition' in sourceDayData) ? sourceDayData.earlyAfternoonCondition?.replace(/_/g, ' ') : undefined;
+    const lateAfternoonCondition = ('lateAfternoonCondition' in sourceDayData) ? sourceDayData.lateAfternoonCondition?.replace(/_/g, ' ') : undefined;
+    const eveningCondition = ('eveningCondition' in sourceDayData) ? sourceDayData.eveningCondition?.replace(/_/g, ' ') : undefined;
 
     let chartPlaceholderMessage = '';
     if (!isMounted && (weatherLoading || weatherRefetching) && isApiForecast) {
@@ -376,11 +379,28 @@ export default function HomePage() {
                 <div className="flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><Sunrise className="w-3 h-3"/> {sunriseTime}</span>
                     <span className="flex items-center gap-1"><Sunset className="w-3 h-3"/> {sunsetTime}</span>
-                    {isApiForecast && 'temperature_2m_max' in sourceDayData && (sourceDayData as DailyWeather).temperature_2m_max !== undefined && (
+                    {isApiForecast && 'temperature_2m_max' in sourceDayData &&
+                     (sourceDayData as DailyWeather).temperature_2m_max !== undefined && (
                          <span className="flex items-center gap-1"><Thermometer className="w-3 h-3"/> {((sourceDayData as DailyWeather).temperature_2m_max!).toFixed(0)}°C</span>
                     )}
                 </div>
             </CardHeader>
+            {isApiForecast && (
+                 <div className="px-6 pb-4 text-xs text-muted-foreground grid grid-cols-2 gap-2">
+                     {morningCondition && (
+                          <span className="flex items-center gap-1"><span className="font-semibold">Morning (8am-12pm):</span> {morningCondition} {getWeatherIconFromString(morningCondition)}</span>
+                     )}
+                     {earlyAfternoonCondition && (
+                          <span className="flex items-center gap-1"><span className="font-semibold">Early Afternoon (12pm-3pm):</span> {earlyAfternoonCondition} {getWeatherIconFromString(earlyAfternoonCondition)}</span>
+                     )}
+                     {lateAfternoonCondition && (
+                          <span className="flex items-center gap-1"><span className="font-semibold">Late Afternoon (3pm-6pm):</span> {lateAfternoonCondition} {getWeatherIconFromString(lateAfternoonCondition)}</span>
+                     )}
+                     {eveningCondition && (
+                          <span className="flex items-center gap-1"><span className="font-semibold">Evening (6pm-12am):</span> {eveningCondition} {getWeatherIconFromString(eveningCondition)}</span>
+                     )}
+                 </div>
+            )}
             <CardContent className="flex-grow">
                 {calculatedDayForecast && !calculatedDayForecast.errorMessage && chartDataToDisplay.length > 0 && chartDataToDisplay.some(d=>d.kWh > 0.00001) ? (
                     <ChartContainer config={{kWh: { label: "Generation (kWh)", color: "hsl(var(--primary))" }}} className="h-[250px] sm:h-[300px] w-full">

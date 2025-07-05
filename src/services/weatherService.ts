@@ -163,6 +163,69 @@ export class OpenMeteoWeatherService {
           const dateString = format(date, 'yyyy-MM-dd');
           const dailyHourlyData = hourlyData.filter(h => format(parseISO(h.time), 'yyyy-MM-dd') === dateString);
           
+          // Determine dominant weather condition for morning (8 AM to 12 PM)
+          const morningHours = dailyHourlyData.filter(h => {
+            const hour = parseISO(h.time).getHours();
+ return hour >= 8 && hour < 12;
+          });
+          const morningWeatherCodes: { [key: number]: number } = {};
+          let dominantMorningCode: number | undefined = undefined;
+          let maxMorningCount = 0;
+ morningHours.forEach(h => {
+            morningWeatherCodes[h.weather_code] = (morningWeatherCodes[h.weather_code] || 0) + 1;
+            if (morningWeatherCodes[h.weather_code] > maxMorningCount) {
+              maxMorningCount = morningWeatherCodes[h.weather_code];
+              dominantMorningCode = h.weather_code;
+            }
+          });
+          
+          // Determine dominant weather condition for early afternoon (12 PM to 3 PM)
+          const earlyAfternoonHours = dailyHourlyData.filter(h => {
+            const hour = parseISO(h.time).getHours();
+ return hour >= 12 && hour < 15;
+          });
+          const earlyAfternoonWeatherCodes: { [key: number]: number } = {};
+          let dominantEarlyAfternoonCode: number | undefined = undefined;
+          let maxEarlyAfternoonCount = 0;
+          earlyAfternoonHours.forEach(h => {
+            earlyAfternoonWeatherCodes[h.weather_code] = (earlyAfternoonWeatherCodes[h.weather_code] || 0) + 1;
+            if (earlyAfternoonWeatherCodes[h.weather_code] > maxEarlyAfternoonCount) {
+              maxEarlyAfternoonCount = earlyAfternoonWeatherCodes[h.weather_code];
+              dominantEarlyAfternoonCode = h.weather_code;
+            }
+          });
+
+          // Determine dominant weather condition for late afternoon (3 PM to 6 PM)
+          const lateAfternoonHours = dailyHourlyData.filter(h => {
+            const hour = parseISO(h.time).getHours();
+            return hour >= 15 && hour < 18;
+          });
+          const lateAfternoonWeatherCodes: { [key: number]: number } = {};
+          let dominantLateAfternoonCode: number | undefined = undefined;
+          let maxLateAfternoonCount = 0;
+          lateAfternoonHours.forEach(h => {
+            lateAfternoonWeatherCodes[h.weather_code] = (lateAfternoonWeatherCodes[h.weather_code] || 0) + 1;
+            if (lateAfternoonWeatherCodes[h.weather_code] > maxLateAfternoonCount) {
+              maxLateAfternoonCount = lateAfternoonWeatherCodes[h.weather_code];
+              dominantLateAfternoonCode = h.weather_code;
+            }
+          });
+          
+          // Determine dominant weather condition for evening (6 PM to 12 AM)
+          const eveningHours = dailyHourlyData.filter(h => {
+            const hour = parseISO(h.time).getHours();
+ return hour >= 18 || hour === 0; // 6 PM to 11 PM or 12 AM of the next day
+          });
+          const eveningWeatherCodes: { [key: number]: number } = {};
+          let dominantEveningCode: number | undefined = undefined;
+          let maxEveningCount = 0;
+ eveningHours.forEach(h => {
+ eveningWeatherCodes[h.weather_code] = (eveningWeatherCodes[h.weather_code] || 0) + 1;
+ if (eveningWeatherCodes[h.weather_code] > maxEveningCount) {
+ maxEveningCount = eveningWeatherCodes[h.weather_code];
+ dominantEveningCode = h.weather_code;
+            }
+          });
           const sunriseVal = apiDaily.variables(3)?.valuesInt64(i);
           const sunsetVal = apiDaily.variables(4)?.valuesInt64(i);
 
@@ -181,6 +244,10 @@ export class OpenMeteoWeatherService {
             uv_index_max: apiDaily.variables(10)!.valuesArray()![i],
             uv_index_clear_sky_max: apiDaily.variables(11)!.valuesArray()![i],
             weatherConditionString: WMO_CODE_MAP[apiDaily.variables(0)!.valuesArray()![i] as number] || "Unknown",
+            morningCondition: dominantMorningCode !== undefined ? WMO_CODE_MAP[dominantMorningCode] || "Unknown" : "Unknown", // 8 AM to 12 PM
+ earlyAfternoonCondition: dominantEarlyAfternoonCode !== undefined ? WMO_CODE_MAP[dominantEarlyAfternoonCode] || "Unknown" : "Unknown", // 12 PM to 3 PM
+ lateAfternoonCondition: dominantLateAfternoonCode !== undefined ? WMO_CODE_MAP[dominantLateAfternoonCode] || "Unknown" : "Unknown", // 3 PM to 6 PM
+ eveningCondition: dominantEveningCode !== undefined ? WMO_CODE_MAP[dominantEveningCode] || "Unknown" : "Unknown", // 6 PM to 12 AM
             hourly: dailyHourlyData,
           };
         });
